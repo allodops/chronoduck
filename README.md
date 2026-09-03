@@ -1,0 +1,3 @@
+# ChronoDuck
+
+ChronoDuck is a DuckDB extension providing the time-series building blocks observability query languages need — grid-aligned range folds as combinable parallel aggregates, lookback resampling, and mergeable histogram state — exposed as plain SQL functions (`ts_*`) over any DuckDB relation. It carries the semantics of Prometheus as its default behaviour, exposes the edge-mode and lookback alternatives other engines have converged on as named parameters, and binds to a caller's schema through a query-time profile rather than any storage-specific code path. It is designed for PromQL, TraceQL and LogsQL as consumers, and is unaware of all three.
