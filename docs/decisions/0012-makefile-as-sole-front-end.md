@@ -6,12 +6,13 @@ deciders: tsouza
 
 # Makefile as the sole project front-end, not Justfile
 
-This is the first ADR in this repository — `docs/decisions/` does not yet have the
+This was the first ADR in this repository, written before `docs/decisions/` had the
 template/numbering scaffolding T0.7 formally seeds (a MADR template file, an ADR-about-ADRs
-meta-decision, and one ADR per review-log decision from the brief). This file records a real,
+meta-decision, and one ADR per review-log decision from the brief) — it recorded a real,
 otherwise-undocumented decision that couldn't wait for that scaffolding, since Article IX.2
-requires an accepted ADR in the same PR that amends the constitution. T0.7 may renumber this file
-when it seeds the rest.
+requires an accepted ADR in the same PR that amends the constitution. T0.7 renumbers it here
+(originally `0001`) so the review-log decisions, which predate it chronologically, can occupy the
+low numbers the standard MADR convention reserves for `0000`/`0001`.
 
 ## Context
 

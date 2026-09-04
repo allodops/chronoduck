@@ -102,3 +102,7 @@ issue-label-check: ## Flag any open issue missing both a size: and an area: labe
 .PHONY: docs-links
 docs-links: ## Resolve every relative link and #anchor under docs/ and README.md
 	bun scripts/docs-links.mjs
+
+.PHONY: adr-lint
+adr-lint: ## Verify docs/decisions/*.md's filename, numbering and front matter (Article IX.1/IX.2)
+	bun scripts/adr-lint.mjs
