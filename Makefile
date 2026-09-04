@@ -29,7 +29,7 @@ help: ## Show this help
 
 .PHONY: smoke
 smoke: ## LOAD the built extension into a stock DuckDB shell and assert chronoduck_version()
-	test -n "$$(./build/release/duckdb -unsigned -csv -noheader -c "LOAD 'build/release/extension/chronoduck/chronoduck.duckdb_extension'; SELECT extension_version FROM duckdb_extensions() WHERE extension_name = 'chronoduck';")" && echo "smoke: PASS"
+	bun scripts/smoke.mjs
 
 .PHONY: test-relassert
 test-relassert: ## Run the sqllogictest suite against the relassert build (UBSan + forced asserts; run `make relassert` first)
