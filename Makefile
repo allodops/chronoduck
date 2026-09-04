@@ -68,6 +68,10 @@ workflow-shape: ## Every workflow step is `make <target>` or a pinned reusable u
 constitution-check: ## A changed CONSTITUTION.md needs a version bump, new date and ADR (Article IX.2)
 	bun scripts/hygiene/constitution-check.mjs
 
+.PHONY: registry-closure
+registry-closure: ## Every registry.def row has a test file and no kernel function registers outside the registry (Article V.1)
+	bun scripts/hygiene/registry-closure.mjs
+
 .PHONY: forbid-deferral
 forbid-deferral: ## PR-diff deferral-language scan: make forbid-deferral PR=<n>
 	$(if $(PR),,$(error usage: make forbid-deferral PR=<n>))

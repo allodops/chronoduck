@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const TREE_SCANS = ["forbid-ledger", "forbid-consumer", "verify-citations", "workflow-shape", "constitution-check"];
+const TREE_SCANS = ["forbid-ledger", "forbid-consumer", "verify-citations", "workflow-shape", "constitution-check", "registry-closure"];
 
 let failed = false;
 for (const scan of TREE_SCANS) {

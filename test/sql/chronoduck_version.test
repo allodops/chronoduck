@@ -1,5 +1,5 @@
-# name: test/sql/chronoduck.test
-# description: test chronoduck extension
+# name: test/sql/chronoduck_version.test
+# description: test chronoduck_version scalar function
 # group: [sql]
 
 # Require statement will ensure this test is run with this extension loaded

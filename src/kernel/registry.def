@@ -1,0 +1,35 @@
+// registry.def — the single source of truth for every SQL-visible chronoduck
+// function (Article V.1: "A function exists only through
+// src/kernel/registry.def; the macro's expansion generates dispatch and the
+// test-presence records every layer requires. A row missing from any roster
+// fails the build, named after the row."). Enforced from this PR on: every
+// earlier function moves into this file before anything else lands.
+//
+// `docs/design/surface.md` describes the full aspirational v1 surface
+// (~100+ rows across M1–M6). This file lists only the rows this repo
+// actually implements today — currently `chronoduck_version` and
+// `ts_grid_index`, both already live in `src/chronoduck_extension.cpp`. A
+// later issue that implements one more of surface.md's rows adds exactly
+// one TS_FN line here, plus its `test/sql/<name>.test` file (checked by
+// scripts/hygiene/registry-closure.mjs).
+//
+// Columns: name, family, state, det, edge_modes, domain, scale_kind — see
+// src/kernel/registry_types.hpp for what each enum means and for the family
+// → layers map (`kFamilyLayersMap`), which lives there and only there so
+// this file doesn't duplicate it.
+//
+// X-macro pattern: define TS_FN before including this file to expand these
+// rows into whatever you need (dispatch, static_assert checks, ...); this
+// file defines a no-op TS_FN if nothing else already has, then undefines it
+// again at the end, so repeated inclusion with different TS_FN bodies (and
+// no inclusion at all) both work cleanly with no manual undef required at
+// the call site.
+#ifndef TS_FN
+#define TS_FN(...)
+#endif
+
+// name                  family  state  det  edge_modes  domain       scale_kind
+TS_FN(chronoduck_version, META,  NONE,  D0,  EDGE_NONE,  DOMAIN_NONE, EXACT)
+TS_FN(ts_grid_index,      GRID,  NONE,  D0,  EDGE_NONE,  DOMAIN_NONE, EXACT)
+
+#undef TS_FN
