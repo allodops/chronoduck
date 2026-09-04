@@ -134,14 +134,15 @@ await expectRed("forbid-test-tolerance", [
   materialize("forbid-test-tolerance"),
 ]);
 
-// 4e: comparator-test (#27) — a broken test/kernel/comparator_test.cpp
-// (compiles, but exits nonzero with no "PASS" sentinel) is red; the real
-// tree's actual comparator_test.cpp passing is proven below by the "make
-// hygiene is green on the real tree" check, once wired into hygiene.mjs's
-// TREE_SCANS.
-await expectRed("comparator-test", [
+// 4e: kernel-primitive-tests (#27, generalized by #28/T1.4 to every
+// test/kernel/*_test.cpp) — a broken test/kernel/comparator_test.cpp
+// (compiles, but exits nonzero with no "PASS" sentinel) is red when it's the
+// only *_test.cpp file in the materialized root; the real tree's actual
+// kernel test files all passing is proven below by the "make hygiene is
+// green on the real tree" check, once wired into hygiene.mjs's TREE_SCANS.
+await expectRed("kernel-primitive-tests", [
   "bun",
-  join(HERE, "hygiene", "comparator-test.mjs"),
+  join(HERE, "hygiene", "kernel-primitive-tests.mjs"),
   "--root",
   materialize("comparator-test-broken"),
 ]);
