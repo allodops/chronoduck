@@ -4,6 +4,11 @@
 
 ## Unreleased
 
+- fix(hygiene): type-check fixture values and scan fixture/function tokens
+- feat(hygiene): require accepted ADR to reference the changed Article in constitution-check (#177)
+- docs(adr): correct #24/#156 and #147/#148 citations in ADR 0014 (#175)
+- fix(release): make release-checklist step 4/5 executable, cite #103 in step 6 (#174)
+- fix(docs): correct description-validate field attribution and doc claims (#173)
 - docs(constitution): name Dependabot's real author login, app/dependabot (#165)
 - fix(ci): pr-hygiene dependabot exemption matches the real author login (#163)
 - fix(deps): pin duckdb submodule tracking to v1.5-variegata, not main (#161)

@@ -3,7 +3,7 @@
 This document governs how ChronoDuck is built. It supersedes every other practice. It is amended
 only by a pull request that also adds an ADR under `docs/decisions/` explaining the change.
 
-**Version** 1.2.2 · **Ratified** 2026-09-04 · **Last amended** 2026-09-04
+**Version** 1.2.3 · **Ratified** 2026-09-04 · **Last amended** 2026-09-04
 
 ## Article I — What ChronoDuck is
 ChronoDuck is a DuckDB extension providing time-series building blocks: grid-aligned range folds,
@@ -22,7 +22,9 @@ holds the design, `docs/testing/` the testing discipline, `docs/decisions/` the 
    step (`make release-checklist`), not a per-PR CI gate — a generated-from-history file is only
    ever current relative to whatever last merged to `main`, so an open PR branch can't guarantee it.
 3. No TODO, FIXME, HACK, XXX or WIP comment without `#<issue>` on the same line, and that issue
-   open. Enforced by `make hygiene` (requires `gh`; offline runs report this check as red).
+   open. Enforced by `make hygiene`, which calls `gh` only to verify the cited issue of a
+   deferral comment that actually exists; offline runs report this check as red only when such a
+   comment is present to verify, and green otherwise.
 4. Citations name constructs — `file.cpp:function:` followed by a backticked expression that
    occurs exactly once in `file.cpp` — never line numbers. A rename that breaks a citation fails
    `make hygiene`; that is the intended failure mode.
@@ -73,8 +75,10 @@ holds the design, `docs/testing/` the testing discipline, `docs/decisions/` the 
 1. No file parses or depends on a query language. The forbidden token set (initially the
    language names promql, traceql, logsql, logql, metricsql) and the exempt paths
    (`CONSTITUTION.md`, `docs/prior-art.md`, `docs/decisions/`, `docs/design/ecosystem.md`,
-   `docs/design/coverage.md`, fixture provenance values) live in `scripts/hygiene/consumer-tokens.json`. Product names are allowed.
-   Enforced by `make hygiene` on code and fixture keys.
+   `docs/design/coverage.md`, `docs/testing/corpora.md`) live in
+   `scripts/hygiene/consumer-tokens.json`. Product names are allowed. Enforced by `make hygiene`
+   on code, and on a fixture's keys plus its `fixture` and `function` values — `provenance.*` and
+   every other fixture value stay exempt, since provenance legitimately names a derivation source.
 2. Derivation tools and consumers live in other repositories.
 3. Registry vocabulary describes folds, edges, grids and value domains.
 4. One embedded mini-language is admitted: a grammar that is a standard's (ISO/IEC 9075-2:2016 §R row-pattern
