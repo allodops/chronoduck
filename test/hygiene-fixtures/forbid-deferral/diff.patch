@@ -1,0 +1,9 @@
+diff --git a/src/thing.cpp b/src/thing.cpp
+index 111..222 100644
+--- a/src/thing.cpp
++++ b/src/thing.cpp
+@@ -1,2 +1,4 @@
+ int x = 1;
++// this is temporary, will fix later
++int y = 2;
++// this is temporary but tracked #42

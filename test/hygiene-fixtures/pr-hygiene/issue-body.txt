@@ -1,0 +1,6 @@
+## Goal
+The frobnicator must accept a widget and return a gadget without mutating global state, using the tracked allocator throughout and never leaking memory across calls in any order.
+
+## Acceptance criteria
+- [ ] frobnicate(widget) returns a gadget
+- [ ] No memory leak across 10000 calls

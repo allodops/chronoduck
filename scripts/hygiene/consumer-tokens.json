@@ -1,0 +1,12 @@
+{
+  "tokens": ["promql", "traceql", "logsql", "logql", "metricsql"],
+  "exemptPaths": [
+    "CONSTITUTION.md",
+    "docs/prior-art.md",
+    "docs/decisions/",
+    "docs/design/ecosystem.md",
+    "docs/design/coverage.md",
+    "scripts/hygiene/consumer-tokens.json",
+    "test/hygiene-fixtures/"
+  ]
+}
