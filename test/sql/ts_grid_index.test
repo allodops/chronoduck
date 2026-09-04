@@ -10,7 +10,9 @@ SELECT ts_grid_index(TIMESTAMP '2024-01-01 00:00:00.000005', TIMESTAMP '2024-01-
 ----
 5
 
-# t < start — floor division on a negative numerator, not truncation
+# t before start, evenly-divisible offset (remainder 0, so floor and
+# truncating division agree here — the block below is the one that
+# actually distinguishes floor from truncation)
 query I
 SELECT ts_grid_index(TIMESTAMP '2023-12-31 23:59:59', TIMESTAMP '2024-01-01 00:00:00', 1000000);
 ----
@@ -47,3 +49,21 @@ statement error
 SELECT ts_grid_index(TIMESTAMP '2024-01-01 00:00:00', TIMESTAMP '2024-01-01 00:00:00', 0);
 ----
 step must be positive
+
+# t and start at the extremes of DuckDB's representable TIMESTAMP range
+# (roughly [-290308-12-22, 294247-01-01]): t.value - grid_start.value is
+# ~1.84e19 microseconds, which overflows int64_t (max ~9.22e18) before any
+# division happens. The correct floor-divided index (~1.84e10) fits BIGINT
+# comfortably, so this must return that index, not silently wrap.
+query I
+SELECT ts_grid_index(TIMESTAMP '294247-01-01 00:00:00', TIMESTAMP '-290308-12-22 00:00:00', 1000000000);
+----
+18446743267
+
+# Same extremes, but step = 1: even the mathematically correct index
+# (~1.84e19) doesn't fit in BIGINT, so this must raise a clear error
+# instead of returning a wrapped/truncated value.
+statement error
+SELECT ts_grid_index(TIMESTAMP '294247-01-01 00:00:00', TIMESTAMP '-290308-12-22 00:00:00', 1);
+----
+overflows BIGINT
