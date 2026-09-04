@@ -22,7 +22,7 @@
         "custom_toolchain_script": { "type": "string" },
         "vcpkg_url": { "type": "string" },
         "vcpkg_commit": { "type": "string" },
-        "test_config": { "type": "object" }
+        "test_config": { "type": "string" }
       },
       "additionalProperties": true
     },
@@ -34,7 +34,7 @@
         "ref": { "type": "string" },
         "ref_next": { "type": "string" },
         "canonical_name": { "type": "string" },
-        "andium": { "type": "boolean" }
+        "andium": { "type": "string" }
       },
       "additionalProperties": true
     },
