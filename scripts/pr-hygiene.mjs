@@ -103,12 +103,15 @@ function stripPrBodyForOverlap(body) {
 
 const { prTitle, prBody, prAuthor, diff, comments, lastCommitAt, loadIssue } = await loadInputs();
 
-// Article III.1: dependabot[bot] PRs are exempt from this article's body
-// rules entirely — a version-bump PR has no "Closes #N", no design to
-// describe, and nothing to restate. It still merges through the same
-// green-checks loop as any other PR, just without this particular check.
-if (prAuthor === "dependabot[bot]") {
-  console.log("pr-hygiene: PASS (dependabot[bot] PR, exempt per Article III.1)");
+// Article III.1: Dependabot PRs are exempt from this article's body rules
+// entirely — a version-bump PR has no "Closes #N", no design to describe,
+// and nothing to restate. It still merges through the same green-checks
+// loop as any other PR, just without this particular check. `gh pr view
+// --json author` reports a real Dependabot PR's login as "app/dependabot",
+// not "dependabot[bot]" (the git *commit author* string, a different
+// field) — confirmed on #147/#148, real Dependabot-authored PRs (#162).
+if (prAuthor === "app/dependabot") {
+  console.log("pr-hygiene: PASS (Dependabot PR, exempt per Article III.1)");
   process.exit(0);
 }
 
