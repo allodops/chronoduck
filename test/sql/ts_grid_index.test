@@ -1,0 +1,41 @@
+# name: test/sql/ts_grid_index.test
+# description: ts_grid_index(t, start, step) boundary cases
+# group: [sql]
+
+require chronoduck
+
+# step of one unit (1 microsecond) — t five units after start
+query I
+SELECT ts_grid_index(TIMESTAMP '2024-01-01 00:00:00.000005', TIMESTAMP '2024-01-01 00:00:00', 1);
+----
+5
+
+# t < start — floor division on a negative numerator, not truncation
+query I
+SELECT ts_grid_index(TIMESTAMP '2023-12-31 23:59:59', TIMESTAMP '2024-01-01 00:00:00', 1000000);
+----
+-1
+
+# t = start
+query I
+SELECT ts_grid_index(TIMESTAMP '2024-01-01 00:00:00', TIMESTAMP '2024-01-01 00:00:00', 1000000);
+----
+0
+
+# t exactly on a grid point past start
+query I
+SELECT ts_grid_index(TIMESTAMP '2024-01-01 00:00:03', TIMESTAMP '2024-01-01 00:00:00', 1000000);
+----
+3
+
+# t just below a grid point (one microsecond short of the next boundary)
+query I
+SELECT ts_grid_index(TIMESTAMP '2024-01-01 00:00:02.999999', TIMESTAMP '2024-01-01 00:00:00', 1000000);
+----
+2
+
+# step must be positive
+statement error
+SELECT ts_grid_index(TIMESTAMP '2024-01-01 00:00:00', TIMESTAMP '2024-01-01 00:00:00', 0);
+----
+step must be positive
