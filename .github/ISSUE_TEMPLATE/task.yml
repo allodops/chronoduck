@@ -1,0 +1,45 @@
+name: Task
+description: A unit of work with its own acceptance criteria, closed by exactly one PR.
+title: "<short imperative summary>"
+labels: []
+body:
+  - type: input
+    id: parent
+    attributes:
+      label: Parent
+      description: The epic or task this belongs under (issue number).
+      placeholder: "#2"
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What this task builds and why, in enough detail that the acceptance criteria below follow from it.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: A checklist. Each item should be independently verifiable — this becomes the PR's `## Evidence` section, one line per item.
+      value: |
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: What this task deliberately does not do, so a PR that adds it gets flagged as scope creep rather than assumed correct.
+  - type: dropdown
+    id: size
+    attributes:
+      label: Size
+      description: An L-sized task must be split into S/M sub-issues before it can be worked (BOOTSTRAP §2.6) — L is still a valid size for filing, just not for claiming.
+      options:
+        - S
+        - M
+        - L
+    validations:
+      required: true

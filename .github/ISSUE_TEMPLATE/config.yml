@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/allodops/chronoduck/security/advisories/new
+    about: Report a security vulnerability privately — see SECURITY.md. Do not file a public issue for this.
+  - name: Usage question
+    url: https://github.com/allodops/chronoduck/discussions
+    about: See SUPPORT.md for where usage questions go.

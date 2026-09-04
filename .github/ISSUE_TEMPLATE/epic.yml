@@ -1,0 +1,18 @@
+name: Epic
+description: A milestone root — the outcome its child tasks add up to.
+title: "<milestone outcome, present tense>"
+labels: []
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: What is true once every child task under this epic is closed. State it as a fact of the finished system, not a plan.
+    validations:
+      required: true
+  - type: input
+    id: depends-on
+    attributes:
+      label: Depends on
+      description: The epic this one is blocked by, if any (issue number). Every epic but the first is blocked by the previous one.
+      placeholder: "#2"

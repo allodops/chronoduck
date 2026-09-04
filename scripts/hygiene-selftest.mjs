@@ -96,6 +96,12 @@ await expectRed("workflow-shape", ["bun", join(HERE, "hygiene", "workflow-shape.
 // 7: pr-hygiene, fixture-based (a PR body that pastes the issue body verbatim).
 await expectRed("pr-hygiene", ["bun", join(HERE, "pr-hygiene.mjs"), "--fixture", join(FIXTURES, "pr-hygiene")]);
 
+// pr-hygiene: a dependabot[bot]-authored PR is exempt from every body rule
+// (Article III.1) — this fixture's body would fail every other check (no
+// Closes #N, no required sections, no Constitution check line) if the
+// exemption didn't short-circuit before any of them ran.
+await expectGreen("pr-hygiene (dependabot exemption)", ["bun", join(HERE, "pr-hygiene.mjs"), "--fixture", join(FIXTURES, "pr-hygiene-dependabot")]);
+
 // check-pins: a submodule pinned to a branch (not its remote's default
 // branch) that's freshly cloned + `submodule update --init`ed describes as
 // "remotes/origin/<branch>", not "heads/<branch>" — the exact state #16's

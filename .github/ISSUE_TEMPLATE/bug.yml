@@ -1,0 +1,28 @@
+name: Bug
+description: Something in the repository behaves differently than it should.
+title: "<short summary of the wrong behavior>"
+labels: ["bug"]
+body:
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed
+      description: What actually happened — a command, its output, a specific test result.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: What should have happened, with a citation — `file.cpp:function:` plus a backticked expression that occurs exactly once in that file, never a line number (CONSTITUTION.md Article II.4). For a docs/process bug, cite the governing doc section instead.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: A checklist describing how the fix will be verified.
+      value: |
+        - [ ]
+    validations:
+      required: true
