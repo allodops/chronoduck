@@ -76,7 +76,7 @@ void TsGridIndexScalarFun(DataChunk &args, ExpressionState &state, Vector &resul
 		    // the "step must be positive" check above.
 		    if (index < std::numeric_limits<int64_t>::min() || index > std::numeric_limits<int64_t>::max()) {
 			    throw InvalidInputException("ts_grid_index: computed index overflows BIGINT for these inputs "
-			                                 "(t, start too far apart relative to step)");
+			                                "(t, start too far apart relative to step)");
 		    }
 		    return static_cast<int64_t>(index);
 	    });
