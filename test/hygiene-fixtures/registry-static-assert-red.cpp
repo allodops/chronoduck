@@ -9,5 +9,5 @@
 #include "../../src/kernel/registry_types.hpp"
 
 static_assert(chronoduck::IsValidRow(chronoduck::Family::RANGE, chronoduck::StateClass::SLICE,
-                                      chronoduck::Determinism::D0, chronoduck::ScaleKind::SUM_ABS),
+                                     chronoduck::Determinism::D0, chronoduck::ScaleKind::SUM_ABS),
               "registry-static-assert-red: SLICE+D0+SUM_ABS must be rejected by IsValidRow");

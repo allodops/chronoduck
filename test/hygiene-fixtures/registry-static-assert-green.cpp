@@ -7,9 +7,9 @@
 #include "../../src/kernel/registry_types.hpp"
 
 static_assert(chronoduck::IsValidRow(chronoduck::Family::RANGE, chronoduck::StateClass::SLICE,
-                                      chronoduck::Determinism::D1, chronoduck::ScaleKind::SUM_ABS),
+                                     chronoduck::Determinism::D1, chronoduck::ScaleKind::SUM_ABS),
               "registry-static-assert-green: SLICE+D1+SUM_ABS must be accepted by IsValidRow");
 
 int main() {
-  return 0;
+	return 0;
 }

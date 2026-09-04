@@ -37,42 +37,42 @@ enum class Determinism { D0, D1, D2 };
 // can support more than one). Both of this PR's rows are stateless scalars
 // with no window to read edges of, so both use EDGE_NONE.
 enum EdgeMode : unsigned {
-  EDGE_NONE = 0,
-  INSIDE = 1u << 0,
-  EXTRAPOLATE = 1u << 1,
-  ANCHOR = 1u << 2,
-  SMOOTH = 1u << 3,
-  LOOKBACK = 1u << 4,
-  INTERPOLATE = 1u << 5,
-  NEXT = 1u << 6,
-  NEAREST = 1u << 7,
+	EDGE_NONE = 0,
+	INSIDE = 1u << 0,
+	EXTRAPOLATE = 1u << 1,
+	ANCHOR = 1u << 2,
+	SMOOTH = 1u << 3,
+	LOOKBACK = 1u << 4,
+	INTERPOLATE = 1u << 5,
+	NEXT = 1u << 6,
+	NEAREST = 1u << 7,
 };
 
 // Value-domain constraints a row's input/output is checked against (bitmask).
 // Both of this PR's rows are domain-agnostic (a version string, an integer
 // grid index), so both use DOMAIN_NONE.
 enum Domain : unsigned {
-  DOMAIN_NONE = 0,
-  COUNTER = 1u << 0,
-  GAUGE = 1u << 1,
-  NONNEG = 1u << 2,
-  ANY = 1u << 3,
-  HISTOGRAM = 1u << 4,
-  CATEGORICAL = 1u << 5,
+	DOMAIN_NONE = 0,
+	COUNTER = 1u << 0,
+	GAUGE = 1u << 1,
+	NONNEG = 1u << 2,
+	ANY = 1u << 3,
+	HISTOGRAM = 1u << 4,
+	CATEGORICAL = 1u << 5,
 };
 
 // The comparator's conditioning class for a row, `docs/testing/comparator.md`'s
 // scale_kind column (see its rationale where `IsValidRow` is defined below).
 enum class ScaleKind {
-  EXACT,
-  SUM_ABS,
-  SUM_ABS_TIMES_FACTOR,
-  RESIDUAL_SS,
-  SLOPE_COND,
-  LIBM,
-  LIBM_EXP,
-  NORM2_LOGN,
-  RECURRENCE,
+	EXACT,
+	SUM_ABS,
+	SUM_ABS_TIMES_FACTOR,
+	RESIDUAL_SS,
+	SLOPE_COND,
+	LIBM,
+	LIBM_EXP,
+	NORM2_LOGN,
+	RECURRENCE,
 };
 
 // Both of this PR's rows use ScaleKind::EXACT:
@@ -109,9 +109,9 @@ enum class ScaleKind {
 // in this PR's static checking, not an oversight — the L1 half of the rule
 // (the float-sum-implies-D1 check below) is fully mechanical and IS checked.
 constexpr bool IsValidRow(Family family, StateClass state, Determinism det, ScaleKind scale) {
-  return (void)family,
-         !((state == StateClass::SLICE || state == StateClass::HIST_MERGE || state == StateClass::SKETCH) &&
-           (scale == ScaleKind::SUM_ABS || scale == ScaleKind::SUM_ABS_TIMES_FACTOR) && det != Determinism::D1);
+	return (void)family,
+	       !((state == StateClass::SLICE || state == StateClass::HIST_MERGE || state == StateClass::SKETCH) &&
+	         (scale == ScaleKind::SUM_ABS || scale == ScaleKind::SUM_ABS_TIMES_FACTOR) && det != Determinism::D1);
 }
 
 // The family → layers map, `docs/design/surface.md:layers:` `the family →
@@ -125,9 +125,9 @@ constexpr bool IsValidRow(Family family, StateClass state, Determinism det, Scal
 // across all four rather than carving out family-specific exceptions (e.g.
 // L7 is vacuous for non-HIST families) — simplicity over precision, since
 // this map's job is presence-listing, not applicability judgment.
-constexpr const char *const kLayersRangeInstantHistGrid[] = {"L0",  "L1a", "L1b", "L1c", "L2",  "L3",  "L4", "L5",
-                                                              "L6",  "L6a", "L7",  "L8",  "L9",  "L10", "L11",
-                                                              "L12", "L13", "L14"};
+constexpr const char *const kLayersRangeInstantHistGrid[] = {"L0", "L1a", "L1b", "L1c", "L2",  "L3",
+                                                             "L4", "L5",  "L6",  "L6a", "L7",  "L8",
+                                                             "L9", "L10", "L11", "L12", "L13", "L14"};
 
 // SERIES: a scalar over a regular series value (LIST(DOUBLE) plus the grid
 // descriptor), not an edge-reading fold — no L1c/L4/L6-only edge machinery
@@ -135,15 +135,15 @@ constexpr const char *const kLayersRangeInstantHistGrid[] = {"L0",  "L1a", "L1b"
 // entries (bit-identity across build/thread/partition variance, and the
 // scratch-allocation law, respectively — see the map's own header comment in
 // `docs/design/surface.md`).
-constexpr const char *const kLayersSeries[] = {"L0",  "L1a", "L1b", "L1c", "L2",  "L3",   "L5",  "L6a",
-                                                "L9",  "L10", "L12", "L13", "L14", "L4'", "L11'"};
+constexpr const char *const kLayersSeries[] = {"L0", "L1a", "L1b", "L1c", "L2",  "L3",  "L5",  "L6a",
+                                               "L9", "L10", "L12", "L13", "L14", "L4'", "L11'"};
 
 // PATTERN: identical to SERIES for this map's granularity (row-pattern
 // recognition adds the NFA fuzz lane and MR-PATTERN-PARTITION, which this
 // presence-listing manifest does not need a separate literal list to
 // represent, since it names no layer SERIES doesn't already carry).
-constexpr const char *const kLayersPattern[] = {"L0",  "L1a", "L1b", "L1c", "L2",  "L3",   "L5",  "L6a",
-                                                 "L9",  "L10", "L12", "L13", "L14", "L4'", "L11'"};
+constexpr const char *const kLayersPattern[] = {"L0", "L1a", "L1b", "L1c", "L2",  "L3",  "L5",  "L6a",
+                                                "L9", "L10", "L12", "L13", "L14", "L4'", "L11'"};
 
 // META: this project's own addition (see the Family comment above). A
 // registry-closure function is not a per-series kernel primitive, so the
@@ -153,13 +153,14 @@ constexpr const char *const kLayersPattern[] = {"L0",  "L1a", "L1b", "L1c", "L2"
 constexpr const char *const kLayersMeta[] = {"L0", "L5"};
 
 struct FamilyLayers {
-  Family family;
-  const char *const *layers;
-  std::size_t count;
+	Family family;
+	const char *const *layers;
+	std::size_t count;
 };
 
-template <std::size_t N> constexpr FamilyLayers MakeFamilyLayers(Family family, const char *const (&layers)[N]) {
-  return FamilyLayers{family, layers, N};
+template <std::size_t N>
+constexpr FamilyLayers MakeFamilyLayers(Family family, const char *const (&layers)[N]) {
+	return FamilyLayers {family, layers, N};
 }
 
 constexpr FamilyLayers kFamilyLayersMap[] = {
@@ -182,10 +183,10 @@ constexpr std::size_t kFamilyLayersMapCount = sizeof(kFamilyLayersMap) / sizeof(
 // again at the end of the file, so this inclusion is self-contained and
 // leaves no macro behind for whatever includes registry_types.hpp next.
 namespace registry_static_checks {
-#define TS_FN(name, family, state, det, edge, domain, scale)                                                         \
-  static_assert(::chronoduck::IsValidRow(::chronoduck::Family::family, ::chronoduck::StateClass::state,              \
-                                          ::chronoduck::Determinism::det, ::chronoduck::ScaleKind::scale),            \
-                "invalid (state, det, scale_kind) combination for row '" #name "'");
+#define TS_FN(name, family, state, det, edge, domain, scale)                                                           \
+	static_assert(::chronoduck::IsValidRow(::chronoduck::Family::family, ::chronoduck::StateClass::state,              \
+	                                       ::chronoduck::Determinism::det, ::chronoduck::ScaleKind::scale),            \
+	              "invalid (state, det, scale_kind) combination for row '" #name "'");
 #include "registry.def"
 } // namespace registry_static_checks
 
