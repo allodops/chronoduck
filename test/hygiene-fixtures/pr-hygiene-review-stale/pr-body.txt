@@ -1,0 +1,21 @@
+Closes #200
+
+## How
+Implements the scalar as a thin wrapper comparing the widget's measured value against the given
+threshold, dispatched through the standard scalar-function registration path already used
+elsewhere in this codebase.
+
+## Deviations
+None.
+
+## Risk
+Low — pure comparison, no shared mutable state.
+
+## Evidence
+- Manually verified widget_frobnicate returns true above the threshold and false below it,
+  across the boundary value itself.
+
+## Discovered
+None.
+
+Constitution check: none (no change to CONSTITUTION.md)

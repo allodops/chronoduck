@@ -39,7 +39,9 @@ An M0 issue only touches the files its own scope implies (Article III.4); do not
 5. Run the relevant `make` targets before pushing.
 6. Open the PR: title in Conventional Commits form, body has `Closes #n`, `## How`, `## Deviations`, `## Risk`, `## Evidence` (one line per acceptance criterion), `## Discovered`, and a `Constitution check:` line.
 7. Get a review in a fresh session with only the PR number and `CONSTITUTION.md` as context, using `.claude/rules/review.md`; its comment starts with `Fresh-session review:`. Address findings on the same PR — two rounds maximum, anything after that becomes a linked issue.
-8. Once required checks are green, `gh-tsouza pr merge --squash --delete-branch`.
+8. Once required checks are green and `make pr-hygiene PR=<n>` passes — which enforces that a
+   `Fresh-session review:` comment exists and postdates the PR's last commit (Article VIII.2) —
+   `gh-tsouza pr merge --squash --delete-branch`.
 9. If the closed issue's parent task/epic/milestone now has no open children, close it too. Label the next eligible tasks `ready`.
 
 ## Gotchas
