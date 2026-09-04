@@ -20,9 +20,28 @@ format:
 tidy:
     clang-tidy -p build/release src/chronoduck_extension.cpp
 
+# Build and test under UBSan (float-cast-overflow, float-divide-by-zero, etc.) with forced asserts.
+relassert:
+    CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-$(nproc)}" make relassert
+    ./build/relassert/test/unittest "test/*"
+
+# Build and test under ThreadSanitizer (nightly — races in combine/parallel paths).
+tsan:
+    CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-$(nproc)}" THREADSAN=1 make debug
+    ./build/debug/test/unittest "test/*"
+
+# Build and test with STANDARD_VECTOR_SIZE=2 (nightly — the sqllogictest `require vector_size` gate).
+test-vector2:
+    CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-$(nproc)}" STANDARD_VECTOR_SIZE=2 make debug
+    ./build/debug/test/unittest "test/*"
+
 # Verify the duckdb / extension-ci-tools submodule pins agree with each other and (once it exists) the workflow file.
 check-pins:
     bun scripts/check-pins.mjs
+
+# Verify .github/ci-lanes.json against the actual workflow files.
+lanes-check:
+    bun scripts/lanes-check.mjs
 
 # Run every tree hygiene scan.
 hygiene:

@@ -21,7 +21,19 @@ if (existsSync(wfDir)) {
       violations.push(`${entry}: could not parse YAML (${e.message})`);
       continue;
     }
+    // Article VII.4: workflows declare least-privilege permissions. Either a
+    // top-level block, or every job declares its own — either is sufficient,
+    // but declaring none at all (inheriting the default token's broad scope)
+    // is the violation.
     const jobs = doc?.jobs ?? {};
+    if (!("permissions" in (doc ?? {}))) {
+      const jobsMissingPermissions = Object.entries(jobs)
+        .filter(([, job]) => !("permissions" in (job ?? {})))
+        .map(([name]) => name);
+      if (jobsMissingPermissions.length > 0) {
+        violations.push(`${entry}: no top-level \`permissions:\`, and job(s) ${jobsMissingPermissions.join(", ")} declare none either`);
+      }
+    }
     for (const [jobName, job] of Object.entries(jobs)) {
       // A job whose entire content is a reusable `uses:` is exempt (its ref is
       // verified separately by `just check-pins`).

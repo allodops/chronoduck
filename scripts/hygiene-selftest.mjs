@@ -82,6 +82,12 @@ await expectRed("workflow-shape", ["bun", join(HERE, "hygiene", "workflow-shape.
 // 7: pr-hygiene, fixture-based (a PR body that pastes the issue body verbatim).
 await expectRed("pr-hygiene", ["bun", join(HERE, "pr-hygiene.mjs"), "--fixture", join(FIXTURES, "pr-hygiene")]);
 
+// 8-12: lanes-check's self-test fixtures (unregistered job, missing job,
+// continue-on-error at job and step level, lanes.md drift).
+for (const name of ["unregistered", "missing", "continue-on-error", "continue-on-error-step", "lanes-md-drift"]) {
+  await expectRed(`lanes-check (${name})`, ["bun", join(HERE, "lanes-check.mjs"), "--root", materialize(`lanes-check-${name}`)]);
+}
+
 // Now the real tree must be green.
 {
   const { out, err, code } = await run(["bun", join(HERE, "hygiene.mjs")]);
@@ -94,9 +100,20 @@ await expectRed("pr-hygiene", ["bun", join(HERE, "pr-hygiene.mjs"), "--fixture",
     console.log("SELFTEST ok: `just hygiene` is green on the real tree");
   }
 }
+{
+  const { out, err, code } = await run(["bun", join(HERE, "lanes-check.mjs")]);
+  process.stdout.write(out);
+  process.stderr.write(err);
+  if (code !== 0) {
+    console.error("SELFTEST FAIL: `just lanes-check` is not green on the real tree");
+    failures++;
+  } else {
+    console.log("SELFTEST ok: `just lanes-check` is green on the real tree");
+  }
+}
 
 if (failures > 0) {
   console.error(`hygiene-selftest: FAIL (${failures} check(s))`);
   process.exit(1);
 }
-console.log("hygiene-selftest: PASS (all seven scans red on their fixtures, hygiene green on the tree)");
+console.log("hygiene-selftest: PASS (every scan red on its fixtures, hygiene and lanes-check green on the tree)");
