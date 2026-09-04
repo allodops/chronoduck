@@ -28,6 +28,19 @@ function isBuildRelevant(path) {
   return BUILD_RELEVANT_PREFIXES.some((p) => path === p || path.startsWith(p));
 }
 
+// Declared before either fail-open early-exit below so emit()'s
+// `files.length` is always a real array (0, if a base/diff never resolved)
+// instead of hitting the temporal dead zone or `undefined.length`.
+let files = [];
+
+function emit(value) {
+  const line = `BUILD_RELEVANT=${value}`;
+  if (process.env.GITHUB_ENV) {
+    appendFileSync(process.env.GITHUB_ENV, `${line}\n`);
+  }
+  console.log(`build-relevant-changed: ${line} (${files.length} file(s) changed)`);
+}
+
 const base = await resolveBase(root, explicitBase);
 if (!base) {
   // Fail open toward running the build, not skipping it — an unresolvable
@@ -38,7 +51,6 @@ if (!base) {
   process.exit(0);
 }
 
-let files;
 try {
   files = await changedFiles(root, base);
 } catch {
@@ -48,13 +60,5 @@ try {
 }
 
 const relevant = files.some(isBuildRelevant);
-
-function emit(value) {
-  const line = `BUILD_RELEVANT=${value}`;
-  if (process.env.GITHUB_ENV) {
-    appendFileSync(process.env.GITHUB_ENV, `${line}\n`);
-  }
-  console.log(`build-relevant-changed: ${line} (${files.length} file(s) changed)`);
-}
 
 emit(relevant);
