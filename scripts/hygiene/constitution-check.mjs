@@ -7,16 +7,30 @@ const root = rootIdx === -1 ? process.cwd() : args[rootIdx + 1];
 const baseIdx = args.indexOf("--base");
 let base = baseIdx === -1 ? null : args[baseIdx + 1];
 
+async function tryResolve(candidate) {
+  try {
+    await $`git -C ${root} rev-parse --verify ${candidate}`.quiet();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function resolveBase() {
   if (base) return base;
   for (const candidate of ["origin/main", "main"]) {
-    try {
-      await $`git -C ${root} rev-parse --verify ${candidate}`.quiet();
-      return candidate;
-    } catch {
-      // try next
-    }
+    if (await tryResolve(candidate)) return candidate;
   }
+  // A PR-triggered CI checkout is typically shallow and only fetches the ref
+  // needed for the merge commit — origin/main may genuinely not be a
+  // resolvable local ref yet, not because there's no base to diff against.
+  // Fetch it explicitly before concluding there's nothing to compare.
+  try {
+    await $`git -C ${root} fetch origin main:refs/remotes/origin/main`.quiet();
+  } catch {
+    // network/remote unavailable — fall through to "no base" below
+  }
+  if (await tryResolve("origin/main")) return "origin/main";
   return null;
 }
 
@@ -49,7 +63,10 @@ if (!base) {
   process.exit(1);
 }
 
-const changedFiles = (await $`git -C ${root} diff --name-only ${base}...HEAD`.text()).split("\n").filter(Boolean);
+// Two-dot, not three: compares file *content* between the two tips directly,
+// which needs no shared history — a shallow CI checkout's base and HEAD often
+// have no local merge-base even though both refs resolve fine individually.
+const changedFiles = (await $`git -C ${root} diff --name-only ${base} HEAD`.text()).split("\n").filter(Boolean);
 
 if (!changedFiles.includes("CONSTITUTION.md")) {
   console.log("constitution-check: PASS (CONSTITUTION.md unchanged)");
@@ -84,7 +101,7 @@ if (!newAmended || newAmended === oldAmended) {
 }
 
 const addedAdrs = (
-  await $`git -C ${root} diff --name-status ${base}...HEAD -- docs/decisions/`.text()
+  await $`git -C ${root} diff --name-status ${base} HEAD -- docs/decisions/`.text()
 )
   .split("\n")
   .filter((l) => l.startsWith("A\t"))
