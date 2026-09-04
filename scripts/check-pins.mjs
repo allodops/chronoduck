@@ -30,12 +30,15 @@ async function submodulePin(name) {
   const line = out.trim();
   if (!line) return { sha: null, ref: null, error: "not a registered submodule" };
   // Format: "[+-U]<sha> <path> (<describe>)" — the describe suffix is what we
-  // compare against; strip a leading "heads/" (a branch checkout describes as
-  // "heads/<branch>", a tag checkout describes as the bare tag name).
+  // compare against. A branch checkout describes as "heads/<branch>" when a
+  // local branch exists, or "remotes/<remote>/<branch>" on a fresh
+  // `submodule update --init` (detached HEAD, no local branch — only the
+  // remote-tracking ref) — both name the same branch, so strip either.
+  // A tag checkout describes as the bare tag name, needing no stripping.
   const m = line.match(/^[ +\-U]?([0-9a-f]{40})\s+\S+(?:\s+\(([^)]+)\))?/);
   if (!m) return { sha: null, ref: null, error: `unparsable submodule status line: "${line}"` };
   const [, sha, describe] = m;
-  const ref = describe ? describe.replace(/^heads\//, "") : null;
+  const ref = describe ? describe.replace(/^heads\//, "").replace(/^remotes\/[^/]+\//, "") : null;
   return { sha, ref, error: null };
 }
 
