@@ -168,6 +168,19 @@ for (const name of ["bad-filename", "gap", "bad-status", "missing-date"]) {
   await expectRed(`adr-lint (${name})`, ["bun", join(HERE, "adr-lint.mjs"), "--root", materialize(`adr-lint-${name}`)]);
 }
 
+// fixtures-validate: a structurally invalid fixture and an inert one (no
+// expected) are both red; a valid fixture with a forbidden token only in a
+// provenance value is green under both fixtures-validate AND
+// forbid-consumer — proving the key/value scoping fix actually works, not
+// just that fixtures-validate's own structural checks pass.
+await expectRed("fixtures-validate (invalid)", ["bun", join(HERE, "fixtures-validate.mjs"), "--root", materialize("fixtures-validate-invalid")]);
+await expectRed("fixtures-validate (inert)", ["bun", join(HERE, "fixtures-validate.mjs"), "--root", materialize("fixtures-validate-inert")]);
+{
+  const dir = materialize("fixtures-validate-valid-provenance-token");
+  await expectGreen("fixtures-validate (valid, provenance token)", ["bun", join(HERE, "fixtures-validate.mjs"), "--root", dir]);
+  await expectGreen("forbid-consumer (fixture provenance token exempt)", ["bun", join(HERE, "hygiene", "forbid-consumer.mjs"), "--root", dir]);
+}
+
 // 13: pr-label / issue-label-check pure-function unit assertions. Both
 // scripts guard their live `gh api` calls behind `import.meta.main`, so
 // importing them here for closesIssueNumber/missingLabels/isMissingLabel
@@ -239,6 +252,17 @@ assertEqual("headingSlugs: collects every heading", [...headingSlugs("# Title\n\
     failures++;
   } else {
     console.log("SELFTEST ok: `make adr-lint` is green on the real tree");
+  }
+}
+{
+  const { out, err, code } = await run(["bun", join(HERE, "fixtures-validate.mjs")]);
+  process.stdout.write(out);
+  process.stderr.write(err);
+  if (code !== 0) {
+    console.error("SELFTEST FAIL: `make fixtures-validate` is not green on the real tree");
+    failures++;
+  } else {
+    console.log("SELFTEST ok: `make fixtures-validate` is green on the real tree");
   }
 }
 {
