@@ -125,9 +125,12 @@ constexpr const char *const kLayersRangeInstantHistGrid[] = {"L0", "L1a", "L1b",
 // SERIES: a scalar over a regular series value (LIST(DOUBLE) plus the grid
 // descriptor), not an edge-reading fold — no L1c/L4/L6-only edge machinery
 // applies to it the same way, hence the narrower list and the primed L4'/L11'
-// entries (bit-identity across build/thread/partition variance, and the memory-allocation law named
-// in `docs/design/surface.md`'s own `layers:` comment for L11', respectively — see that comment for
-// what each primed entry means rather than restating it here).
+// entries: bit-identity across build/thread/partition variance, and
+// `docs/design/surface.md:layers:` `temporary-allocation law` for L11' — not
+// "memory-allocation law" as an earlier draft mistakenly renamed it to dodge
+// a forbid-deferral false positive on "temporary" (#184); the citation is
+// exact instead. See that comment in surface.md for what each primed entry
+// means rather than restating it here.
 constexpr const char *const kLayersSeries[] = {"L0", "L1a", "L1b", "L1c", "L2",  "L3",  "L5",  "L6a",
                                                "L9", "L10", "L12", "L13", "L14", "L4'", "L11'"};
 
