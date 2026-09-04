@@ -112,7 +112,7 @@ fixtures-validate: ## Validate every test/fixtures/*.yaml against the language-n
 	bun scripts/fixtures-validate.mjs
 
 .PHONY: description-validate
-description-validate: ## Validate docs/community/description.yml against scripts/vendor/description.schema.json
+description-validate: ## Validate docs/community/description.yml with hand-rolled checks documented by (not read from) scripts/vendor/description.schema.json
 	bun scripts/description-validate.mjs
 
 .PHONY: changelog

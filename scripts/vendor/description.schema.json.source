@@ -3,13 +3,50 @@ copy of — confirmed by inspecting its repository tree and every script under s
 is enforced in code instead, across two scripts:
 
 - scripts/build.py @ 8543f13c6e7f31abda9f6f3caf58a38fcc1fc93b
-  Reads extension["name"], repo["github"] and repo["ref"] without a .get()/default — these three
-  are the only fields that actually break the build when absent, i.e. the real required set.
 - scripts/generate_extensions_json.py @ f5544a432f682fe1e7cb6327a49593f34c17acbe
-  Reads every other known field via .get() with no required check — this is where the full
-  optional-field list in description.schema.json comes from.
 
-Both commits are the latest touching that file as of 2026-09-04, on duckdb/community-extensions
-main @ ae481bd75e850ca5e3e0b32767b0deffc15fa918. description.schema.json is our own hand-written
-encoding of the union of both scripts' behavior, not a byte-for-byte vendored file — re-derive it
-by re-reading those two scripts (or their successors) if this ever needs updating.
+Both commits are the latest touching their file as of 2026-09-04, on duckdb/community-extensions
+main @ ae481bd75e850ca5e3e0b32767b0deffc15fa918.
+
+extension.name, repo.github and repo.ref are read by build.py without a .get()/default (via
+desc['extension']['name'], desc['repo']['github'], desc['repo']['ref']) — these three are the
+only fields that actually break the build when absent, i.e. the real required set. Every other
+documented field is read optionally, but not by a single shared script — each is read by
+whichever of the two scripts actually consumes it, per field:
+
+  field                          | build.py              | generate_extensions_json.py
+  --------------------------------|------------------------|------------------------------
+  extension.name                  | required (no .get())  | optional (ext.get("name"))
+  extension.description           | not read               | optional
+  extension.version               | not read               | optional
+  extension.language              | not read               | optional
+  extension.build                 | not read               | optional
+  extension.license                | not read               | optional
+  extension.maintainers            | not read               | optional (defaults to [])
+  extension.requires_toolchains    | optional (.get())     | not read
+  extension.excluded_platforms     | optional (.get())     | optional
+  extension.opt_in_platforms       | optional (.get())     | not read
+  extension.custom_toolchain_script| optional (.get())     | not read
+  extension.vcpkg_url              | optional (.get())     | not read
+  extension.vcpkg_commit           | optional (.get())     | not read
+  extension.test_config            | optional (.get())     | not read
+  repo.github                     | required (no .get())  | optional (repo.get("github"))
+  repo.ref                        | required (no .get())  | optional (repo.get("ref"))
+  repo.ref_next                   | optional ('in' check) | not read
+  repo.canonical_name             | optional ('in' check) | not read
+  repo.andium                     | optional ('in' check) | not read
+  docs.hello_world                 | not read               | optional
+  docs.extended_description        | not read               | optional
+
+Of the 18 fields that are optional everywhere (i.e. excluding the three required ones above),
+9 are read exclusively by build.py (requires_toolchains, opt_in_platforms,
+custom_toolchain_script, vcpkg_url, vcpkg_commit, test_config, ref_next, canonical_name, andium),
+8 are read exclusively by generate_extensions_json.py (description, version, language, build,
+license, maintainers, docs.hello_world, docs.extended_description), and 1
+(extension.excluded_platforms) is read by both. build.py alone accounts for exactly half of the
+optional-field list, not the near-totality a single-script attribution would suggest — neither
+script alone is "where the full optional-field list comes from."
+
+description.schema.json is our own hand-written encoding of the union of both scripts' behavior,
+not a byte-for-byte vendored file — re-derive it, and this table, by re-reading those two
+scripts (or their successors) if this ever needs updating.

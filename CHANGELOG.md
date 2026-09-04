@@ -4,6 +4,7 @@
 
 ## Unreleased
 
+- docs(constitution): name Dependabot's real author login, app/dependabot (#165)
 - fix(ci): pr-hygiene dependabot exemption matches the real author login (#163)
 - fix(deps): pin duckdb submodule tracking to v1.5-variegata, not main (#161)
 - docs(constitution): CHANGELOG.md content-equality is release-time, not per-PR CI (#159)
