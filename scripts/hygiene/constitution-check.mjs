@@ -134,10 +134,14 @@ if (!newVersion || (oldVersion && !versionGreater(newVersion, oldVersion))) {
   violations.push(`CONSTITUTION.md changed but Version did not increase (${oldVersion ?? "none"} -> ${newVersion ?? "none"})`);
 }
 
-const oldAmended = lastAmendedOf(oldText);
+// Not compared against the old value: two amendments landing the same
+// calendar day is legitimate (dates have no time component), and the
+// version-bump check above is already the authoritative "did this actually
+// get amended" signal — a version can't accidentally stay the same the way
+// a same-day date can.
 const newAmended = lastAmendedOf(newText);
-if (!newAmended || newAmended === oldAmended) {
-  violations.push(`CONSTITUTION.md changed but Last amended date was not updated`);
+if (!newAmended) {
+  violations.push(`CONSTITUTION.md changed but has no Last amended date`);
 }
 
 const addedAdrs = (

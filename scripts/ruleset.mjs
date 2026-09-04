@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-// just ruleset-add-check <context> / just ruleset-remove-check <context>
+// make ruleset-add-check CONTEXT=<name> / make ruleset-remove-check CONTEXT=<name>
 // The `main` branch ruleset's required_status_checks list is never edited any
 // other way (Article VII.3). Resolves the ruleset by name, refuses a context
 // that isn't backed by a registered merge-posture lane or hasn't reported
