@@ -5,6 +5,7 @@
     "docs/prior-art.md",
     "docs/decisions/",
     "docs/design/ecosystem.md",
-    "docs/design/coverage.md"
+    "docs/design/coverage.md",
+    "docs/testing/corpora.md"
   ]
 }
