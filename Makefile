@@ -10,8 +10,16 @@ EXT_CONFIG=${PROJ_DIR}extension_config.cmake
 # one export covers all of them, not just the targets we define ourselves.
 export CMAKE_BUILD_PARALLEL_LEVEL ?= $(shell nproc)
 
-# Include the Makefile from extension-ci-tools
+# Include the Makefile from extension-ci-tools — optionally: our own
+# project targets (hygiene, lint scans, ...) never touch C++/CMake and don't
+# need the submodule checked out; a build/test target does, and fails with
+# Make's own clear "no rule to make target" if it's missing, so this warns
+# once rather than hard-erroring on every invocation regardless of target.
+ifeq (,$(wildcard extension-ci-tools/makefiles/duckdb_extension.Makefile))
+$(warning extension-ci-tools submodule not checked out — `git submodule update --init --recursive` for build/test/relassert targets; hygiene and lint targets work without it)
+else
 include extension-ci-tools/makefiles/duckdb_extension.Makefile
+endif
 
 .DEFAULT_GOAL := help
 
