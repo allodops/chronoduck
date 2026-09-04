@@ -18,8 +18,10 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: recursive
-      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
-      - run: just tsan
+      - run: make debug
+        env:
+          THREADSAN: "1"
+      - run: make test_debug
 
   vector-size-2:
     name: vector-size-2
@@ -30,5 +32,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: recursive
-      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
-      - run: just test-vector2
+      - run: make debug
+        env:
+          STANDARD_VECTOR_SIZE: "2"
+      - run: make test_debug

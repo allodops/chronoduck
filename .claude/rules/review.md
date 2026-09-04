@@ -13,7 +13,7 @@ style note — a PR failing one of these does not merge regardless of how green 
 - **Out-of-scope files.** The diff touches a file the issue's stated scope does not imply
   (Article III.4). Discovered work belongs in a new linked issue, not in this diff.
 - **Restated issue.** The PR body substantially repeats the issue body instead of describing
-  execution — `just pr-hygiene <n>` computes this as a shingle-overlap ratio over 0.15; treat any
+  execution — `make pr-hygiene PR=<n>` computes this as a shingle-overlap ratio over 0.15; treat any
   PR that reads like a paraphrase of its issue as a restatement even if the script hasn't run yet.
 - **Missing evidence.** The PR body lacks a `## Evidence` line for one or more acceptance
   criteria, or a listed evidence line doesn't actually demonstrate the criterion.
