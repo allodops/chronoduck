@@ -3,7 +3,7 @@
 This document governs how ChronoDuck is built. It supersedes every other practice. It is amended
 only by a pull request that also adds an ADR under `docs/decisions/` explaining the change.
 
-**Version** 1.2.1 · **Ratified** 2026-09-04 · **Last amended** 2026-09-04
+**Version** 1.2.2 · **Ratified** 2026-09-04 · **Last amended** 2026-09-04
 
 ## Article I — What ChronoDuck is
 ChronoDuck is a DuckDB extension providing time-series building blocks: grid-aligned range folds,
@@ -29,7 +29,8 @@ holds the design, `docs/testing/` the testing discipline, `docs/decisions/` the 
 
 ## Article III — One issue, one pull request
 1. Every change lands through a PR that closes exactly one issue with `Closes #N`. PRs authored
-   by `dependabot[bot]` are exempt from this article's body rules and still pass every check.
+   by Dependabot (`gh pr view --json author` reports its login as `app/dependabot`) are exempt
+   from this article's body rules and still pass every check.
 2. The issue fully describes the bug, feature or concern: goal, acceptance criteria, out of
    scope, parent, size. The PR describes only the execution: how, deviations, risk, evidence per
    criterion, discovered issues. `make pr-hygiene PR=<n>` rejects a PR whose body restates the
