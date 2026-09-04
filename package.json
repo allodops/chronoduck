@@ -1,0 +1,8 @@
+{
+  "name": "chronoduck-scripts",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "yaml": "^2.6.0"
+  }
+}
