@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { closesIssueNumber, missingLabels } from "./pr-label.mjs";
 import { isMissingLabel } from "./issue-label-check.mjs";
+import { slugify, headingSlugs } from "./docs-links.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -151,6 +152,10 @@ for (const name of ["unregistered", "missing", "continue-on-error", "continue-on
   await expectRed(`lanes-check (${name})`, ["bun", join(HERE, "lanes-check.mjs"), "--root", materialize(`lanes-check-${name}`)]);
 }
 
+// docs-links: a dead relative link and a dead #anchor each fail it.
+await expectRed("docs-links (dead link)", ["bun", join(HERE, "docs-links.mjs"), "--root", materialize("docs-links-dead-link")]);
+await expectRed("docs-links (dead anchor)", ["bun", join(HERE, "docs-links.mjs"), "--root", materialize("docs-links-dead-anchor")]);
+
 // 13: pr-label / issue-label-check pure-function unit assertions. Both
 // scripts guard their live `gh api` calls behind `import.meta.main`, so
 // importing them here for closesIssueNumber/missingLabels/isMissingLabel
@@ -175,6 +180,9 @@ assertEqual("missingLabels: none missing", missingLabels(["size:S"], ["size:S", 
 assertEqual("isMissingLabel: missing both", isMissingLabel([]), true);
 assertEqual("isMissingLabel: missing area", isMissingLabel(["size:S"]), true);
 assertEqual("isMissingLabel: has both", isMissingLabel(["size:S", "area:ci"]), false);
+assertEqual("slugify: basic", slugify("The layer map"), "the-layer-map");
+assertEqual("slugify: strips punctuation", slugify("Registry closure & the fixture format"), "registry-closure--the-fixture-format");
+assertEqual("headingSlugs: collects every heading", [...headingSlugs("# Title\n\nSome text\n\n## A section\n")].sort(), ["a-section", "title"]);
 
 // Now the real tree must be green.
 {
@@ -197,6 +205,17 @@ assertEqual("isMissingLabel: has both", isMissingLabel(["size:S", "area:ci"]), f
     failures++;
   } else {
     console.log("SELFTEST ok: `make lanes-check` is green on the real tree");
+  }
+}
+{
+  const { out, err, code } = await run(["bun", join(HERE, "docs-links.mjs")]);
+  process.stdout.write(out);
+  process.stderr.write(err);
+  if (code !== 0) {
+    console.error("SELFTEST FAIL: `make docs-links` is not green on the real tree");
+    failures++;
+  } else {
+    console.log("SELFTEST ok: `make docs-links` is green on the real tree");
   }
 }
 {

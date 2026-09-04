@@ -98,3 +98,7 @@ pr-label: ## Mirror a linked issue's size:/area: labels onto its PR: make pr-lab
 .PHONY: issue-label-check
 issue-label-check: ## Flag any open issue missing both a size: and an area: label
 	bun scripts/issue-label-check.mjs
+
+.PHONY: docs-links
+docs-links: ## Resolve every relative link and #anchor under docs/ and README.md
+	bun scripts/docs-links.mjs
