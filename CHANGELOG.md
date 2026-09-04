@@ -4,7 +4,8 @@
 
 ## Unreleased
 
-- feat(release): community description.yml, changelog generation, release checklist
+- fix(ci): fetch net PR diff, not the --patch per-commit series (#157)
+- feat(release): community description.yml, changelog generation, release checklist (#156)
 - chore(deps): bump ossf/scorecard-action (#148)
 - feat(ci): make pr-hygiene enforce a post-commit Fresh-session review comment (#155)
 - chore(deps): bump github/codeql-action/analyze (#149)
