@@ -1,6 +1,7 @@
 #define DUCKDB_EXTENSION_MAIN
 
 #include "chronoduck_extension.hpp"
+#include "kernel/registry_types.hpp"
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/types/timestamp.hpp"
@@ -82,21 +83,36 @@ void TsGridIndexScalarFun(DataChunk &args, ExpressionState &state, Vector &resul
 	    });
 }
 
-} // namespace
+// Registration functions, one per registry.def row, named Register_<name> so
+// LoadInternal's registry.def-driven dispatch below can call each by
+// token-pasting its row name onto "Register_" — no per-row special-casing.
+// Bodies are unchanged from before this PR; only the wrapping function is new.
 
-static void LoadInternal(ExtensionLoader &loader) {
-	// Register the niladic version function
+void Register_chronoduck_version(ExtensionLoader &loader) {
 	auto chronoduck_version_scalar_function =
 	    ScalarFunction("chronoduck_version", {}, LogicalType::VARCHAR, ChronoduckVersionScalarFun);
 	loader.RegisterFunction(chronoduck_version_scalar_function);
+}
 
-	// Canary: the first real function through claim -> branch -> implement ->
-	// PR -> review -> merge loop. Not yet in registry.def (#26 moves it
-	// there — Article V.1 does not apply until that file exists).
+void Register_ts_grid_index(ExtensionLoader &loader) {
 	auto ts_grid_index_scalar_function =
 	    ScalarFunction("ts_grid_index", {LogicalType::TIMESTAMP, LogicalType::TIMESTAMP, LogicalType::BIGINT},
 	                   LogicalType::BIGINT, TsGridIndexScalarFun);
 	loader.RegisterFunction(ts_grid_index_scalar_function);
+}
+
+} // namespace
+
+// registry.def-driven dispatch (Article V.1): every row in
+// src/kernel/registry.def is registered here by token-pasting "Register_"
+// onto the row's name — chronoduck_version -> Register_chronoduck_version,
+// ts_grid_index -> Register_ts_grid_index, above. A row added to
+// registry.def without a matching Register_<name> function fails this
+// translation unit's build, named after the row (the macro-pasted call site
+// simply won't resolve).
+static void LoadInternal(ExtensionLoader &loader) {
+#define TS_FN(name, family, state, det, edge, domain, scale) Register_##name(loader);
+#include "kernel/registry.def"
 }
 
 void ChronoduckExtension::Load(ExtensionLoader &loader) {

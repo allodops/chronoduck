@@ -67,6 +67,64 @@ await expectRed("forbid-consumer", ["bun", join(HERE, "hygiene", "forbid-consume
 await expectRed("verify-citations", ["bun", join(HERE, "hygiene", "verify-citations.mjs"), "--root", materialize("verify-citations")]);
 await expectRed("workflow-shape", ["bun", join(HERE, "hygiene", "workflow-shape.mjs"), "--root", materialize("workflow-shape")]);
 
+// 4b: registry-closure (Article V.1) — three fixtures materialized from JSON
+// manifests, matching the other filesystem-rooted tree scans above: a row
+// missing its test/sql/<name>.test file, a kernel function registered
+// ad-hoc outside any registry-driven Register_<name> function, and a green
+// fixture proving the same ad-hoc-registration shape does NOT false-positive
+// when every registration is properly wrapped.
+await expectRed("registry-closure (row missing test/sql/<name>.test)", [
+  "bun",
+  join(HERE, "hygiene", "registry-closure.mjs"),
+  "--root",
+  materialize("registry-closure-missing-test"),
+]);
+await expectRed("registry-closure (ad-hoc registration outside Register_<name>)", [
+  "bun",
+  join(HERE, "hygiene", "registry-closure.mjs"),
+  "--root",
+  materialize("registry-closure-adhoc"),
+]);
+await expectGreen("registry-closure (every registration properly wrapped)", [
+  "bun",
+  join(HERE, "hygiene", "registry-closure.mjs"),
+  "--root",
+  materialize("registry-closure-green"),
+]);
+
+// 4c: the (state, det, scale_kind) static_assert rule (Article V.1, issue
+// #26's second acceptance criterion: "A SLICE+D0 sum row fails
+// static_assert") — proven by actually compiling a standalone C++ fixture
+// with a bare g++, not merely asserted in prose. A red-only proof isn't real
+// proof (this repo's expectRed/expectGreen-pairing philosophy throughout
+// this file), so a mirrored legal-combination fixture must compile cleanly
+// too. registry_types.hpp has no DuckDB dependency (by design — see its own
+// header comment), so no submodule checkout is needed for this to run.
+{
+  const redPath = join(ROOT, "test", "hygiene-fixtures", "registry-static-assert-red.cpp");
+  const { out, err, code } = await run(["g++", "-std=c++17", "-c", redPath, "-o", "/dev/null"]);
+  const combined = out + err;
+  if (code === 0) {
+    console.error("SELFTEST FAIL: registry-static-assert (red fixture) was expected to fail to compile but exited 0");
+    failures++;
+  } else if (!combined.includes("SLICE+D0+SUM_ABS must be rejected by IsValidRow")) {
+    console.error(`SELFTEST FAIL: registry-static-assert (red fixture) failed, but not on the expected static_assert message:\n${combined}`);
+    failures++;
+  } else {
+    console.log("SELFTEST ok: registry-static-assert (red fixture) correctly fails to compile on SLICE+D0+SUM_ABS");
+  }
+}
+{
+  const greenPath = join(ROOT, "test", "hygiene-fixtures", "registry-static-assert-green.cpp");
+  const { out, err, code } = await run(["g++", "-std=c++17", "-c", greenPath, "-o", "/dev/null"]);
+  if (code !== 0) {
+    console.error(`SELFTEST FAIL: registry-static-assert (green fixture) was expected to compile cleanly but failed:\n${out}${err}`);
+    failures++;
+  } else {
+    console.log("SELFTEST ok: registry-static-assert (green fixture) correctly compiles on SLICE+D1+SUM_ABS");
+  }
+}
+
 // 5: constitution-check needs a real git history — build one from the base/head fixture files.
 {
   const tmp = mkdtempSync(join(tmpdir(), "cc-selftest-"));

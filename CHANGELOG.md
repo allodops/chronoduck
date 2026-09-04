@@ -4,7 +4,8 @@
 
 ## Unreleased
 
-- ci: skip build-test's expensive steps on docs/script-only PRs
+- feat(kernel): add registry.def macro and L0 closure checks
+- ci: skip build-test's expensive steps on docs/script-only PRs (#182)
 - docs: reconcile coverage.md/primitives.md/live-oracles.md against five reference sources (#180)
 - fix: widen ts_grid_index's subtraction to avoid int64 overflow (#179)
 - fix(hygiene): type-check fixture values and scan fixture/function tokens (#176)
