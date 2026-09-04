@@ -1,0 +1,12 @@
+# name: test/sql/chronoduck.test
+# description: test chronoduck extension
+# group: [sql]
+
+# Require statement will ensure this test is run with this extension loaded
+require chronoduck
+
+# Confirm the extension registers a working, niladic version function
+query I
+SELECT chronoduck_version() IS NOT NULL AND length(chronoduck_version()) > 0;
+----
+true
