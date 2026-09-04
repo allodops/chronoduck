@@ -3,8 +3,18 @@ import { $ } from "bun";
 import { readFileSync } from "node:fs";
 
 const SCOPE_PREFIXES = ["src/", "test/", "scripts/"];
+const EXEMPT_PREFIXES = ["test/hygiene-fixtures/"];
 const DEFERRAL_RE = /\b(later|for now|temporary|will be|not yet|follow-up|TBD)\b/i;
 
+function commentMarkerFor(path) {
+  if (/\.(mjs|cpp|cc|cxx|hpp|hh|h|c)$/.test(path)) return "//";
+  if (/\.(test|sql|yml|yaml)$/.test(path)) return "#";
+  return null;
+}
+
+// Deferral language is an excuse to skip something, and belongs in prose —
+// comments — not in a string or regex literal (this file's own DEFERRAL_RE
+// necessarily contains these words as data, not as a deferral).
 export function scanDiffForDeferral(diff) {
   const lines = diff.split("\n");
   let currentFile = null;
@@ -17,10 +27,17 @@ export function scanDiffForDeferral(diff) {
       continue;
     }
     if (!line.startsWith("+") || line.startsWith("+++")) continue;
-    if (!currentFile || !SCOPE_PREFIXES.some((p) => currentFile.startsWith(p))) continue;
+    if (!currentFile) continue;
+    if (!SCOPE_PREFIXES.some((p) => currentFile.startsWith(p))) continue;
+    if (EXEMPT_PREFIXES.some((p) => currentFile.startsWith(p))) continue;
 
     const added = line.slice(1);
-    if (DEFERRAL_RE.test(added) && !/#\d+/.test(added)) {
+    const marker = commentMarkerFor(currentFile);
+    const markerAt = marker ? added.indexOf(marker) : -1;
+    if (markerAt === -1) continue;
+    const afterMarker = added.slice(markerAt + marker.length);
+
+    if (DEFERRAL_RE.test(afterMarker) && !/#\d+/.test(added)) {
       violations.push(`${currentFile}: added line uses deferral language without "#<issue>": ${added.trim()}`);
     }
   }
