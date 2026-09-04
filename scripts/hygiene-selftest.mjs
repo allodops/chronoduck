@@ -188,6 +188,50 @@ await expectRed("workflow-shape", ["bun", join(HERE, "hygiene", "workflow-shape.
   ]);
 }
 
+// 5c: #181 — build-relevant-changed correctly classifies a src/ change as
+// relevant (build the extension) and a docs-only change as not (skip
+// ci.yml's expensive build-test steps).
+{
+  const tmp = mkdtempSync(join(tmpdir(), "brc-selftest-"));
+  await $`git -C ${tmp} init -q -b main`.quiet();
+  await $`git -C ${tmp} config user.email test@example.com`.quiet();
+  await $`git -C ${tmp} config user.name test`.quiet();
+  mkdirSync(join(tmp, "docs"), { recursive: true });
+  writeFileSync(join(tmp, "docs", "readme.md"), "base\n");
+  await $`git -C ${tmp} add docs/readme.md`.quiet();
+  await $`git -C ${tmp} commit -q -m base`.quiet();
+
+  await $`git -C ${tmp} checkout -q -b docs-only`.quiet();
+  writeFileSync(join(tmp, "docs", "readme.md"), "docs-only change\n");
+  await $`git -C ${tmp} add docs/readme.md`.quiet();
+  await $`git -C ${tmp} commit -q -m "docs-only change"`.quiet();
+  {
+    const { out, code } = await run(["bun", join(HERE, "build-relevant-changed.mjs"), "--root", tmp, "--base", "main"]);
+    if (code !== 0 || !out.includes("BUILD_RELEVANT=false")) {
+      console.error(`SELFTEST FAIL: build-relevant-changed (docs-only) expected BUILD_RELEVANT=false, got: ${out}`);
+      failures++;
+    } else {
+      console.log("SELFTEST ok: build-relevant-changed (docs-only) correctly reports not relevant");
+    }
+  }
+
+  await $`git -C ${tmp} checkout -q main`.quiet();
+  await $`git -C ${tmp} checkout -q -b src-change`.quiet();
+  mkdirSync(join(tmp, "src"), { recursive: true });
+  writeFileSync(join(tmp, "src", "thing.cpp"), "// changed\n");
+  await $`git -C ${tmp} add src/thing.cpp`.quiet();
+  await $`git -C ${tmp} commit -q -m "src change"`.quiet();
+  {
+    const { out, code } = await run(["bun", join(HERE, "build-relevant-changed.mjs"), "--root", tmp, "--base", "main"]);
+    if (code !== 0 || !out.includes("BUILD_RELEVANT=true")) {
+      console.error(`SELFTEST FAIL: build-relevant-changed (src/ change) expected BUILD_RELEVANT=true, got: ${out}`);
+      failures++;
+    } else {
+      console.log("SELFTEST ok: build-relevant-changed (src/ change) correctly reports relevant");
+    }
+  }
+}
+
 // 6: forbid-deferral, diff-based — the fixture diff text is base64-encoded in
 // the manifest so its trigger words never exist as plaintext in a
 // git-tracked file for any scan (this one included) to stumble on.

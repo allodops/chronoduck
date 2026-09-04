@@ -77,6 +77,10 @@ forbid-deferral: ## PR-diff deferral-language scan: make forbid-deferral PR=<n>
 check-pins: ## Verify duckdb / extension-ci-tools submodule pins agree with each other and the workflow file
 	bun scripts/check-pins.mjs
 
+.PHONY: build-relevant-changed
+build-relevant-changed: ## Print/write BUILD_RELEVANT=true|false for whether the diff against origin/main could affect the compiled extension
+	bun scripts/build-relevant-changed.mjs
+
 .PHONY: lanes-check
 lanes-check: ## Verify .github/ci-lanes.json against the actual workflow files
 	bun scripts/lanes-check.mjs

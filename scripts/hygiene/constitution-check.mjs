@@ -1,73 +1,12 @@
 #!/usr/bin/env bun
 import { $ } from "bun";
+import { resolveBase as resolveBaseShared, changedFiles as changedFilesShared } from "../lib/git-base.mjs";
 
 const args = process.argv.slice(2);
 const rootIdx = args.indexOf("--root");
 const root = rootIdx === -1 ? process.cwd() : args[rootIdx + 1];
 const baseIdx = args.indexOf("--base");
 let base = baseIdx === -1 ? null : args[baseIdx + 1];
-
-async function tryResolve(candidate) {
-  try {
-    await $`git -C ${root} rev-parse --verify ${candidate}`.quiet();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function hasMergeBase(candidate) {
-  try {
-    await $`git -C ${root} merge-base ${candidate} HEAD`.quiet();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function resolveBase() {
-  if (base) return base;
-  for (const candidate of ["origin/main", "main"]) {
-    if (await tryResolve(candidate)) {
-      base = candidate;
-      break;
-    }
-  }
-  if (!base) {
-    // A PR-triggered CI checkout is typically shallow and only fetches the
-    // ref needed for the merge commit — origin/main may genuinely not be a
-    // resolvable local ref yet, not because there's no base to diff against.
-    // Fetch it explicitly before concluding there's nothing to compare.
-    try {
-      await $`git -C ${root} fetch origin main:refs/remotes/origin/main`.quiet();
-    } catch {
-      // network/remote unavailable — fall through to "no base" below
-    }
-    if (await tryResolve("origin/main")) base = "origin/main";
-  }
-  if (!base) return null;
-
-  // Three-dot diffing below (base...HEAD, relative to the merge-base) is what
-  // actually answers "did *this branch* change CONSTITUTION.md" — a plain
-  // two-dot diff against base's current tip would also pick up any unrelated
-  // amendment landed on base after this branch forked, and falsely flag a
-  // long-lived branch that never touched the file. But a shallow CI checkout
-  // can resolve both refs individually while sharing no visible history, so
-  // there may be no merge-base yet either — fix that specifically rather than
-  // give up three-dot correctness for the common (non-shallow) case.
-  if (!(await hasMergeBase(base))) {
-    try {
-      await $`git -C ${root} fetch --unshallow`.quiet();
-    } catch {
-      try {
-        await $`git -C ${root} fetch --deepen=1000000`.quiet();
-      } catch {
-        // best effort — the diff below will fail closed if this didn't help
-      }
-    }
-  }
-  return base;
-}
 
 function versionOf(text) {
   const m = text.match(/\*\*Version\*\*\s+([\d.]+)/);
@@ -129,7 +68,7 @@ function changedArticles(oldText, newText) {
   return changed;
 }
 
-base = await resolveBase();
+base = await resolveBaseShared(root, base);
 if (!base) {
   // Consistent with Article II.3's fail-closed stance: unable to verify means
   // red, never a silent pass — this check exists precisely to catch an
@@ -140,9 +79,7 @@ if (!base) {
 
 let changedFiles;
 try {
-  // Three-dot: relative to the merge-base, so a change already on `base`
-  // before this branch forked is never mistaken for something this PR did.
-  changedFiles = (await $`git -C ${root} diff --name-only ${base}...HEAD`.text()).split("\n").filter(Boolean);
+  changedFiles = await changedFilesShared(root, base);
 } catch {
   console.error(`constitution-check: FAIL (no merge-base between ${base} and HEAD even after attempting to fetch full history — cannot verify CONSTITUTION.md)`);
   process.exit(1);
