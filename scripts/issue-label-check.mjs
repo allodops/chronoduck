@@ -22,7 +22,7 @@ export function isMissingLabel(labelNames) {
 // Guarded so importing this module for its pure functions (hygiene-selftest)
 // never fires a real `gh api` call.
 if (import.meta.main) {
-  const issuesPages = await ghGetPaginated("/issues", { state: "open", filter: "all" });
+  const issuesPages = await ghGetPaginated("/issues", { state: "open" });
   // Epics are never labelled size:/area: — BOOTSTRAP §2.2 labels only Tasks
   // that way; an Epic is marked by its issue `type`, not by a size/area pair.
   const issues = issuesPages.filter((i) => !("pull_request" in i) && i.type?.name !== "Epic");

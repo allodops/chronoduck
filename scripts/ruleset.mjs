@@ -8,8 +8,8 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { parse } from "yaml";
 import { $ } from "bun";
+import { REPO } from "./lib/gh.mjs";
 
-const REPO = "allodops/chronoduck";
 const RULESET_NAME = "main";
 const GH = "gh-tsouza";
 
