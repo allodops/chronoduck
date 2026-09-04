@@ -125,6 +125,62 @@ await expectGreen("registry-closure (every registration properly wrapped)", [
   }
 }
 
+// 4d: forbid-test-tolerance (Article V.3 / #27) — a stray "epsilon" token
+// under test/, outside the one whitelisted comparator test file, is red.
+await expectRed("forbid-test-tolerance", [
+  "bun",
+  join(HERE, "hygiene", "forbid-test-tolerance.mjs"),
+  "--root",
+  materialize("forbid-test-tolerance"),
+]);
+
+// 4e: comparator-test (#27) — a broken test/kernel/comparator_test.cpp
+// (compiles, but exits nonzero with no "PASS" sentinel) is red; the real
+// tree's actual comparator_test.cpp passing is proven below by the "make
+// hygiene is green on the real tree" check, once wired into hygiene.mjs's
+// TREE_SCANS.
+await expectRed("comparator-test", [
+  "bun",
+  join(HERE, "hygiene", "comparator-test.mjs"),
+  "--root",
+  materialize("comparator-test-broken"),
+]);
+
+// 4f: the comparator headroom pin's static_assert mechanism
+// (ReorderFactorHeadroom, src/kernel/comparator.hpp) — mirrors the
+// registry-static-assert block below: a reorder factor eroded to either
+// edge docs/testing/comparator.md pins (the largest-accepted-drift edge, the
+// smallest-rejected-divergence edge) must fail to compile, and the real
+// value must still compile cleanly — a red-only proof isn't real proof the
+// check fires on erosion specifically.
+for (const [name, expectMessage] of [
+  ["comparator-headroom-accept-red", "a reorder factor eroded to the accept edge must fail the floor"],
+  ["comparator-headroom-reject-red", "a reorder factor eroded toward the divergence edge must fail the floor"],
+]) {
+  const path = join(ROOT, "test", "hygiene-fixtures", `${name}.cpp`);
+  const { out, err, code } = await run(["g++", "-std=c++17", "-c", path, "-o", "/dev/null"]);
+  const combined = out + err;
+  if (code === 0) {
+    console.error(`SELFTEST FAIL: ${name} was expected to fail to compile but exited 0`);
+    failures++;
+  } else if (!combined.includes(expectMessage)) {
+    console.error(`SELFTEST FAIL: ${name} failed, but not on the expected static_assert message:\n${combined}`);
+    failures++;
+  } else {
+    console.log(`SELFTEST ok: ${name} correctly fails to compile`);
+  }
+}
+{
+  const greenPath = join(ROOT, "test", "hygiene-fixtures", "comparator-headroom-green.cpp");
+  const { out, err, code } = await run(["g++", "-std=c++17", "-c", greenPath, "-o", "/dev/null"]);
+  if (code !== 0) {
+    console.error(`SELFTEST FAIL: comparator-headroom-green was expected to compile cleanly but failed:\n${out}${err}`);
+    failures++;
+  } else {
+    console.log("SELFTEST ok: comparator-headroom-green correctly compiles with the real kReorderFactor");
+  }
+}
+
 // 5: constitution-check needs a real git history — build one from the base/head fixture files.
 {
   const tmp = mkdtempSync(join(tmpdir(), "cc-selftest-"));
