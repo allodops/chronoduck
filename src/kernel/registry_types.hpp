@@ -20,12 +20,10 @@ namespace chronoduck {
 // through registry.def") would have a gap for it.
 enum class Family { RANGE, INSTANT, HIST, GRID, SERIES, PATTERN, META };
 
-// The kernel's per-row state shape. `docs/design/surface.md:layers:`
-// `the family → layers map` names the same "state" column this enum encodes
-// (RAW_WINDOW, SLICE, LAST_K, HIST_WINDOW, HIST_MERGE, SKETCH, SERIES and NFA
-// there). NONE stands in for that table's `—` sentinel: a stateless scalar
-// function, which is what both of this PR's rows (`chronoduck_version`,
-// `ts_grid_index`) are.
+// The kernel's per-row state shape — `docs/design/surface.md:layers:` `the family → layers map` names
+// the same "state" column this enum encodes (RAW_WINDOW, SLICE, LAST_K, HIST_WINDOW, HIST_MERGE,
+// SKETCH, SERIES and NFA there). NONE stands in for that table's `—` sentinel: a stateless scalar
+// function, which is what both of this PR's rows (`chronoduck_version`, `ts_grid_index`) are.
 enum class StateClass { RAW_WINDOW, SLICE, LAST_K, HIST_WINDOW, HIST_MERGE, SKETCH, SERIES_STATE, NFA, NONE };
 
 // The kernel's determinism classes, `docs/design/surface.md`'s `det` column:
@@ -79,26 +77,22 @@ enum class ScaleKind {
 //   - `ts_grid_index` is integer floor division (see
 //     `src/chronoduck_extension.cpp:FloorDiv:` `__int128_t quotient`) —
 //     always bit-exact, so EXACT is the only honest scale_kind.
-//   - `chronoduck_version`'s output is a fixed string with no numeric
-//     tolerance to compare against; EXACT (scale 0, bit-exact) is vacuously
-//     correct for it, per `docs/testing/comparator.md:EXACT:` `EXACT (scale
-//     0, bit-exact) for every selection` — a string equality has no "scale"
-//     to be anything other than exact.
+//   - `chronoduck_version`'s output is a fixed string with no numeric tolerance to compare against;
+//     EXACT (scale 0, bit-exact) is vacuously correct for it — see
+//     `docs/testing/comparator.md:EXACT:` `(scale 0, bit-exact) for every selection` — a string
+//     equality has no "scale" to be anything other than exact.
 
-// IsValidRow — the mechanically checkable half of
-// `docs/design/surface.md:static-rule:` `any state whose partial contains a
-// float sum is D1 unless it uses reproducible_sum — applies to SLICE,
-// HIST_MERGE and SKETCH alike`. There is no `reproducible_sum` column in
-// this 7-column schema yet, so no row can claim that exception: a future
-// issue that implements reproducible summation extends this function then,
+// IsValidRow — the mechanically checkable half of the rule below, see
+// `docs/design/surface.md:static-rule:` `any state whose partial contains a float sum is D1 unless it uses reproducible_sum — applies to SLICE, HIST_MERGE and SKETCH alike`
+// There is no `reproducible_sum` column in this 7-column schema yet, so no row can claim that
+// exception: a future issue that implements reproducible summation extends this function then,
 // rather than a row silently claiming D0 today.
 //
-// Deliberate, documented limitation: this function does NOT check
-// `docs/design/surface.md:approx_top_k_over_time:` `count_lo, count_hi` —
-// the surface doc's other static rule ("D2 only for SKETCH rows whose
-// output carries [lo, hi]", see its `approx_top_k_over_time` row, a
-// SKETCH+D2 row whose output is
-// `LIST(STRUCT(key, count_lo, count_hi))`). Checking that half needs an
+// Deliberate, documented limitation: this function does NOT check issue #26's Goal's second static
+// rule ("D2 only for SKETCH rows whose output carries [lo, hi]" — this exact wording is the issue's,
+// not `docs/design/surface.md`'s own text) for a row like this one, see
+// `docs/design/surface.md:approx_top_k_over_time:` `count_lo, count_hi`
+// a SKETCH+D2 row whose output is `LIST(STRUCT(key, count_lo, count_hi))`. Checking that half needs an
 // output-shape signal — whether a row's result type carries a [lo, hi] pair —
 // that this 7-column (name, family, state, det, edge_modes, domain,
 // scale_kind) schema has no column for. So `IsValidRow` returns `true` for
@@ -114,12 +108,11 @@ constexpr bool IsValidRow(Family family, StateClass state, Determinism det, Scal
 	         (scale == ScaleKind::SUM_ABS || scale == ScaleKind::SUM_ABS_TIMES_FACTOR) && det != Determinism::D1);
 }
 
-// The family → layers map, `docs/design/surface.md:layers:` `the family →
-// layers map` — this is its one home; registry.def's header points here
-// rather than duplicating this data. Presence-listing only (L13 iterates
-// this map to check each layer's artifact exists for a row's family) — not
-// a per-layer applicability judgment, so a layer vacuous for a particular
-// row (L7's histogram oracles for a non-HIST row, say) is still listed here.
+// The family → layers map — `docs/design/surface.md:layers:` `the family → layers map` — this is its
+// one home; registry.def's header points here rather than duplicating this data. Presence-listing
+// only (L13 iterates this map to check each layer's artifact exists for a row's family) — not a
+// per-layer applicability judgment, so a layer vacuous for a particular row (L7's histogram oracles
+// for a non-HIST row, say) is still listed here.
 //
 // RANGE, INSTANT, HIST and GRID share the full L0–L14 map. Kept uniform
 // across all four rather than carving out family-specific exceptions (e.g.
@@ -132,9 +125,9 @@ constexpr const char *const kLayersRangeInstantHistGrid[] = {"L0", "L1a", "L1b",
 // SERIES: a scalar over a regular series value (LIST(DOUBLE) plus the grid
 // descriptor), not an edge-reading fold — no L1c/L4/L6-only edge machinery
 // applies to it the same way, hence the narrower list and the primed L4'/L11'
-// entries (bit-identity across build/thread/partition variance, and the
-// scratch-allocation law, respectively — see the map's own header comment in
-// `docs/design/surface.md`).
+// entries (bit-identity across build/thread/partition variance, and the memory-allocation law named
+// in `docs/design/surface.md`'s own `layers:` comment for L11', respectively — see that comment for
+// what each primed entry means rather than restating it here).
 constexpr const char *const kLayersSeries[] = {"L0", "L1a", "L1b", "L1c", "L2",  "L3",  "L5",  "L6a",
                                                "L9", "L10", "L12", "L13", "L14", "L4'", "L11'"};
 

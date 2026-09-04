@@ -27,11 +27,12 @@ const root = rootIdx === -1 ? process.cwd() : args[rootIdx + 1];
 const REGISTRY_DEF_PATH = join("src", "kernel", "registry.def");
 const REGISTRY_TYPES_PATH = join("src", "kernel", "registry_types.hpp");
 
-// Paths this scan never descends into: the registry files themselves (a row
-// name appearing as a macro argument in registry.def, or in registry_types's
-// own X-macro-driven static_assert block, is not a "registration call") and
-// the vendored submodule trees, which this repo doesn't own.
-const EXCLUDED_PREFIXES = ["duckdb/", "extension-ci-tools/"];
+// Files this scan never treats as a registration site: the registry files
+// themselves — a row name appearing as a macro argument in registry.def, or
+// in registry_types's own X-macro-driven static_assert block, is not a
+// "registration call". (The vendored duckdb/extension-ci-tools submodules
+// live at the repo root, not under src/, so check 2's src/-only walk below
+// never reaches them in the first place — no exclusion needed for those.)
 const EXCLUDED_PATHS = [REGISTRY_DEF_PATH, REGISTRY_TYPES_PATH];
 
 // name is TS_FN's first argument: a bare identifier, optionally preceded by
@@ -167,7 +168,6 @@ function checkNoAdHocRegistration(root, names) {
   for (const f of files) {
     if (!/\.(cpp|cc|cxx|hpp|hh|h)$/.test(f)) continue;
     if (EXCLUDED_PATHS.includes(f)) continue;
-    if (EXCLUDED_PREFIXES.some((p) => f.startsWith(`src/${p}`))) continue;
     let content;
     try {
       content = readFileSync(join(root, f), "utf8");
