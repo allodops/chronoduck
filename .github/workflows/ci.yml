@@ -42,6 +42,7 @@ jobs:
       - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
         with:
           key: ccache-ci-build-test-v1.5.4
+          restore-keys: ccache-ci-relassert-v1.5.4
       - run: make release
       - run: make test
       - run: make smoke
@@ -58,5 +59,6 @@ jobs:
       - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
         with:
           key: ccache-ci-relassert-v1.5.4
+          restore-keys: ccache-ci-build-test-v1.5.4
       - run: make relassert
       - run: make test-relassert
