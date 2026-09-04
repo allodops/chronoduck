@@ -3,7 +3,6 @@ import { $ } from "bun";
 import { readFileSync } from "node:fs";
 
 const SCOPE_PREFIXES = ["src/", "test/", "scripts/"];
-const EXEMPT_PREFIXES = ["test/hygiene-fixtures/"];
 const DEFERRAL_RE = /\b(later|for now|temporary|will be|not yet|follow-up|TBD)\b/i;
 
 function commentMarkerFor(path) {
@@ -29,7 +28,6 @@ export function scanDiffForDeferral(diff) {
     if (!line.startsWith("+") || line.startsWith("+++")) continue;
     if (!currentFile) continue;
     if (!SCOPE_PREFIXES.some((p) => currentFile.startsWith(p))) continue;
-    if (EXEMPT_PREFIXES.some((p) => currentFile.startsWith(p))) continue;
 
     const added = line.slice(1);
     const marker = commentMarkerFor(currentFile);

@@ -1,2 +1,0 @@
-int RATE_THRESHOLD = 1;
-int RATE_THRESHOLD_2 = 2;

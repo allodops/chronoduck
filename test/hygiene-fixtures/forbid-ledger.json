@@ -1,0 +1,4 @@
+{
+  "PROGRESS.md": "# fake progress ledger, should be denied\n",
+  "scripts/bad.mjs": "// TODO: fix this without an issue number\nexport const x = 1;\n"
+}

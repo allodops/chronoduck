@@ -16,9 +16,7 @@ const DEFERRAL_TAGS = ["TODO", "FIXME", "HACK", "XXX", "WIP"];
 async function listFiles(dir) {
   if (usingRealTree) {
     const out = await $`git -C ${dir} ls-files`.text();
-    // The hygiene-selftest fixtures are deliberately invalid and scanned only
-    // via explicit --root; they are never part of the real-tree sweep.
-    return out.split("\n").filter(Boolean).filter((f) => !f.startsWith("test/hygiene-fixtures/"));
+    return out.split("\n").filter(Boolean);
   }
   const files = [];
   const walk = (d, prefix) => {
@@ -40,7 +38,6 @@ function checkDenylist(files) {
     const base = f.split("/").pop();
     for (const pat of DENYLIST) {
       if (base.startsWith(pat)) {
-        if (base === "CHANGELOG.md") continue; // not in denylist, but guard just in case
         violations.push(`${f}: filename matches ledger denylist pattern "${pat}*"`);
       }
     }

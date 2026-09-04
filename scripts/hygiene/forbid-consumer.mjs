@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { $ } from "bun";
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const args = process.argv.slice(2);
@@ -36,6 +36,14 @@ function isExempt(path) {
   return exemptPaths.some((p) => path === p || path.startsWith(p));
 }
 
+// The scanner never scans the file that configures it — the same fact as "a
+// program doesn't recurse into scanning itself", not an Article VI.1 policy
+// exemption. Article VI.1's exempt-paths list (from consumer-tokens.json,
+// above) is left exactly as ratified; this is a separate, hardcoded fact
+// about what this tool's own input is, computed from the tool's own location
+// rather than being a configurable policy path.
+const SELF_PATH = usingRealTree ? relative(root, tokensPath) : null;
+
 // For a fixture file under test/fixtures/, only scan JSON/YAML *keys*, never values.
 // Everything else is scanned as raw text.
 function isFixtureFile(path) {
@@ -56,6 +64,7 @@ const violations = [];
 
 for (const f of files) {
   if (isExempt(f)) continue;
+  if (SELF_PATH && f === SELF_PATH) continue;
   let content;
   try {
     content = readFileSync(join(root, f), "utf8");

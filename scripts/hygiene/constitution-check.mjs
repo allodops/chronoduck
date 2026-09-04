@@ -42,8 +42,11 @@ function versionGreater(a, b) {
 
 base = await resolveBase();
 if (!base) {
-  console.log("constitution-check: PASS (no base ref to diff against)");
-  process.exit(0);
+  // Consistent with Article II.3's fail-closed stance: unable to verify means
+  // red, never a silent pass — this check exists precisely to catch an
+  // unamended constitution change, and a missing base ref can't rule that out.
+  console.error("constitution-check: FAIL (no base ref to diff against — cannot verify CONSTITUTION.md)");
+  process.exit(1);
 }
 
 const changedFiles = (await $`git -C ${root} diff --name-only ${base}...HEAD`.text()).split("\n").filter(Boolean);

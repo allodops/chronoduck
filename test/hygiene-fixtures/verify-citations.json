@@ -1,0 +1,4 @@
+{
+  "src/thing.cpp": "int RATE_THRESHOLD = 1;\nint RATE_THRESHOLD_2 = 2;\n",
+  "docs.md": "See `src/thing.cpp:123:` `RATE_THRESHOLD`\nAlso see `src/thing.cpp:extrapolate:` `RATE_THRESHOLD`\nAnd `src/missing.cpp:foo:` `bar`\n"
+}

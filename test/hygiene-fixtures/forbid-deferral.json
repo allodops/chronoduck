@@ -1,0 +1,3 @@
+{
+  "diff": "diff --git a/src/thing.cpp b/src/thing.cpp\nindex 111..222 100644\n--- a/src/thing.cpp\n+++ b/src/thing.cpp\n@@ -1,2 +1,4 @@\n int x = 1;\n+// this is temporary, will fix later\n+int y = 2;\n+// this is temporary but tracked #42\n"
+}

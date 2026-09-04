@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { $ } from "bun";
-import { mkdtempSync, cpSync } from "node:fs";
+import { mkdtempSync, cpSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -32,11 +32,25 @@ async function expectRed(label, cmd) {
   }
 }
 
-// 1-4: the filesystem-rooted tree scans.
-await expectRed("forbid-ledger", ["bun", join(HERE, "hygiene", "forbid-ledger.mjs"), "--root", join(FIXTURES, "forbid-ledger")]);
-await expectRed("forbid-consumer", ["bun", join(HERE, "hygiene", "forbid-consumer.mjs"), "--root", join(FIXTURES, "forbid-consumer")]);
-await expectRed("verify-citations", ["bun", join(HERE, "hygiene", "verify-citations.mjs"), "--root", join(FIXTURES, "verify-citations")]);
-await expectRed("workflow-shape", ["bun", join(HERE, "hygiene", "workflow-shape.mjs"), "--root", join(FIXTURES, "workflow-shape")]);
+// A fixture manifest (test/hygiene-fixtures/<scan>.json: {relPath: content}) is
+// materialized into a disposable temp directory, never committed as literal
+// git-tracked files that would match the real-tree scan it's designed to trip.
+function materialize(manifestName) {
+  const manifest = JSON.parse(readFileSync(join(FIXTURES, `${manifestName}.json`), "utf8"));
+  const tmp = mkdtempSync(join(tmpdir(), `${manifestName}-selftest-`));
+  for (const [relPath, content] of Object.entries(manifest)) {
+    const full = join(tmp, relPath);
+    mkdirSync(dirname(full), { recursive: true });
+    writeFileSync(full, content);
+  }
+  return tmp;
+}
+
+// 1-4: the filesystem-rooted tree scans, materialized from JSON manifests.
+await expectRed("forbid-ledger", ["bun", join(HERE, "hygiene", "forbid-ledger.mjs"), "--root", materialize("forbid-ledger")]);
+await expectRed("forbid-consumer", ["bun", join(HERE, "hygiene", "forbid-consumer.mjs"), "--root", materialize("forbid-consumer")]);
+await expectRed("verify-citations", ["bun", join(HERE, "hygiene", "verify-citations.mjs"), "--root", materialize("verify-citations")]);
+await expectRed("workflow-shape", ["bun", join(HERE, "hygiene", "workflow-shape.mjs"), "--root", materialize("workflow-shape")]);
 
 // 5: constitution-check needs a real git history — build one from the base/head fixture files.
 {
@@ -54,8 +68,16 @@ await expectRed("workflow-shape", ["bun", join(HERE, "hygiene", "workflow-shape.
   await expectRed("constitution-check", ["bun", join(HERE, "hygiene", "constitution-check.mjs"), "--root", tmp, "--base", "main"]);
 }
 
-// 6: forbid-deferral, diff-based.
-await expectRed("forbid-deferral", ["bun", join(HERE, "hygiene", "forbid-deferral.mjs"), "--diff-file", join(FIXTURES, "forbid-deferral", "diff.patch")]);
+// 6: forbid-deferral, diff-based — the fixture diff text lives inside a JSON
+// string value so it's never itself a "+"-prefixed comment line under src/
+// test/ scripts/ when this repo's own tree is scanned.
+{
+  const { diff } = JSON.parse(readFileSync(join(FIXTURES, "forbid-deferral.json"), "utf8"));
+  const tmp = mkdtempSync(join(tmpdir(), "fd-selftest-"));
+  const diffFile = join(tmp, "diff.patch");
+  writeFileSync(diffFile, diff);
+  await expectRed("forbid-deferral", ["bun", join(HERE, "hygiene", "forbid-deferral.mjs"), "--diff-file", diffFile]);
+}
 
 // 7: pr-hygiene, fixture-based (a PR body that pastes the issue body verbatim).
 await expectRed("pr-hygiene", ["bun", join(HERE, "pr-hygiene.mjs"), "--fixture", join(FIXTURES, "pr-hygiene")]);

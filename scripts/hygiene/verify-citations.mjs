@@ -11,9 +11,7 @@ const usingRealTree = rootIdx === -1;
 async function listFiles(dir) {
   if (usingRealTree) {
     const out = await $`git -C ${dir} ls-files`.text();
-    // The hygiene-selftest fixtures are deliberately invalid and scanned only
-    // via explicit --root; they are never part of the real-tree sweep.
-    return out.split("\n").filter(Boolean).filter((f) => !f.startsWith("test/hygiene-fixtures/"));
+    return out.split("\n").filter(Boolean);
   }
   const files = [];
   const walk = (d, prefix) => {
