@@ -127,8 +127,8 @@ constexpr const char *const kLayersRangeInstantHistGrid[] = {"L0", "L1a", "L1b",
 // applies to it the same way, hence the narrower list and the primed L4'/L11'
 // entries: bit-identity across build/thread/partition variance, and
 // `docs/design/surface.md:layers:` `temporary-allocation law` for L11' (#184: cited verbatim, not
-// paraphrased as "memory-allocation law" to dodge forbid-deferral's "temporary" trigger). See that
-// comment in surface.md for what each primed entry means rather than restating it here.
+// paraphrased as "memory-allocation law" to dodge a hygiene scan's trigger word). See that comment
+// in surface.md for what each primed entry means rather than restating it here.
 constexpr const char *const kLayersSeries[] = {"L0", "L1a", "L1b", "L1c", "L2",  "L3",  "L5",  "L6a",
                                                "L9", "L10", "L12", "L13", "L14", "L4'", "L11'"};
 
