@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- fix(ci): pr-hygiene dependabot exemption matches the real author login (#163)
+- fix(deps): pin duckdb submodule tracking to v1.5-variegata, not main (#161)
 - docs(constitution): CHANGELOG.md content-equality is release-time, not per-PR CI (#159)
 - fix(ci): fetch net PR diff, not the --patch per-commit series (#157)
 - feat(release): community description.yml, changelog generation, release checklist (#156)
