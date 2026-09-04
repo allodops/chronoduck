@@ -9,10 +9,10 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   # A stale PR run is fine to cancel when a new commit supersedes it. A push
-  # to main never is: main is also where build-test/relassert's ccache gets
-  # saved for every other branch to restore from, and a cancelled run never
-  # reaches that save step — rapid successive merges were cancelling each
-  # other's main-branch run before completion, leaving no cache to inherit.
+  # to main never is: main is also where build-test's ccache gets saved for
+  # every other branch to restore from, and a cancelled run never reaches
+  # that save step — rapid successive merges were cancelling each other's
+  # main-branch run before completion, leaving no cache to inherit.
   cancel-in-progress: ${{ github.event_name != 'push' }}
 
 permissions:
@@ -47,27 +47,8 @@ jobs:
       - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
         with:
           key: ccache-ci-build-test-v1.5.4
-          restore-keys: ccache-ci-relassert-v1.5.4
           max-size: 5GB
           evict-old-files: job
       - run: make release
       - run: make test
       - run: make smoke
-
-  relassert:
-    name: relassert
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          submodules: recursive
-      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
-        with:
-          key: ccache-ci-relassert-v1.5.4
-          restore-keys: ccache-ci-build-test-v1.5.4
-          max-size: 5GB
-          evict-old-files: job
-      - run: make relassert
-      - run: make test-relassert

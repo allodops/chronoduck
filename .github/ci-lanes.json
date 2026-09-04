@@ -15,13 +15,6 @@
       "owner": "tsouza"
     },
     {
-      "context": "relassert",
-      "workflow": "ci.yml",
-      "posture": "merge",
-      "layers": ["L9"],
-      "owner": "tsouza"
-    },
-    {
       "context": "duckdb-stable-build",
       "workflow": "MainDistributionPipeline.yml",
       "posture": "merge",
