@@ -94,42 +94,32 @@ await expectRed("workflow-shape", ["bun", join(HERE, "hygiene", "workflow-shape.
   await expectRed("forbid-deferral", ["bun", join(HERE, "hygiene", "forbid-deferral.mjs"), "--diff-file", diffFile]);
 }
 
-// 6b: forbid-deferral, live-PR regression for #154. scanDiffForDeferral has no
-// notion of "per-commit vs net diff" — it just scans whatever diff text it's
-// given — so a synthetic fixture can't distinguish `--patch` from the net
-// diff; the actual regression lives in which `gh pr diff` invocation the
-// callers use. PR #143 (real, merged, in this repo) is a genuine historical
-// instance of the bug #154 fixed: one commit added a deferral-language
-// violation quoting the old registry.def / T1.2 note, a subsequent commit
-// in the same PR fixed it (cited #26 instead). `gh-tsouza pr diff 143
-// --patch` still contains the violating line (the per-commit patch series);
-// the net diff (`gh-tsouza pr diff 143`, no `--patch` — what
-// forbid-deferral.mjs and pr-hygiene.mjs now fetch) does not. Fetch the net
-// diff for real and assert scanDiffForDeferral finds nothing in it. This one
-// assertion depends on live network/`gh` access, same as forbid-ledger.mjs's
-// issueIsOpen() check — CONSTITUTION.md Article II.3 already documents
-// "offline runs report this check as red" as expected for gh-dependent checks.
+// 6b: #154 regression — a static check, not a live PR fetch. `gh-tsouza` is a
+// machine-local identity-guard script (~/.local/bin/gh-tsouza), never checked
+// into this repo and never installed in CI, so any hygiene-selftest
+// assertion that shells out to it can never pass there (unlike
+// forbid-ledger.mjs's issueIsOpen(), which is only reached when a tracked
+// file's comment actually uses one of the deferral tags forbid-ledger scans
+// for — none currently do, so that latent gh-dependency has never actually
+// been exercised in CI). The
+// bug #154 fixed was specifically about which `gh pr diff` invocation these
+// two scripts use — `--patch` (a per-commit patch series) vs. the net diff —
+// so the deterministic, CI-safe way to prove the fix is reading the source
+// itself, not exercising a live call.
 {
-  let diff = null;
-  let ghAvailable = true;
-  try {
-    diff = await $`gh-tsouza pr diff 143`.text();
-  } catch {
-    ghAvailable = false;
-  }
-  if (!ghAvailable) {
-    console.error("SELFTEST FAIL: forbid-deferral (#154 net-diff regression) — gh-tsouza unavailable, cannot fetch PR #143's net diff");
-    failures++;
-  } else {
-    const violations = scanDiffForDeferral(diff);
-    if (violations.length > 0) {
-      console.error(
-        "SELFTEST FAIL: forbid-deferral (#154 net-diff regression) — PR #143's net diff should be clean but scanDiffForDeferral found:",
-      );
-      for (const v of violations) console.error(`  ${v}`);
+  const CHECKED_FILES = ["pr-hygiene.mjs", "hygiene/forbid-deferral.mjs"];
+  for (const file of CHECKED_FILES) {
+    const src = readFileSync(join(HERE, file), "utf8");
+    const calls = src.match(/gh-tsouza pr diff[^`]*/g) ?? [];
+    const stillPatched = calls.filter((c) => c.includes("--patch"));
+    if (calls.length === 0) {
+      console.error(`SELFTEST FAIL: ${file} — no "gh-tsouza pr diff" invocation found; expected one (#154 regression check needs updating)`);
+      failures++;
+    } else if (stillPatched.length > 0) {
+      console.error(`SELFTEST FAIL: ${file} still fetches the --patch (per-commit) diff: ${stillPatched.join(", ")}`);
       failures++;
     } else {
-      console.log("SELFTEST ok: forbid-deferral (#154 net-diff regression) — PR #143's net diff (no --patch) is clean");
+      console.log(`SELFTEST ok: ${file} fetches the net PR diff, not --patch (#154 regression)`);
     }
   }
 }
