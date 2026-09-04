@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { closesIssueNumber, missingLabels } from "./pr-label.mjs";
 import { isMissingLabel } from "./issue-label-check.mjs";
 import { slugify, headingSlugs } from "./docs-links.mjs";
+import { scanDiffForDeferral } from "./hygiene/forbid-deferral.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -91,6 +92,36 @@ await expectRed("workflow-shape", ["bun", join(HERE, "hygiene", "workflow-shape.
   const diffFile = join(tmp, "diff.patch");
   writeFileSync(diffFile, Buffer.from(diff, "base64"));
   await expectRed("forbid-deferral", ["bun", join(HERE, "hygiene", "forbid-deferral.mjs"), "--diff-file", diffFile]);
+}
+
+// 6b: #154 regression — a static check, not a live PR fetch. `gh-tsouza` is a
+// machine-local identity-guard script (~/.local/bin/gh-tsouza), never checked
+// into this repo and never installed in CI, so any hygiene-selftest
+// assertion that shells out to it can never pass there (unlike
+// forbid-ledger.mjs's issueIsOpen(), which is only reached when a tracked
+// file's comment actually uses one of the deferral tags forbid-ledger scans
+// for — none currently do, so that latent gh-dependency has never actually
+// been exercised in CI). The
+// bug #154 fixed was specifically about which `gh pr diff` invocation these
+// two scripts use — `--patch` (a per-commit patch series) vs. the net diff —
+// so the deterministic, CI-safe way to prove the fix is reading the source
+// itself, not exercising a live call.
+{
+  const CHECKED_FILES = ["pr-hygiene.mjs", "hygiene/forbid-deferral.mjs"];
+  for (const file of CHECKED_FILES) {
+    const src = readFileSync(join(HERE, file), "utf8");
+    const calls = src.match(/gh-tsouza pr diff[^`]*/g) ?? [];
+    const stillPatched = calls.filter((c) => c.includes("--patch"));
+    if (calls.length === 0) {
+      console.error(`SELFTEST FAIL: ${file} — no "gh-tsouza pr diff" invocation found; expected one (#154 regression check needs updating)`);
+      failures++;
+    } else if (stillPatched.length > 0) {
+      console.error(`SELFTEST FAIL: ${file} still fetches the --patch (per-commit) diff: ${stillPatched.join(", ")}`);
+      failures++;
+    } else {
+      console.log(`SELFTEST ok: ${file} fetches the net PR diff, not --patch (#154 regression)`);
+    }
+  }
 }
 
 // 7: pr-hygiene, fixture-based (a PR body that pastes the issue body verbatim).

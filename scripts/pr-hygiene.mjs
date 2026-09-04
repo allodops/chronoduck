@@ -40,7 +40,11 @@ async function loadInputs() {
     process.exit(2);
   }
   const pr = await $`gh-tsouza pr view ${n} --json title,body,author,comments,commits`.json();
-  const diff = await $`gh-tsouza pr diff ${n} --patch`.text();
+  // Net diff, not `--patch` (a per-commit patch series) — the latter still
+  // shows a line as "added" in an early commit's patch even after a
+  // subsequent commit in the same PR removes it, false-positiving the
+  // deferral scan on something that never reaches the target branch (#154).
+  const diff = await $`gh-tsouza pr diff ${n}`.text();
   const commits = pr.commits ?? [];
   return {
     prTitle: pr.title,

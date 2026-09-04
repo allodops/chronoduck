@@ -52,10 +52,12 @@ if (import.meta.main) {
     process.exit(2);
   }
 
+  // Net diff, not `--patch` (a per-commit patch series) — see
+  // scripts/pr-hygiene.mjs's identical comment (#154).
   const diff =
     diffFileIdx !== -1
       ? readFileSync(args[diffFileIdx + 1], "utf8")
-      : await $`gh-tsouza pr diff ${args[prIdx + 1]} --patch`.text();
+      : await $`gh-tsouza pr diff ${args[prIdx + 1]}`.text();
 
   const violations = scanDiffForDeferral(diff);
   if (violations.length > 0) {
