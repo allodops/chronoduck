@@ -8,6 +8,9 @@ on:
   merge_group:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.head_ref || '' }}-${{ github.base_ref || '' }}-${{ github.ref != 'refs/heads/main' && github.sha || '' }}
   cancel-in-progress: true
@@ -33,8 +36,12 @@ jobs:
   # No deploy job: `_extension_deploy.yml` uploads to the `duckdb-extensions-nightly` S3
   # bucket using secrets (DUCKDB_EXTENSIONS_NIGHTLY_S3_*) that GitHub only shares with
   # reusable-workflow callers inside the same org as the secret owner — this repo isn't
-  # in the duckdb org, so calling it would fail on every run regardless of dry-run
-  # settings, not just be inert. `duckdb-stable-build` above already proves the extension
-  # builds and packages correctly (uploaded as a GH Actions artifact); that's this
-  # project's dry-run signal until a real distribution channel (community-extensions,
-  # T0.11) is wired up.
+  # in the duckdb org, so those secrets would reach the deploy script empty. The script
+  # itself guards for that (duckdb/scripts/extension-upload-single.sh: "No AWS key
+  # found, skipping..", exit 0) — it would run as a silent no-op, not fail — but a
+  # no-op that never uploads anywhere this project controls has no value here either.
+  # `duckdb-stable-build` above already proves the extension builds and packages
+  # correctly (uploaded as a GH Actions artifact); that's this project's dry-run
+  # signal until a real distribution channel (community-extensions, T0.11) is wired
+  # up — matching duckdb/extension-template's own MainDistributionPipeline.yml, which
+  # also omits this job by default.

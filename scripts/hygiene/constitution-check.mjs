@@ -16,22 +16,57 @@ async function tryResolve(candidate) {
   }
 }
 
+async function hasMergeBase(candidate) {
+  try {
+    await $`git -C ${root} merge-base ${candidate} HEAD`.quiet();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function resolveBase() {
   if (base) return base;
   for (const candidate of ["origin/main", "main"]) {
-    if (await tryResolve(candidate)) return candidate;
+    if (await tryResolve(candidate)) {
+      base = candidate;
+      break;
+    }
   }
-  // A PR-triggered CI checkout is typically shallow and only fetches the ref
-  // needed for the merge commit — origin/main may genuinely not be a
-  // resolvable local ref yet, not because there's no base to diff against.
-  // Fetch it explicitly before concluding there's nothing to compare.
-  try {
-    await $`git -C ${root} fetch origin main:refs/remotes/origin/main`.quiet();
-  } catch {
-    // network/remote unavailable — fall through to "no base" below
+  if (!base) {
+    // A PR-triggered CI checkout is typically shallow and only fetches the
+    // ref needed for the merge commit — origin/main may genuinely not be a
+    // resolvable local ref yet, not because there's no base to diff against.
+    // Fetch it explicitly before concluding there's nothing to compare.
+    try {
+      await $`git -C ${root} fetch origin main:refs/remotes/origin/main`.quiet();
+    } catch {
+      // network/remote unavailable — fall through to "no base" below
+    }
+    if (await tryResolve("origin/main")) base = "origin/main";
   }
-  if (await tryResolve("origin/main")) return "origin/main";
-  return null;
+  if (!base) return null;
+
+  // Three-dot diffing below (base...HEAD, relative to the merge-base) is what
+  // actually answers "did *this branch* change CONSTITUTION.md" — a plain
+  // two-dot diff against base's current tip would also pick up any unrelated
+  // amendment landed on base after this branch forked, and falsely flag a
+  // long-lived branch that never touched the file. But a shallow CI checkout
+  // can resolve both refs individually while sharing no visible history, so
+  // there may be no merge-base yet either — fix that specifically rather than
+  // give up three-dot correctness for the common (non-shallow) case.
+  if (!(await hasMergeBase(base))) {
+    try {
+      await $`git -C ${root} fetch --unshallow`.quiet();
+    } catch {
+      try {
+        await $`git -C ${root} fetch --deepen=1000000`.quiet();
+      } catch {
+        // best effort — the diff below will fail closed if this didn't help
+      }
+    }
+  }
+  return base;
 }
 
 function versionOf(text) {
@@ -63,10 +98,15 @@ if (!base) {
   process.exit(1);
 }
 
-// Two-dot, not three: compares file *content* between the two tips directly,
-// which needs no shared history — a shallow CI checkout's base and HEAD often
-// have no local merge-base even though both refs resolve fine individually.
-const changedFiles = (await $`git -C ${root} diff --name-only ${base} HEAD`.text()).split("\n").filter(Boolean);
+let changedFiles;
+try {
+  // Three-dot: relative to the merge-base, so a change already on `base`
+  // before this branch forked is never mistaken for something this PR did.
+  changedFiles = (await $`git -C ${root} diff --name-only ${base}...HEAD`.text()).split("\n").filter(Boolean);
+} catch {
+  console.error(`constitution-check: FAIL (no merge-base between ${base} and HEAD even after attempting to fetch full history — cannot verify CONSTITUTION.md)`);
+  process.exit(1);
+}
 
 if (!changedFiles.includes("CONSTITUTION.md")) {
   console.log("constitution-check: PASS (CONSTITUTION.md unchanged)");
@@ -101,7 +141,7 @@ if (!newAmended || newAmended === oldAmended) {
 }
 
 const addedAdrs = (
-  await $`git -C ${root} diff --name-status ${base} HEAD -- docs/decisions/`.text()
+  await $`git -C ${root} diff --name-status ${base}...HEAD -- docs/decisions/`.text()
 )
   .split("\n")
   .filter((l) => l.startsWith("A\t"))

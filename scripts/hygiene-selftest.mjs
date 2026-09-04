@@ -82,9 +82,9 @@ await expectRed("workflow-shape", ["bun", join(HERE, "hygiene", "workflow-shape.
 // 7: pr-hygiene, fixture-based (a PR body that pastes the issue body verbatim).
 await expectRed("pr-hygiene", ["bun", join(HERE, "pr-hygiene.mjs"), "--fixture", join(FIXTURES, "pr-hygiene")]);
 
-// 8-11: lanes-check's four self-test fixtures (unregistered job, missing job,
-// continue-on-error, lanes.md drift).
-for (const name of ["unregistered", "missing", "continue-on-error", "lanes-md-drift"]) {
+// 8-12: lanes-check's self-test fixtures (unregistered job, missing job,
+// continue-on-error at job and step level, lanes.md drift).
+for (const name of ["unregistered", "missing", "continue-on-error", "continue-on-error-step", "lanes-md-drift"]) {
   await expectRed(`lanes-check (${name})`, ["bun", join(HERE, "lanes-check.mjs"), "--root", materialize(`lanes-check-${name}`)]);
 }
 
