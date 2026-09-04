@@ -132,9 +132,9 @@ constexpr const char *const kLayersRangeInstantHistGrid[] = {"L0",  "L1a", "L1b"
 // SERIES: a scalar over a regular series value (LIST(DOUBLE) plus the grid
 // descriptor), not an edge-reading fold — no L1c/L4/L6-only edge machinery
 // applies to it the same way, hence the narrower list and the primed L4'/L11'
-// entries (bit-identity across build/thread/partition variance and the
-// temporary-allocation law, respectively — see the map's own header comment
-// in `docs/design/surface.md`).
+// entries (bit-identity across build/thread/partition variance, and the
+// scratch-allocation law, respectively — see the map's own header comment in
+// `docs/design/surface.md`).
 constexpr const char *const kLayersSeries[] = {"L0",  "L1a", "L1b", "L1c", "L2",  "L3",   "L5",  "L6a",
                                                 "L9",  "L10", "L12", "L13", "L14", "L4'", "L11'"};
 
