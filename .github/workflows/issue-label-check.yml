@@ -1,0 +1,35 @@
+name: issue-label-check
+
+# Flags any OPEN issue missing a size: or area: label — see
+# scripts/issue-label-check.mjs's header for the rationale (issue #124).
+#
+# NOT A GATE: not a required status check, not part of `make hygiene`. Runs
+# on a schedule + manual dispatch and is deliberately red-until-fixed rather
+# than silent when it finds a gap — a scheduled workflow going red on every
+# run until someone labels the flagged issue is the intended signal, not a
+# bug in this workflow.
+on:
+  schedule:
+    - cron: '37 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: read
+  contents: read
+
+concurrency:
+  group: issue-label-check
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+      - run: make issue-label-check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

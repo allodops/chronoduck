@@ -1,0 +1,60 @@
+name: pr-label
+
+# Mirrors a PR's linked issue's size:/area: labels onto the PR — see
+# scripts/pr-label.mjs's header for the full rationale (issue #124: no PR in
+# this repo has ever carried a label, unlike every issue).
+#
+# Two jobs, one script:
+#   - label    — event-driven: on pull_request_target opened/edited/reopened
+#                it labels the one PR in the payload.
+#   - backfill — schedule + manual dispatch: walks every OPEN PR and applies
+#                any missing label. Self-healing for an event run that never
+#                fired; idempotent on an already-labeled PR.
+#
+# SECURITY: pull_request_target runs with a write token on the BASE ref and
+# never checks out or executes PR head code — the script only reads the PR
+# number/body/labels via the API (event payload or REST) and calls the
+# labels API using the trusted, in-repo scripts/pr-label.mjs from the base
+# ref.
+on:
+  pull_request_target:
+    types: [opened, edited, reopened]
+  schedule:
+    - cron: '23 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  pull-requests: write
+  issues: read
+  contents: read
+
+concurrency:
+  group: pr-label-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    name: label
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+      - run: make pr-label PR=${{ github.event.pull_request.number }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  backfill:
+    name: backfill
+    if: github.event_name != 'pull_request_target'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+      - run: make pr-label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

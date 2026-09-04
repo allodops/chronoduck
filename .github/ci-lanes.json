@@ -62,6 +62,27 @@
       "posture": "release",
       "layers": [],
       "owner": "tsouza"
+    },
+    {
+      "context": "label",
+      "workflow": "pr-label.yml",
+      "posture": "release",
+      "layers": [],
+      "owner": "tsouza"
+    },
+    {
+      "context": "backfill",
+      "workflow": "pr-label.yml",
+      "posture": "release",
+      "layers": [],
+      "owner": "tsouza"
+    },
+    {
+      "context": "check",
+      "workflow": "issue-label-check.yml",
+      "posture": "release",
+      "layers": [],
+      "owner": "tsouza"
     }
   ]
 }

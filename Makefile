@@ -90,3 +90,11 @@ ruleset-add-check: ## Add a required status check to the main ruleset: make rule
 ruleset-remove-check: ## Remove a required status check from the main ruleset: make ruleset-remove-check CONTEXT=<name>
 	$(if $(CONTEXT),,$(error usage: make ruleset-remove-check CONTEXT=<name>))
 	bun scripts/ruleset.mjs remove "$(CONTEXT)"
+
+.PHONY: pr-label
+pr-label: ## Mirror a linked issue's size:/area: labels onto its PR: make pr-label [PR=<n>] (omit PR to backfill every open PR)
+	bun scripts/pr-label.mjs $(if $(PR),PR=$(PR))
+
+.PHONY: issue-label-check
+issue-label-check: ## Flag any open issue missing both a size: and an area: label
+	bun scripts/issue-label-check.mjs
