@@ -4,6 +4,7 @@
 
 ## Unreleased
 
+- docs(constitution): CHANGELOG.md content-equality is release-time, not per-PR CI (#159)
 - fix(ci): fetch net PR diff, not the --patch per-commit series (#157)
 - feat(release): community description.yml, changelog generation, release checklist (#156)
 - chore(deps): bump ossf/scorecard-action (#148)

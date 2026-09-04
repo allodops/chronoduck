@@ -5,3 +5,4 @@
 [submodule "duckdb"]
 	path = duckdb
 	url = https://github.com/duckdb/duckdb.git
+	branch = v1.5-variegata
