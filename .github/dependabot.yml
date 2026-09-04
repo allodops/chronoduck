@@ -8,7 +8,7 @@ updates:
       - "area:ci"
       - "size:S"
 
-  - package-ecosystem: "gitmodules"
+  - package-ecosystem: "gitsubmodule"
     directory: "/"
     schedule:
       interval: "weekly"
