@@ -428,6 +428,12 @@ await expectRed("fixtures-validate (inert)", ["bun", join(HERE, "fixtures-valida
   await expectGreen("forbid-consumer (fixture provenance token exempt)", ["bun", join(HERE, "hygiene", "forbid-consumer.mjs"), "--root", dir]);
 }
 
+// coverage-check: a K row whose "How" column names no identifiable
+// construct (no docs/design/*.md vocabulary hit, no registry-function-shaped
+// identifier either) is red. The fixture carries no "T<major>.<minor>"
+// plan-key token, so this assertion never calls out to gh-tsouza.
+await expectRed("coverage-check", ["bun", join(HERE, "coverage-check.mjs"), "--root", materialize("coverage-check-bad-how")]);
+
 // fixtures-validate: #168 — a non-numeric window or lookback is red (each
 // isolated in its own fixture, since either field alone must fail the
 // check independently); a HISTOGRAM-domain sample whose value isn't the
