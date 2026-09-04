@@ -73,8 +73,10 @@ is cited; the rest are new to this kernel.
     Graphite, OpenTSDB, InfluxDB, kdb+) are allowed, but a registry comment cites the algorithm or
     the paper, never a system's function (`Jugel 2014`, not a vendor's accessor). Exempt paths are
     listed in the same file: `CONSTITUTION.md`, `docs/prior-art.md`, `docs/decisions/`,
-    `docs/design/ecosystem.md`, `docs/design/coverage.md`, the review log, and fixture *values*
-    (provenance strings and pattern text) — the scan's declared holes, each named. One embedded
+    `docs/design/ecosystem.md`, `docs/design/coverage.md` — the scan's declared holes, each named.
+    Fixture *values* (provenance strings and pattern text) are exempt separately, by scan logic
+    rather than a path-list entry: the scan reads fixture *keys*, never the provenance or
+    pattern-text values a fixture carries. One embedded
     mini-language is admitted: a grammar that is a standard's (ISO/IEC 9075-2:2016 §R row-pattern
     syntax), whose parser is a Tier primitive with its own fence, and which appears only in fixture
     values; a consumer's grammar never is. The derivation tools that turn upstream corpora into
