@@ -32,6 +32,17 @@ async function expectRed(label, cmd) {
   }
 }
 
+async function expectGreen(label, cmd) {
+  const { out, err, code } = await run(cmd);
+  if (code !== 0) {
+    console.error(`SELFTEST FAIL: ${label} was expected to pass (green) on its fixture but exited ${code}`);
+    console.error(out, err);
+    failures++;
+  } else {
+    console.log(`SELFTEST ok: ${label} correctly green on its fixture`);
+  }
+}
+
 // A fixture manifest (test/hygiene-fixtures/<scan>.json: {relPath: content}) is
 // materialized into a disposable temp directory, never committed as literal
 // git-tracked files that would match the real-tree scan it's designed to trip.
@@ -82,6 +93,56 @@ await expectRed("workflow-shape", ["bun", join(HERE, "hygiene", "workflow-shape.
 // 7: pr-hygiene, fixture-based (a PR body that pastes the issue body verbatim).
 await expectRed("pr-hygiene", ["bun", join(HERE, "pr-hygiene.mjs"), "--fixture", join(FIXTURES, "pr-hygiene")]);
 
+// check-pins: a submodule pinned to a branch (not its remote's default
+// branch) that's freshly cloned + `submodule update --init`ed describes as
+// "remotes/origin/<branch>", not "heads/<branch>" — the exact state #16's
+// review found check-pins.mjs mishandling. Reproduce it for real: two fake
+// upstream remotes (never network — local `file://`, explicitly allowed),
+// a superproject pinning "duckdb" to a tag and "extension-ci-tools" to a
+// *non-default* branch, then a fresh clone + submodule init of it.
+{
+  const tmp = mkdtempSync(join(tmpdir(), "cp-selftest-"));
+  const sh = async (cwd, cmd) => $`git -c protocol.file.allow=always -C ${cwd} ${{ raw: cmd }}`.quiet();
+  const gitInit = async (dir, branch) => {
+    mkdirSync(dir, { recursive: true });
+    await sh(dir, `init -q -b ${branch}`);
+    await sh(dir, `config user.email test@example.com`);
+    await sh(dir, `config user.name test`);
+  };
+
+  const fakeDuckdb = join(tmp, "fake-duckdb");
+  await gitInit(fakeDuckdb, "trunk");
+  writeFileSync(join(fakeDuckdb, "f"), "x");
+  await sh(fakeDuckdb, "add f");
+  await sh(fakeDuckdb, "commit -q -m c");
+  await sh(fakeDuckdb, "tag v1.5.4");
+
+  const fakeCiTools = join(tmp, "fake-citools");
+  await gitInit(fakeCiTools, "main"); // default branch deliberately != the pinned one
+  writeFileSync(join(fakeCiTools, "f"), "main-content");
+  await sh(fakeCiTools, "add f");
+  await sh(fakeCiTools, "commit -q -m main-commit");
+  await sh(fakeCiTools, "checkout -q -b v1.5-variegata");
+  writeFileSync(join(fakeCiTools, "f"), "branch-content");
+  await sh(fakeCiTools, "add f");
+  await sh(fakeCiTools, "commit -q -m variegata-commit");
+  await sh(fakeCiTools, "checkout -q main");
+
+  const superDir = join(tmp, "super");
+  await gitInit(superDir, "main");
+  await sh(superDir, `submodule add -q -b trunk ${fakeDuckdb} duckdb`);
+  await sh(join(superDir, "duckdb"), "checkout -q v1.5.4");
+  await sh(superDir, `submodule add -q -b v1.5-variegata ${fakeCiTools} extension-ci-tools`);
+  await sh(superDir, "add -A");
+  await sh(superDir, "commit -q -m add-submodules");
+
+  const cloneDir = join(tmp, "super-clone");
+  await sh(tmp, `-c protocol.file.allow=always clone -q ${superDir} ${cloneDir}`);
+  await sh(cloneDir, "submodule update --init");
+
+  await expectGreen("check-pins (detached-HEAD remote-tracking describe)", ["bun", join(HERE, "check-pins.mjs"), "--root", cloneDir]);
+}
+
 // 8-12: lanes-check's self-test fixtures (unregistered job, missing job,
 // continue-on-error at job and step level, lanes.md drift).
 for (const name of ["unregistered", "missing", "continue-on-error", "continue-on-error-step", "lanes-md-drift"]) {
@@ -110,6 +171,61 @@ for (const name of ["unregistered", "missing", "continue-on-error", "continue-on
   } else {
     console.log("SELFTEST ok: `make lanes-check` is green on the real tree");
   }
+}
+{
+  // The "heads/<branch>" describe form: a submodule added locally via
+  // `git submodule add` (never re-cloned) keeps a local branch checked out,
+  // unlike a fresh `clone` + `submodule update --init` (the fixture above),
+  // which — confirmed by round-1 review — describes as "remotes/origin/..."
+  // even for the real repo. This is the only reliable way to construct the
+  // "heads/..." case: it is NOT what CI's own checkout produces, so a
+  // real-tree assertion here would be exercising the wrong scenario (or
+  // failing outright, since the "hygiene" job's checkout never fetches
+  // submodules at all — it doesn't need C++/CMake for anything else it does).
+  const tmp = mkdtempSync(join(tmpdir(), "cp-heads-selftest-"));
+  const sh = async (cwd, cmd) => $`git -c protocol.file.allow=always -C ${cwd} ${{ raw: cmd }}`.quiet();
+  const gitInit = async (dir, branch) => {
+    mkdirSync(dir, { recursive: true });
+    await sh(dir, `init -q -b ${branch}`);
+    await sh(dir, `config user.email test@example.com`);
+    await sh(dir, `config user.name test`);
+  };
+
+  const fakeDuckdb = join(tmp, "fake-duckdb");
+  await gitInit(fakeDuckdb, "trunk");
+  writeFileSync(join(fakeDuckdb, "f"), "x");
+  await sh(fakeDuckdb, "add f");
+  await sh(fakeDuckdb, "commit -q -m c");
+  await sh(fakeDuckdb, "tag v1.5.4");
+
+  const fakeCiTools = join(tmp, "fake-citools");
+  await gitInit(fakeCiTools, "main");
+  writeFileSync(join(fakeCiTools, "f"), "main-content");
+  await sh(fakeCiTools, "add f");
+  await sh(fakeCiTools, "commit -q -m main-commit");
+  await sh(fakeCiTools, "checkout -q -b v1.5-variegata");
+  writeFileSync(join(fakeCiTools, "f"), "branch-content");
+  await sh(fakeCiTools, "add f");
+  await sh(fakeCiTools, "commit -q -m variegata-commit");
+
+  const superDir = join(tmp, "super");
+  await gitInit(superDir, "main");
+  await sh(superDir, `submodule add -q -b trunk ${fakeDuckdb} duckdb`);
+  await sh(join(superDir, "duckdb"), "checkout -q v1.5.4");
+  // `submodule add` (not update --init on a pre-committed .gitmodules entry)
+  // clones and checks out the *local* branch directly — this is what leaves
+  // a "heads/<branch>" ref behind, the case this fixture targets.
+  await sh(superDir, `submodule add -q -b v1.5-variegata ${fakeCiTools} extension-ci-tools`);
+  await sh(superDir, "add -A");
+  await sh(superDir, "commit -q -m add-submodules");
+
+  const describe = await $`git -C ${superDir} submodule status`.text();
+  if (!describe.includes("heads/v1.5-variegata")) {
+    console.error(`SELFTEST FAIL: heads/<branch> fixture setup didn't reproduce the expected describe form: ${describe}`);
+    failures++;
+  }
+
+  await expectGreen("check-pins (local heads/<branch> describe)", ["bun", join(HERE, "check-pins.mjs"), "--root", superDir]);
 }
 
 if (failures > 0) {
