@@ -7,6 +7,7 @@
 #include "duckdb/common/vector_operations/ternary_executor.hpp"
 #include "duckdb/function/scalar_function.hpp"
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
+#include <limits>
 
 namespace duckdb {
 
@@ -34,10 +35,16 @@ void ChronoduckVersionScalarFun(DataChunk &args, ExpressionState &state, Vector 
 // Genuine floor division, not C++'s truncate-toward-zero `/` — required so
 // the Grid primitive's invariant (at(index_of(t)) <= t < at(index_of(t)+1),
 // docs/testing/primitives.md's Grid row) holds for t before the grid start
-// too, where the numerator is negative.
-int64_t FloorDiv(int64_t numerator, int64_t denominator) {
-	int64_t quotient = numerator / denominator;
-	int64_t remainder = numerator % denominator;
+// too, where the numerator is negative. The numerator is __int128_t (not
+// int64_t) because t.value - grid_start.value, computed by the caller, can
+// itself overflow int64_t: DuckDB's representable TIMESTAMP range spans
+// about [-290308-12-22, 294247-01-01], so two legal, in-range timestamps
+// can be up to ~1.85e19 microseconds apart — beyond int64_t's ~9.22e18 max.
+// __int128_t is a GCC/Clang extension, safe here since this project's CI
+// targets ubuntu-latest exclusively (see .github/workflows/ci.yml).
+__int128_t FloorDiv(__int128_t numerator, int64_t denominator) {
+	__int128_t quotient = numerator / denominator;
+	__int128_t remainder = numerator % denominator;
 	if (remainder != 0 && ((remainder < 0) != (denominator < 0))) {
 		quotient--;
 	}
@@ -56,7 +63,22 @@ void TsGridIndexScalarFun(DataChunk &args, ExpressionState &state, Vector &resul
 		    if (step <= 0) {
 			    throw InvalidInputException("ts_grid_index: step must be positive, got %lld", (long long)step);
 		    }
-		    return FloorDiv(t.value - grid_start.value, step);
+		    // Widen to __int128_t before subtracting: t.value - grid_start.value
+		    // can overflow int64_t for legal, in-range TIMESTAMP extremes (see
+		    // FloorDiv above).
+		    __int128_t offset = static_cast<__int128_t>(t.value) - static_cast<__int128_t>(grid_start.value);
+		    __int128_t index = FloorDiv(offset, step);
+		    // The result narrows back to int64_t (ts_grid_index returns BIGINT).
+		    // That narrowing itself can't be assumed safe: with a small enough
+		    // step relative to an extreme offset, the mathematically correct
+		    // index doesn't fit in int64_t either, so detect that and raise a
+		    // clear error rather than silently wrapping — the same posture as
+		    // the "step must be positive" check above.
+		    if (index < std::numeric_limits<int64_t>::min() || index > std::numeric_limits<int64_t>::max()) {
+			    throw InvalidInputException("ts_grid_index: computed index overflows BIGINT for these inputs "
+			                                 "(t, start too far apart relative to step)");
+		    }
+		    return static_cast<int64_t>(index);
 	    });
 }
 
