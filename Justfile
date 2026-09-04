@@ -43,6 +43,14 @@ check-pins:
 lanes-check:
     bun scripts/lanes-check.mjs
 
+# Add a context to the main ruleset's required status checks. The only way the ruleset is ever edited.
+ruleset-add-check context:
+    bun scripts/ruleset.mjs add "{{context}}"
+
+# Remove a context from the main ruleset's required status checks.
+ruleset-remove-check context:
+    bun scripts/ruleset.mjs remove "{{context}}"
+
 # Run every tree hygiene scan.
 hygiene:
     bun scripts/hygiene.mjs
