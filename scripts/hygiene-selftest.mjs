@@ -100,8 +100,8 @@ await expectRed("workflow-shape", ["bun", join(HERE, "hygiene", "workflow-shape.
 // diff; the actual regression lives in which `gh pr diff` invocation the
 // callers use. PR #143 (real, merged, in this repo) is a genuine historical
 // instance of the bug #154 fixed: one commit added a deferral-language
-// violation ("... Not yet in registry.def (T1.2 moves it...)"), a follow-up
-// commit in the same PR fixed it (cited #26 instead). `gh-tsouza pr diff 143
+// violation quoting the old registry.def / T1.2 note, a subsequent commit
+// in the same PR fixed it (cited #26 instead). `gh-tsouza pr diff 143
 // --patch` still contains the violating line (the per-commit patch series);
 // the net diff (`gh-tsouza pr diff 143`, no `--patch` — what
 // forbid-deferral.mjs and pr-hygiene.mjs now fetch) does not. Fetch the net
