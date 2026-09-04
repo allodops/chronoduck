@@ -20,6 +20,7 @@ async function loadInputs() {
     return {
       prTitle: readIfExists(join(dir, "pr-title.txt")).trim(),
       prBody: readIfExists(join(dir, "pr-body.txt")),
+      prAuthor: readIfExists(join(dir, "author.txt")).trim(),
       diff: readIfExists(join(dir, "diff.patch")),
       loadIssue: async (n) => ({
         issueTitle: readIfExists(join(dir, "issue-title.txt")).trim(),
@@ -32,11 +33,12 @@ async function loadInputs() {
     console.error("pr-hygiene: usage: pr-hygiene.mjs <pr-number> | --fixture <dir>");
     process.exit(2);
   }
-  const pr = await $`gh-tsouza pr view ${n} --json title,body`.json();
+  const pr = await $`gh-tsouza pr view ${n} --json title,body,author`.json();
   const diff = await $`gh-tsouza pr diff ${n} --patch`.text();
   return {
     prTitle: pr.title,
     prBody: pr.body ?? "",
+    prAuthor: pr.author?.login ?? "",
     diff,
     loadIssue: async (issueNum) => {
       const issue = await $`gh-tsouza issue view ${issueNum} --json title,body`.json();
@@ -66,7 +68,17 @@ function stripPrBodyForOverlap(body) {
     .join("\n");
 }
 
-const { prTitle, prBody, diff, loadIssue } = await loadInputs();
+const { prTitle, prBody, prAuthor, diff, loadIssue } = await loadInputs();
+
+// Article III.1: dependabot[bot] PRs are exempt from this article's body
+// rules entirely — a version-bump PR has no "Closes #N", no design to
+// describe, and nothing to restate. It still merges through the same
+// green-checks loop as any other PR, just without this particular check.
+if (prAuthor === "dependabot[bot]") {
+  console.log("pr-hygiene: PASS (dependabot[bot] PR, exempt per Article III.1)");
+  process.exit(0);
+}
+
 const violations = [];
 
 const closesMatches = [...prBody.matchAll(/closes\s+#(\d+)/gi)];
