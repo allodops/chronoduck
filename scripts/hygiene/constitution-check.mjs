@@ -93,6 +93,13 @@ function versionGreater(a, b) {
 // returns a Map from article id (e.g. "II") to that section's full text
 // (header line through the next "## Article" header or end of string). A
 // plain text diff per section — no semantic understanding of what changed.
+// Trailing whitespace is stripped from each section before it's stored: the
+// slice boundary between one section and the next falls on the blank line(s)
+// separating them, which "belongs" to neither article's actual content — an
+// article inserted or removed elsewhere in the document shifts where that
+// boundary lands for its untouched neighbor, and without trimming, that
+// shift alone would spuriously mark the neighbor's body as "changed" even
+// though its content is byte-identical.
 function articleSections(text) {
   const headerRe = /^## Article\s+(\S+)/gm;
   const matches = [...text.matchAll(headerRe)];
@@ -100,7 +107,7 @@ function articleSections(text) {
   for (let i = 0; i < matches.length; i++) {
     const start = matches[i].index;
     const end = i + 1 < matches.length ? matches[i + 1].index : text.length;
-    sections.set(matches[i][1], text.slice(start, end));
+    sections.set(matches[i][1], text.slice(start, end).trimEnd());
   }
   return sections;
 }

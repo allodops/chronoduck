@@ -135,6 +135,59 @@ await expectRed("workflow-shape", ["bun", join(HERE, "hygiene", "workflow-shape.
   ]);
 }
 
+// 5c: #172 regression — appending a brand-new trailing article must not
+// spuriously mark its untouched preceding neighbor as "changed" too (the
+// slice boundary between two sections falls on the blank line separating
+// them, which shifts when a new article is inserted after an untouched one,
+// even though that neighbor's own content is byte-identical). Article II is
+// byte-identical between base and head; only the new Article III is real.
+{
+  const tmp = mkdtempSync(join(tmpdir(), "cc-topicality-append-selftest-"));
+  await $`git -C ${tmp} init -q -b main`.quiet();
+  await $`git -C ${tmp} config user.email test@example.com`.quiet();
+  await $`git -C ${tmp} config user.name test`.quiet();
+  cpSync(join(FIXTURES, "constitution-check", "topicality-append-base", "CONSTITUTION.md"), join(tmp, "CONSTITUTION.md"));
+  await $`git -C ${tmp} add CONSTITUTION.md`.quiet();
+  await $`git -C ${tmp} commit -q -m base`.quiet();
+
+  await $`git -C ${tmp} checkout -q -b head-neighbor-only`.quiet();
+  cpSync(join(FIXTURES, "constitution-check", "topicality-append-head", "CONSTITUTION.md"), join(tmp, "CONSTITUTION.md"));
+  mkdirSync(join(tmp, "docs", "decisions"), { recursive: true });
+  cpSync(
+    join(FIXTURES, "constitution-check", "topicality-append-adr-neighbor-only.md"),
+    join(tmp, "docs", "decisions", "0016-gadgets-are-hexagonal.md"),
+  );
+  await $`git -C ${tmp} add CONSTITUTION.md docs/decisions/0016-gadgets-are-hexagonal.md`.quiet();
+  await $`git -C ${tmp} commit -q -m "append Article III, attach ADR naming only the untouched neighbor"`.quiet();
+  await expectRed("constitution-check (appended article — ADR naming only the untouched neighbor is still unrelated)", [
+    "bun",
+    join(HERE, "hygiene", "constitution-check.mjs"),
+    "--root",
+    tmp,
+    "--base",
+    "main",
+  ]);
+
+  await $`git -C ${tmp} checkout -q main`.quiet();
+  await $`git -C ${tmp} checkout -q -b head-matching`.quiet();
+  cpSync(join(FIXTURES, "constitution-check", "topicality-append-head", "CONSTITUTION.md"), join(tmp, "CONSTITUTION.md"));
+  mkdirSync(join(tmp, "docs", "decisions"), { recursive: true });
+  cpSync(
+    join(FIXTURES, "constitution-check", "topicality-append-adr-matching.md"),
+    join(tmp, "docs", "decisions", "0016-sprockets-are-new.md"),
+  );
+  await $`git -C ${tmp} add CONSTITUTION.md docs/decisions/0016-sprockets-are-new.md`.quiet();
+  await $`git -C ${tmp} commit -q -m "append Article III, attach matching ADR"`.quiet();
+  await expectGreen("constitution-check (appended article — ADR naming the new article passes)", [
+    "bun",
+    join(HERE, "hygiene", "constitution-check.mjs"),
+    "--root",
+    tmp,
+    "--base",
+    "main",
+  ]);
+}
+
 // 6: forbid-deferral, diff-based — the fixture diff text is base64-encoded in
 // the manifest so its trigger words never exist as plaintext in a
 // git-tracked file for any scan (this one included) to stumble on.
