@@ -4,5 +4,81 @@ PROJ_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 EXT_NAME=chronoduck
 EXT_CONFIG=${PROJ_DIR}extension_config.cmake
 
+# Parallel builds for every cmake-driven target below, including the ones the
+# included upstream Makefile defines (release, debug, relassert, ...) —
+# CMAKE_BUILD_PARALLEL_LEVEL is honored natively by `cmake --build`, so this
+# one export covers all of them, not just the targets we define ourselves.
+export CMAKE_BUILD_PARALLEL_LEVEL ?= $(shell nproc)
+
 # Include the Makefile from extension-ci-tools
 include extension-ci-tools/makefiles/duckdb_extension.Makefile
+
+.DEFAULT_GOAL := help
+
+.PHONY: help
+help: ## Show this help
+	@grep -hE '^[a-zA-Z0-9_-]+:.*##' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*##"}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
+
+.PHONY: smoke
+smoke: ## LOAD the built extension into a stock DuckDB shell and assert chronoduck_version()
+	test -n "$$(./build/release/duckdb -unsigned -csv -noheader -c "LOAD 'build/release/extension/chronoduck/chronoduck.duckdb_extension'; SELECT extension_version FROM duckdb_extensions() WHERE extension_name = 'chronoduck';")" && echo "smoke: PASS"
+
+.PHONY: test-relassert
+test-relassert: ## Run the sqllogictest suite against the relassert build (UBSan + forced asserts; run `make relassert` first)
+	./build/relassert/test/unittest "test/*"
+
+.PHONY: hygiene
+hygiene: ## Run every tree hygiene scan
+	bun scripts/hygiene.mjs
+
+.PHONY: hygiene-selftest
+hygiene-selftest: ## Prove each scan fails on its fixture, then that the tree is green
+	bun scripts/hygiene-selftest.mjs
+
+.PHONY: pr-hygiene
+pr-hygiene: ## Scan an open PR against Article III/VIII's rules: make pr-hygiene PR=<n>
+	$(if $(PR),,$(error usage: make pr-hygiene PR=<n>))
+	bun scripts/pr-hygiene.mjs $(PR)
+
+.PHONY: forbid-ledger
+forbid-ledger: ## Ledger-file denylist and undocumented-TODO scan
+	bun scripts/hygiene/forbid-ledger.mjs
+
+.PHONY: forbid-consumer
+forbid-consumer: ## Forbidden consumer-token scan (Article VI.1)
+	bun scripts/hygiene/forbid-consumer.mjs
+
+.PHONY: verify-citations
+verify-citations: ## file:function: citation scan (Article II.4)
+	bun scripts/hygiene/verify-citations.mjs
+
+.PHONY: workflow-shape
+workflow-shape: ## Every workflow step is `make <target>` or a pinned reusable uses: (Article IV.3)
+	bun scripts/hygiene/workflow-shape.mjs
+
+.PHONY: constitution-check
+constitution-check: ## A changed CONSTITUTION.md needs a version bump, new date and ADR (Article IX.2)
+	bun scripts/hygiene/constitution-check.mjs
+
+.PHONY: forbid-deferral
+forbid-deferral: ## PR-diff deferral-language scan: make forbid-deferral PR=<n>
+	$(if $(PR),,$(error usage: make forbid-deferral PR=<n>))
+	bun scripts/hygiene/forbid-deferral.mjs --pr $(PR)
+
+.PHONY: check-pins
+check-pins: ## Verify duckdb / extension-ci-tools submodule pins agree with each other and the workflow file
+	bun scripts/check-pins.mjs
+
+.PHONY: lanes-check
+lanes-check: ## Verify .github/ci-lanes.json against the actual workflow files
+	bun scripts/lanes-check.mjs
+
+.PHONY: ruleset-add-check
+ruleset-add-check: ## Add a required status check to the main ruleset: make ruleset-add-check CONTEXT=<name>
+	$(if $(CONTEXT),,$(error usage: make ruleset-add-check CONTEXT=<name>))
+	bun scripts/ruleset.mjs add "$(CONTEXT)"
+
+.PHONY: ruleset-remove-check
+ruleset-remove-check: ## Remove a required status check from the main ruleset: make ruleset-remove-check CONTEXT=<name>
+	$(if $(CONTEXT),,$(error usage: make ruleset-remove-check CONTEXT=<name>))
+	bun scripts/ruleset.mjs remove "$(CONTEXT)"

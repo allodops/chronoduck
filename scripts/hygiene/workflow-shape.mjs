@@ -36,7 +36,7 @@ if (existsSync(wfDir)) {
     }
     for (const [jobName, job] of Object.entries(jobs)) {
       // A job whose entire content is a reusable `uses:` is exempt (its ref is
-      // verified separately by `just check-pins`).
+      // verified separately by `make check-pins`).
       const jobKeys = Object.keys(job ?? {});
       if (jobKeys.length === 1 && jobKeys[0] === "uses") continue;
 
@@ -48,8 +48,8 @@ if (existsSync(wfDir)) {
           violations.push(`${entry}: job "${jobName}" step "${step.name ?? "(unnamed)"}" has unexpected keys: ${stepKeys.join(", ")}`);
         }
         const run = String(step.run ?? "").trim();
-        if (!/^just\s+\S/.test(run)) {
-          violations.push(`${entry}: job "${jobName}" step "${step.name ?? "(unnamed)"}" runs "${run}", which is not \`just <recipe>\``);
+        if (!/^make\s+\S/.test(run)) {
+          violations.push(`${entry}: job "${jobName}" step "${step.name ?? "(unnamed)"}" runs "${run}", which is not \`make <target>\``);
         }
       }
     }

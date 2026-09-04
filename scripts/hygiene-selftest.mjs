@@ -94,10 +94,10 @@ for (const name of ["unregistered", "missing", "continue-on-error", "continue-on
   process.stdout.write(out);
   process.stderr.write(err);
   if (code !== 0) {
-    console.error("SELFTEST FAIL: `just hygiene` is not green on the real tree");
+    console.error("SELFTEST FAIL: `make hygiene` is not green on the real tree");
     failures++;
   } else {
-    console.log("SELFTEST ok: `just hygiene` is green on the real tree");
+    console.log("SELFTEST ok: `make hygiene` is green on the real tree");
   }
 }
 {
@@ -105,10 +105,10 @@ for (const name of ["unregistered", "missing", "continue-on-error", "continue-on
   process.stdout.write(out);
   process.stderr.write(err);
   if (code !== 0) {
-    console.error("SELFTEST FAIL: `just lanes-check` is not green on the real tree");
+    console.error("SELFTEST FAIL: `make lanes-check` is not green on the real tree");
     failures++;
   } else {
-    console.log("SELFTEST ok: `just lanes-check` is green on the real tree");
+    console.log("SELFTEST ok: `make lanes-check` is green on the real tree");
   }
 }
 

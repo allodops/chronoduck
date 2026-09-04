@@ -24,6 +24,5 @@ jobs:
       - uses: github/codeql-action/init@5ba2889ada762081db2c4f32a729827dce632c7b # v3
         with:
           languages: cpp
-      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
-      - run: just build
+      - run: make release
       - uses: github/codeql-action/analyze@5ba2889ada762081db2c4f32a729827dce632c7b # v3
