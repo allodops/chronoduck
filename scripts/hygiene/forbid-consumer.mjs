@@ -45,11 +45,21 @@ function isExempt(path) {
 // rather than being a configurable policy path.
 const SELF_PATH = usingRealTree ? relative(root, tokensPath) : null;
 
-// For a fixture file under test/fixtures/, only scan JSON/YAML *keys*, never values.
-// Everything else is scanned as raw text.
+// For a fixture file under test/fixtures/, scan JSON/YAML *keys* at any
+// nesting depth, plus the string *values* of the top-level `fixture` and
+// `function` fields — structural identifiers with no legitimate reason to
+// name a consumer query language. Every other value, especially every
+// provenance.* value (provenance exists to record derivation, which
+// legitimately needs to name a source language sometimes), stays exempt.
 function isFixtureFile(path) {
   return path.startsWith("test/fixtures/") && /\.(json|ya?ml)$/.test(path);
 }
+
+// Top-level fields whose *value* (not just its key name) is scanned for a
+// fixture file — deliberately narrow: both are structural identifiers
+// (a slug, a registry function name), never free-form prose, so there is no
+// legitimate reason for either to need to name a consumer query language.
+const VALUE_SCAN_FIELDS = ["fixture", "function"];
 
 function collectKeys(node, out) {
   if (Array.isArray(node)) {
@@ -63,13 +73,21 @@ function collectKeys(node, out) {
   // Scalars (strings, numbers) are values, not keys — never collected here.
 }
 
+function collectValueScanFields(doc, out) {
+  if (!doc || typeof doc !== "object" || Array.isArray(doc)) return;
+  for (const field of VALUE_SCAN_FIELDS) {
+    if (typeof doc[field] === "string") out.push(doc[field]);
+  }
+}
+
 function extractStructuralKeys(text) {
   // A real YAML/JSON parse, not a JSON-only `"key":` regex — a fixture's
   // unquoted YAML keys (`fixture: rate/...`, no quotes) would extract zero
   // matches under a JSON-shaped regex, silently turning "scan keys only"
   // into "scan nothing" for every fixture file. Recursively collects every
-  // key NAME at any nesting depth; every value (including every
-  // provenance.* value) is never inspected.
+  // key NAME at any nesting depth, plus the top-level `fixture`/`function`
+  // values (collectValueScanFields, above); every other value — including
+  // every provenance.* value — is never inspected.
   let doc;
   try {
     doc = parse(text);
@@ -78,6 +96,7 @@ function extractStructuralKeys(text) {
   }
   const keys = [];
   collectKeys(doc, keys);
+  collectValueScanFields(doc, keys);
   return keys;
 }
 
@@ -97,8 +116,8 @@ for (const f of files) {
 
   // Fail closed: an unparseable fixture file is scanned as raw text (keys
   // and values both) rather than silently skipped.
-  const structuralKeys = isFixtureFile(f) ? extractStructuralKeys(content) : null;
-  const haystacks = structuralKeys ?? [content];
+  const scanned = isFixtureFile(f) ? extractStructuralKeys(content) : null;
+  const haystacks = scanned ?? [content];
   for (const hay of haystacks) {
     for (const token of tokens) {
       const re = new RegExp(`\\b${token}\\b`, "i");

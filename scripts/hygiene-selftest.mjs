@@ -428,6 +428,22 @@ await expectRed("fixtures-validate (inert)", ["bun", join(HERE, "fixtures-valida
   await expectGreen("forbid-consumer (fixture provenance token exempt)", ["bun", join(HERE, "hygiene", "forbid-consumer.mjs"), "--root", dir]);
 }
 
+// fixtures-validate: #168 — a non-numeric window or lookback is red (each
+// isolated in its own fixture, since either field alone must fail the
+// check independently); a HISTOGRAM-domain sample whose value isn't the
+// histogramLiteral grammar (a plain string here) is also red.
+await expectRed("fixtures-validate (non-numeric window)", ["bun", join(HERE, "fixtures-validate.mjs"), "--root", materialize("fixtures-validate-nonnumeric-window")]);
+await expectRed("fixtures-validate (non-numeric lookback)", ["bun", join(HERE, "fixtures-validate.mjs"), "--root", materialize("fixtures-validate-nonnumeric-lookback")]);
+await expectRed("fixtures-validate (HISTOGRAM sample not a histogram literal)", ["bun", join(HERE, "fixtures-validate.mjs"), "--root", materialize("fixtures-validate-histogram-bad-literal")]);
+
+// forbid-consumer: #168 — a forbidden token in a fixture's `fixture:` or
+// `function:` value is red (each isolated in its own fixture); a forbidden
+// token in `provenance.source` staying green is already proven above by
+// the fixtures-validate-valid-provenance-token fixture, reused under
+// forbid-consumer — that exemption is unchanged by this fix.
+await expectRed("forbid-consumer (forbidden token in fixture: value)", ["bun", join(HERE, "hygiene", "forbid-consumer.mjs"), "--root", materialize("forbid-consumer-fixture-value")]);
+await expectRed("forbid-consumer (forbidden token in function: value)", ["bun", join(HERE, "hygiene", "forbid-consumer.mjs"), "--root", materialize("forbid-consumer-function-value")]);
+
 // description-validate: 6 distinct violation branches, each isolated to its
 // own otherwise-valid-and-complete description.yml fixture.
 for (const name of [
