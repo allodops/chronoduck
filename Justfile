@@ -10,7 +10,7 @@ test:
 
 # LOAD the built extension into a stock DuckDB shell and assert chronoduck_version().
 smoke:
-    ./build/release/duckdb -unsigned -c "LOAD 'build/release/extension/chronoduck/chronoduck.duckdb_extension'; SELECT CASE WHEN (SELECT extension_version FROM duckdb_extensions() WHERE extension_name = 'chronoduck') > '' THEN 'smoke: PASS' ELSE error('smoke: FAIL — empty extension_version') END;"
+    test -n "$(./build/release/duckdb -unsigned -csv -noheader -c "LOAD 'build/release/extension/chronoduck/chronoduck.duckdb_extension'; SELECT extension_version FROM duckdb_extensions() WHERE extension_name = 'chronoduck';")" && echo "smoke: PASS"
 
 # Format C++ sources to .clang-format.
 format:
