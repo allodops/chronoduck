@@ -68,9 +68,10 @@ const FRESH_SESSION_REVIEW_PREFIX = "Fresh-session review:";
 // Both plain issue comments and native `gh pr review` submissions can carry
 // a "Fresh-session review:"-prefixed body (#166 AC: the check used to look
 // only at `comments`, silently missing a review posted the native way —
-// not yet triggered in practice since this repo's convention is plain
-// comments, but nothing enforced that assumption). Normalized to a common
-// {body, createdAt} shape so downstream logic doesn't care which kind it is.
+// this repo's convention has always been plain comments, so it hadn't come
+// up in practice, but nothing enforced that assumption). Normalized to a
+// common {body, createdAt} shape so downstream logic doesn't care which
+// kind it is.
 function reviewCandidates(comments, reviews) {
   return [
     ...comments.map((c) => ({ body: c.body ?? "", createdAt: c.createdAt })),

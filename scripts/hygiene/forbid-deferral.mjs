@@ -7,11 +7,11 @@ const DEFERRAL_RE = /\b(later|for now|temporary|will be|not yet|follow-up|TBD)\b
 
 // A real "#<issue>" reference: `#` immediately followed by digits, not
 // glued to another `#` or word character on its left (so the comment
-// marker's own leading digits on a line like "#123 quick and dirty, will
-// clean up later" can't masquerade as a citation just because a bare "#\d+"
-// regex is unanchored — #166). Tested against the comment text *after* the
-// marker is stripped (see afterMarker below), so the marker character
-// itself is never a candidate match in the first place.
+// marker's own leading digits on a line like "#123 quick and dirty, no
+// real cleanup plan" can't masquerade as a citation just because a bare
+// "#\d+" regex is unanchored — #166). Tested against the comment text
+// *after* the marker is stripped (see afterMarker below), so the marker
+// character itself is never a candidate match in the first place.
 const ISSUE_REF_RE = /(?:^|[^A-Za-z0-9#])#\d+\b/;
 
 function commentMarkerFor(path) {
@@ -37,22 +37,22 @@ function headWords(text, n) {
 // Every added comment line is tested on its own first — unchanged from
 // before #166. On top of that, a *narrow boundary snippet* (the last few
 // words of the previous added comment line plus the first few words of
-// this one, same file, immediately consecutive) is tested for a phrase
-// that straddles the line break and doesn't appear whole on either line
-// alone — a clang-format/prettier wrap can split a two-word phrase ("for
-// now", "will be", "not yet") across two lines, and per-line-only testing
-// misses that (#166). The exemption for a spanning violation is checked
-// only against the *later* of the two lines, never the earlier one: an
-// earlier version tested the exemption against the whole joined block
-// (or, in a since-abandoned narrower fix, a boundary snippet that could
-// still absorb a short earlier line's content wholesale), either of which
-// let a real "#<issue>" reference on one line exempt a wholly unrelated
-// deferral violation on the very next, adjacent — but semantically
-// separate — comment line (#178). A wrapped sentence's own trailing
-// citation naturally lands on the line where the sentence ends, so
-// requiring the reference there (not on whichever earlier line happens to
-// be adjacent) matches how these comments are actually written, and can't
-// be satisfied by an unrelated prior comment no matter how short it is.
+// this one, same file, immediately consecutive) is tested for one of
+// DEFERRAL_RE's two-word phrases (above) straddling the line break,
+// present in neither line alone — a clang-format/prettier wrap can split
+// such a phrase across two lines, and per-line-only testing misses that
+// (#166). The exemption for a spanning violation is checked only against
+// the closing line of the two, never the opening one: an earlier version
+// tested the exemption against the whole joined block (or, in a
+// since-abandoned narrower fix, a boundary snippet that could still absorb
+// a short opening line's content wholesale), either of which let a real
+// "#<issue>" reference on one line exempt a wholly unrelated deferral
+// violation on the very next, adjacent — but semantically separate —
+// comment line (#178). A wrapped sentence's own trailing citation
+// naturally lands on the line where the sentence ends, so requiring the
+// reference there (not on whichever opening line happens to be adjacent)
+// matches how these comments are actually written, and can't be satisfied
+// by an unrelated prior comment no matter how short it is.
 export function scanDiffForDeferral(diff) {
   const lines = diff.split("\n");
   let currentFile = null;

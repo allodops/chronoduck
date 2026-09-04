@@ -401,9 +401,9 @@ assertEqual("headingSlugs: collects every heading", [...headingSlugs("# Title\n\
 // base64-encoded, expectations plain) rather than as literals in this file:
 // a JSON file is outside forbid-deferral's own comment-marker detection
 // (commentMarkerFor returns null for ".json"), but this .mjs file is not —
-// an expected string like '// this is temporary, will fix later' written
-// directly here would itself be flagged when this very PR's diff is
-// scanned.
+// one of the deferral-shaped example strings the fixtures exercise (see
+// that JSON file), written directly here as a JS string literal, would
+// itself be flagged when this very PR's diff is scanned.
 {
   const manifest = JSON.parse(readFileSync(join(FIXTURES, "forbid-deferral.json"), "utf8"));
   const decode = (key) => Buffer.from(manifest[key], "base64").toString("utf8");
