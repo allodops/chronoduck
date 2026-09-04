@@ -20,45 +20,58 @@ function commentMarkerFor(path) {
   return null;
 }
 
+function tailWords(text, n) {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  return words.slice(-n).join(" ");
+}
+
+function headWords(text, n) {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  return words.slice(0, n).join(" ");
+}
+
 // Deferral language is an excuse to skip something, and belongs in prose —
 // comments — not in a string or regex literal (this file's own DEFERRAL_RE
 // necessarily contains these words as data, not as a deferral).
 //
-// Consecutive added lines that are both comments (same file, same comment
-// marker, no non-comment line between them) are joined into one logical
-// block before either DEFERRAL_RE or ISSUE_REF_RE is tested (#166) — a
-// clang-format/prettier wrap can split a two-word deferral phrase ("for
-// now", "will be") or its issue-reference exemption across a line break,
-// and testing each line independently misses both.
+// Every added comment line is tested on its own first — unchanged from
+// before #166. On top of that, a *narrow boundary snippet* (the last few
+// words of the previous added comment line plus the first few words of
+// this one, same file, immediately consecutive) is tested for a phrase
+// that straddles the line break and doesn't appear whole on either line
+// alone — a clang-format/prettier wrap can split a two-word phrase ("for
+// now", "will be", "not yet") across two lines, and per-line-only testing
+// misses that (#166). The exemption for a spanning violation is checked
+// only against the *later* of the two lines, never the earlier one: an
+// earlier version tested the exemption against the whole joined block
+// (or, in a since-abandoned narrower fix, a boundary snippet that could
+// still absorb a short earlier line's content wholesale), either of which
+// let a real "#<issue>" reference on one line exempt a wholly unrelated
+// deferral violation on the very next, adjacent — but semantically
+// separate — comment line (#178). A wrapped sentence's own trailing
+// citation naturally lands on the line where the sentence ends, so
+// requiring the reference there (not on whichever earlier line happens to
+// be adjacent) matches how these comments are actually written, and can't
+// be satisfied by an unrelated prior comment no matter how short it is.
 export function scanDiffForDeferral(diff) {
   const lines = diff.split("\n");
   let currentFile = null;
   const violations = [];
-  let block = null; // { file, addedLines: string[], afterMarkerParts: string[] }
-
-  function flushBlock() {
-    if (!block) return;
-    const joinedAfterMarker = block.afterMarkerParts.map((p) => p.trim()).join(" ");
-    const joinedAdded = block.addedLines.map((l) => l.trim()).join(" ");
-    if (DEFERRAL_RE.test(joinedAfterMarker) && !ISSUE_REF_RE.test(joinedAfterMarker)) {
-      violations.push(`${block.file}: added line(s) use deferral language without "#<issue>": ${joinedAdded}`);
-    }
-    block = null;
-  }
+  let prev = null; // { added, afterMarker } of the previous added comment line, if immediately preceding
 
   for (const line of lines) {
     if (line.startsWith("+++ ")) {
-      flushBlock();
       const path = line.slice(4).trim();
       currentFile = path.startsWith("b/") ? path.slice(2) : path;
+      prev = null;
       continue;
     }
     if (!line.startsWith("+") || line.startsWith("+++")) {
-      flushBlock();
+      prev = null;
       continue;
     }
     if (!currentFile || !SCOPE_PREFIXES.some((p) => currentFile.startsWith(p))) {
-      flushBlock();
+      prev = null;
       continue;
     }
 
@@ -66,20 +79,28 @@ export function scanDiffForDeferral(diff) {
     const marker = commentMarkerFor(currentFile);
     const markerAt = marker ? added.indexOf(marker) : -1;
     if (markerAt === -1) {
-      flushBlock();
+      prev = null;
       continue;
     }
     const afterMarker = added.slice(markerAt + marker.length);
 
-    if (block && block.file === currentFile) {
-      block.addedLines.push(added);
-      block.afterMarkerParts.push(afterMarker);
-    } else {
-      flushBlock();
-      block = { file: currentFile, addedLines: [added], afterMarkerParts: [afterMarker] };
+    let flagged = false;
+    if (DEFERRAL_RE.test(afterMarker) && !ISSUE_REF_RE.test(afterMarker)) {
+      violations.push(`${currentFile}: added line(s) use deferral language without "#<issue>": ${added.trim()}`);
+      flagged = true;
+    } else if (
+      !flagged &&
+      prev !== null &&
+      !DEFERRAL_RE.test(prev.afterMarker) &&
+      !DEFERRAL_RE.test(afterMarker) &&
+      DEFERRAL_RE.test(`${tailWords(prev.afterMarker, 4)} ${headWords(afterMarker, 4)}`) &&
+      !ISSUE_REF_RE.test(afterMarker)
+    ) {
+      violations.push(`${currentFile}: added line(s) use deferral language without "#<issue>": ${prev.added.trim()} ${added.trim()}`);
     }
+
+    prev = { added, afterMarker };
   }
-  flushBlock();
   return violations;
 }
 

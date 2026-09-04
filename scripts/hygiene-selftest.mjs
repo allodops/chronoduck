@@ -440,6 +440,19 @@ assertEqual("headingSlugs: collects every heading", [...headingSlugs("# Title\n\
     scanDiffForDeferral(decode("multiLineWrapExemptDiff")),
     manifest.multiLineWrapExemptExpected,
   );
+
+  // #178 regression: two adjacent but semantically unrelated single-line
+  // comments — the first a self-contained note carrying its own "#<issue>"
+  // reference, the second a genuine, separate deferral violation with none
+  // of its own. Neither line matches DEFERRAL_RE on its own until the
+  // second is tested — the point of this fixture is that the first line's
+  // "#999" must never exempt the second line's real violation just because
+  // they're adjacent comments in the same file.
+  assertEqual(
+    "scanDiffForDeferral: an unrelated earlier comment's #<issue> does not exempt the next comment's real violation",
+    scanDiffForDeferral(decode("adjacentUnrelatedCommentsDiff")),
+    manifest.adjacentUnrelatedCommentsExpected,
+  );
 }
 
 // Now the real tree must be green.

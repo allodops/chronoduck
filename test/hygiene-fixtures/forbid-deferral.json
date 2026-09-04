@@ -3,6 +3,7 @@
   "wordBoundaryBypassDiff": "ZGlmZiAtLWdpdCBhL3Rlc3QveC5zcWwgYi90ZXN0L3guc3FsCmluZGV4IDExMS4uMjIyIDEwMDY0NAotLS0gYS90ZXN0L3guc3FsCisrKyBiL3Rlc3QveC5zcWwKQEAgLTEsMSArMSwyIEBACiBzZWxlY3QgMTsKKyMxMjMgcXVpY2sgYW5kIGRpcnR5LCB3aWxsIGNsZWFuIHVwIGxhdGVyCg==",
   "multiLineWrapDiff": "ZGlmZiAtLWdpdCBhL3NyYy9mb28uY3BwIGIvc3JjL2Zvby5jcHAKaW5kZXggMTExLi4yMjIgMTAwNjQ0Ci0tLSBhL3NyYy9mb28uY3BwCisrKyBiL3NyYy9mb28uY3BwCkBAIC0xLDEgKzEsMyBAQAogaW50IHggPSAxOworLy8gdGhpcyBpcyBhIHN0b3BnYXAgZm9yCisvLyBub3csIHdpbGwgcmVwbGFjZSBpdAo=",
   "multiLineWrapExemptDiff": "ZGlmZiAtLWdpdCBhL3NyYy9iYXIuY3BwIGIvc3JjL2Jhci5jcHAKaW5kZXggMTExLi4yMjIgMTAwNjQ0Ci0tLSBhL3NyYy9iYXIuY3BwCisrKyBiL3NyYy9iYXIuY3BwCkBAIC0xLDEgKzEsMyBAQAogaW50IHggPSAxOworLy8gdGhpcyBpcyBhIHN0b3BnYXAgZm9yCisvLyBub3cgKCMxMjMpLCB3aWxsIHJlcGxhY2UgaXQK",
+  "adjacentUnrelatedCommentsDiff": "ZGlmZiAtLWdpdCBhL3Rlc3QveC5zcWwgYi90ZXN0L3guc3FsCmluZGV4IDExMS4uMjIyIDEwMDY0NAotLS0gYS90ZXN0L3guc3FsCisrKyBiL3Rlc3QveC5zcWwKQEAgLTEsMSArMSwzIEBACiBzZWxlY3QgMTsKKyMgcmVmICM5OTkgdW5yZWxhdGVkIG5vdGUKKyMgY2xlYW51cCB0ZW1wb3Jhcnkgc3RhdGUgaGVyZSwgbm8gb3duZXIgYXNzaWduZWQK",
   "diffExpected": [
     "src/thing.cpp: added line(s) use deferral language without \"#<issue>\": // this is temporary, will fix later"
   ],
@@ -12,5 +13,8 @@
   "multiLineWrapExpected": [
     "src/foo.cpp: added line(s) use deferral language without \"#<issue>\": // this is a stopgap for // now, will replace it"
   ],
-  "multiLineWrapExemptExpected": []
+  "multiLineWrapExemptExpected": [],
+  "adjacentUnrelatedCommentsExpected": [
+    "test/x.sql: added line(s) use deferral language without \"#<issue>\": # cleanup temporary state here, no owner assigned"
+  ]
 }
