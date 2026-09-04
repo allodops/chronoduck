@@ -102,6 +102,15 @@ await expectRed("pr-hygiene", ["bun", join(HERE, "pr-hygiene.mjs"), "--fixture",
 // exemption didn't short-circuit before any of them ran.
 await expectGreen("pr-hygiene (dependabot exemption)", ["bun", join(HERE, "pr-hygiene.mjs"), "--fixture", join(FIXTURES, "pr-hygiene-dependabot")]);
 
+// pr-hygiene: Article VIII.2 — "make pr-hygiene requires one [Fresh-session
+// review: comment] dated after the PR's last commit." Three fixtures, each
+// otherwise a fully valid PR body (so the review check is the only thing
+// that can fail), isolating: no review comment at all, a review comment
+// older than the last commit, and a review comment newer than it.
+await expectRed("pr-hygiene (no Fresh-session review comment)", ["bun", join(HERE, "pr-hygiene.mjs"), "--fixture", join(FIXTURES, "pr-hygiene-review-missing")]);
+await expectRed("pr-hygiene (Fresh-session review comment predates last commit)", ["bun", join(HERE, "pr-hygiene.mjs"), "--fixture", join(FIXTURES, "pr-hygiene-review-stale")]);
+await expectGreen("pr-hygiene (Fresh-session review comment postdates last commit)", ["bun", join(HERE, "pr-hygiene.mjs"), "--fixture", join(FIXTURES, "pr-hygiene-review-fresh")]);
+
 // check-pins: a submodule pinned to a branch (not its remote's default
 // branch) that's freshly cloned + `submodule update --init`ed describes as
 // "remotes/origin/<branch>", not "heads/<branch>" — the exact state #16's

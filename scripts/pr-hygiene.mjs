@@ -14,6 +14,10 @@ function readIfExists(path) {
   return existsSync(path) ? readFileSync(path, "utf8") : "";
 }
 
+function readJSONIfExists(path, fallback) {
+  return existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : fallback;
+}
+
 async function loadInputs() {
   if (fixtureIdx !== -1) {
     const dir = args[fixtureIdx + 1];
@@ -22,6 +26,8 @@ async function loadInputs() {
       prBody: readIfExists(join(dir, "pr-body.txt")),
       prAuthor: readIfExists(join(dir, "author.txt")).trim(),
       diff: readIfExists(join(dir, "diff.patch")),
+      comments: readJSONIfExists(join(dir, "comments.json"), []),
+      lastCommitAt: readIfExists(join(dir, "last-commit-at.txt")).trim() || null,
       loadIssue: async (n) => ({
         issueTitle: readIfExists(join(dir, "issue-title.txt")).trim(),
         issueBody: readIfExists(join(dir, "issue-body.txt")),
@@ -33,18 +39,41 @@ async function loadInputs() {
     console.error("pr-hygiene: usage: pr-hygiene.mjs <pr-number> | --fixture <dir>");
     process.exit(2);
   }
-  const pr = await $`gh-tsouza pr view ${n} --json title,body,author`.json();
+  const pr = await $`gh-tsouza pr view ${n} --json title,body,author,comments,commits`.json();
   const diff = await $`gh-tsouza pr diff ${n} --patch`.text();
+  const commits = pr.commits ?? [];
   return {
     prTitle: pr.title,
     prBody: pr.body ?? "",
     prAuthor: pr.author?.login ?? "",
     diff,
+    comments: pr.comments ?? [],
+    lastCommitAt: commits.length > 0 ? commits[commits.length - 1].committedDate : null,
     loadIssue: async (issueNum) => {
       const issue = await $`gh-tsouza issue view ${issueNum} --json title,body`.json();
       return { issueTitle: issue.title, issueBody: issue.body ?? "" };
     },
   };
+}
+
+const FRESH_SESSION_REVIEW_PREFIX = "Fresh-session review:";
+
+// Article VIII.2: "`make pr-hygiene` requires one dated after the PR's last
+// commit." Enforces the review-before-merge order structurally instead of
+// relying on a human/agent to eyeball comment vs. commit timestamps.
+function freshSessionReviewViolation(comments, lastCommitAt) {
+  const reviews = comments.filter((c) => c.body.startsWith(FRESH_SESSION_REVIEW_PREFIX));
+  if (reviews.length === 0) {
+    return `no "${FRESH_SESSION_REVIEW_PREFIX}" comment found (Article VIII.2)`;
+  }
+  if (!lastCommitAt) {
+    return "no commit date available to check the review comment against";
+  }
+  const newest = reviews.reduce((a, b) => (new Date(a.createdAt) > new Date(b.createdAt) ? a : b));
+  if (new Date(newest.createdAt) <= new Date(lastCommitAt)) {
+    return `newest "${FRESH_SESSION_REVIEW_PREFIX}" comment (${newest.createdAt}) predates the PR's last commit (${lastCommitAt}) — Article VIII.2 requires one dated after`;
+  }
+  return null;
 }
 
 function shingles8(text) {
@@ -68,7 +97,7 @@ function stripPrBodyForOverlap(body) {
     .join("\n");
 }
 
-const { prTitle, prBody, prAuthor, diff, loadIssue } = await loadInputs();
+const { prTitle, prBody, prAuthor, diff, comments, lastCommitAt, loadIssue } = await loadInputs();
 
 // Article III.1: dependabot[bot] PRs are exempt from this article's body
 // rules entirely — a version-bump PR has no "Closes #N", no design to
@@ -119,6 +148,9 @@ if (!CONVENTIONAL_COMMITS_RE.test(prTitle)) {
 if (diff) {
   for (const v of scanDiffForDeferral(diff)) violations.push(v);
 }
+
+const reviewViolation = freshSessionReviewViolation(comments, lastCommitAt);
+if (reviewViolation) violations.push(reviewViolation);
 
 if (violations.length > 0) {
   console.error("pr-hygiene: FAIL");

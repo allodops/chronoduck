@@ -1,0 +1,7 @@
+## Goal
+The widget-frobnicator scalar must accept a widget and a threshold, returning a boolean flag for
+whether the widget clears that threshold, without touching any global state.
+
+## Acceptance criteria
+- [ ] widget_frobnicate(widget, threshold) returns a boolean
+- [ ] Documented in docs/design/primitives.md

@@ -1,0 +1,1 @@
+feat(kernel): add a well-scoped fixture function
