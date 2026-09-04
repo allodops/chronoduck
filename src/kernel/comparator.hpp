@@ -12,6 +12,8 @@
 // binding").
 #pragma once
 
+#include "stale.hpp"
+
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -23,31 +25,15 @@ constexpr double kUnitRoundoff = 1.0 / (1ull << 53);                            
 constexpr int kMaxReorderedSamples = 4096;                                        // stated budget, > 1 h at 1 s
 constexpr double kReorderFactor = 2 * (kMaxReorderedSamples - 1) * kUnitRoundoff; // ≈ 9.09e-13
 
-// Bit-pattern access with no undefined behaviour: a `reinterpret_cast`
-// between `double` and `uint64_t` violates strict aliasing, while `memcpy`
-// is the standard-sanctioned way to reinterpret an object's bytes, and every
-// optimizing compiler recognizes the idiom and inlines it to a no-op. Not
-// `constexpr` — pre-C++20 has no `std::bit_cast`, and neither
-// `is_stale_nan` nor `equal_values` below needs to run at compile time.
-inline uint64_t DoubleToBits(double v) {
-	uint64_t bits;
-	std::memcpy(&bits, &v, sizeof(bits));
-	return bits;
-}
-
 // The reference's staleness NaN, bit-for-bit
-// (`docs/design/architecture.md:staleness:` `bit-for-bit`): Prometheus's
-// `value.go` `StaleNaN`, `math.Float64frombits(0x7ff0000000000002)`. This is
-// a comparator-local copy, not the shared `is_stale`/`stale_marker` primitive
-// `docs/design/primitives.md`'s Tier 0 row also names — that primitive is
-// #28's (T1.4) to add. `equal_values` needs only a bit-pattern check, scoped
-// to this translation unit, to implement the exact branch
-// `docs/testing/comparator.md` shows, so this issue (blocked only by #26,
-// per its own tracker entry) does not need to wait on #28 first.
-constexpr uint64_t kStaleNaNBits = 0x7ff0000000000002ULL;
-
+// (`docs/design/architecture.md:staleness:` `bit-for-bit`). `equal_values`
+// below transcribes `docs/testing/comparator.md`'s own shown derivation
+// verbatim, `is_stale_nan` name included — this is now a one-line delegate
+// to the shared `is_stale`/`stale_marker` primitive `src/kernel/stale.hpp`
+// (#28/T1.4) adds, so the bit pattern itself has exactly one definition in
+// the tree; only the name stays local, to keep the transcription verbatim.
 inline bool is_stale_nan(double v) {
-	return DoubleToBits(v) == kStaleNaNBits;
+	return is_stale(v);
 }
 
 // `docs/testing/comparator.md`'s own shown derivation, transcribed verbatim.

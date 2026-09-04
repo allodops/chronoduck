@@ -12,7 +12,7 @@ const TREE_SCANS = [
   "constitution-check",
   "registry-closure",
   "forbid-test-tolerance",
-  "comparator-test",
+  "kernel-primitive-tests",
 ];
 
 let failed = false;

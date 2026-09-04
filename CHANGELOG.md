@@ -4,6 +4,7 @@
 
 ## Unreleased
 
+- feat(kernel): add the comparator with scale kinds and the headroom pin (#187)
 - feat(kernel): add registry.def macro and L0 closure checks (#183)
 - ci: skip build-test's expensive steps on docs/script-only PRs (#182)
 - docs: reconcile coverage.md/primitives.md/live-oracles.md against five reference sources (#180)
