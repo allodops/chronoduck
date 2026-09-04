@@ -89,6 +89,39 @@ function versionGreater(a, b) {
   return false;
 }
 
+// Splits CONSTITUTION.md text on top-level "## Article <id>" headers and
+// returns a Map from article id (e.g. "II") to that section's full text
+// (header line through the next "## Article" header or end of string). A
+// plain text diff per section — no semantic understanding of what changed.
+function articleSections(text) {
+  const headerRe = /^## Article\s+(\S+)/gm;
+  const matches = [...text.matchAll(headerRe)];
+  const sections = new Map();
+  for (let i = 0; i < matches.length; i++) {
+    const start = matches[i].index;
+    const end = i + 1 < matches.length ? matches[i + 1].index : text.length;
+    sections.set(matches[i][1], text.slice(start, end));
+  }
+  return sections;
+}
+
+// Which article ids differ (by section text) between the old and new
+// CONSTITUTION.md, including articles added or removed outright. Order:
+// changed/new articles in their new-text order first, then any article
+// removed outright (present in old, absent from new).
+function changedArticles(oldText, newText) {
+  const oldSections = articleSections(oldText);
+  const newSections = articleSections(newText);
+  const changed = [];
+  for (const [id, body] of newSections) {
+    if (oldSections.get(id) !== body) changed.push(id);
+  }
+  for (const id of oldSections.keys()) {
+    if (!newSections.has(id)) changed.push(id);
+  }
+  return changed;
+}
+
 base = await resolveBase();
 if (!base) {
   // Consistent with Article II.3's fail-closed stance: unable to verify means
@@ -144,6 +177,8 @@ if (!newAmended) {
   violations.push(`CONSTITUTION.md changed but has no Last amended date`);
 }
 
+const changedArticleIds = changedArticles(oldText, newText);
+
 const addedAdrs = (
   await $`git -C ${root} diff --name-status ${base}...HEAD -- docs/decisions/`.text()
 )
@@ -152,15 +187,34 @@ const addedAdrs = (
   .map((l) => l.slice(2));
 
 let hasAcceptedAdr = false;
+let referencesChangedArticle = false;
 for (const adr of addedAdrs) {
   const text = await $`git -C ${root} show HEAD:${adr}`.text();
   if (/status:\s*accepted/.test(text)) {
     hasAcceptedAdr = true;
-    break;
+    // \b after the id guards against a prefix collision between roman
+    // numerals (e.g. "Article II" is a literal substring of "Article III") —
+    // still a plain text match, not semantic understanding.
+    if (changedArticleIds.some((id) => new RegExp(`Article\\s+${id}\\b`).test(text))) {
+      referencesChangedArticle = true;
+    }
   }
 }
 if (!hasAcceptedAdr) {
+  // No accepted ADR exists at all — the pre-existing failure mode. Distinct
+  // from (and reported instead of) the topicality violation below: with no
+  // accepted ADR there is nothing whose body could reference a changed
+  // article, so that check would have nothing to say.
   violations.push("CONSTITUTION.md changed but no new docs/decisions/*.md with `status: accepted` was added");
+} else if (changedArticleIds.length > 0 && !referencesChangedArticle) {
+  // An accepted ADR exists but its body is silent on every article that
+  // actually changed — the "unrelated ADR attached" gap ACPR found. Zero
+  // changed articles (e.g. only prose outside any "## Article" section
+  // changed) has nothing to require here, so this only fires when the
+  // section-level diff found at least one changed article id.
+  violations.push(
+    `CONSTITUTION.md changed Article(s) ${changedArticleIds.join(", ")} but no new accepted ADR references any of them`,
+  );
 }
 
 if (violations.length > 0) {
