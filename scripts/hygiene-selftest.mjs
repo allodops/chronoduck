@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { closesIssueNumber, missingLabels } from "./pr-label.mjs";
 import { isMissingLabel } from "./issue-label-check.mjs";
 import { slugify, headingSlugs } from "./docs-links.mjs";
+import { scanDiffForDeferral } from "./hygiene/forbid-deferral.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -91,6 +92,46 @@ await expectRed("workflow-shape", ["bun", join(HERE, "hygiene", "workflow-shape.
   const diffFile = join(tmp, "diff.patch");
   writeFileSync(diffFile, Buffer.from(diff, "base64"));
   await expectRed("forbid-deferral", ["bun", join(HERE, "hygiene", "forbid-deferral.mjs"), "--diff-file", diffFile]);
+}
+
+// 6b: forbid-deferral, live-PR regression for #154. scanDiffForDeferral has no
+// notion of "per-commit vs net diff" — it just scans whatever diff text it's
+// given — so a synthetic fixture can't distinguish `--patch` from the net
+// diff; the actual regression lives in which `gh pr diff` invocation the
+// callers use. PR #143 (real, merged, in this repo) is a genuine historical
+// instance of the bug #154 fixed: one commit added a deferral-language
+// violation ("... Not yet in registry.def (T1.2 moves it...)"), a follow-up
+// commit in the same PR fixed it (cited #26 instead). `gh-tsouza pr diff 143
+// --patch` still contains the violating line (the per-commit patch series);
+// the net diff (`gh-tsouza pr diff 143`, no `--patch` — what
+// forbid-deferral.mjs and pr-hygiene.mjs now fetch) does not. Fetch the net
+// diff for real and assert scanDiffForDeferral finds nothing in it. This one
+// assertion depends on live network/`gh` access, same as forbid-ledger.mjs's
+// issueIsOpen() check — CONSTITUTION.md Article II.3 already documents
+// "offline runs report this check as red" as expected for gh-dependent checks.
+{
+  let diff = null;
+  let ghAvailable = true;
+  try {
+    diff = await $`gh-tsouza pr diff 143`.text();
+  } catch {
+    ghAvailable = false;
+  }
+  if (!ghAvailable) {
+    console.error("SELFTEST FAIL: forbid-deferral (#154 net-diff regression) — gh-tsouza unavailable, cannot fetch PR #143's net diff");
+    failures++;
+  } else {
+    const violations = scanDiffForDeferral(diff);
+    if (violations.length > 0) {
+      console.error(
+        "SELFTEST FAIL: forbid-deferral (#154 net-diff regression) — PR #143's net diff should be clean but scanDiffForDeferral found:",
+      );
+      for (const v of violations) console.error(`  ${v}`);
+      failures++;
+    } else {
+      console.log("SELFTEST ok: forbid-deferral (#154 net-diff regression) — PR #143's net diff (no --patch) is clean");
+    }
+  }
 }
 
 // 7: pr-hygiene, fixture-based (a PR body that pastes the issue body verbatim).
