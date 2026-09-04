@@ -156,6 +156,12 @@ for (const name of ["unregistered", "missing", "continue-on-error", "continue-on
 await expectRed("docs-links (dead link)", ["bun", join(HERE, "docs-links.mjs"), "--root", materialize("docs-links-dead-link")]);
 await expectRed("docs-links (dead anchor)", ["bun", join(HERE, "docs-links.mjs"), "--root", materialize("docs-links-dead-anchor")]);
 
+// adr-lint: a bad filename, a numbering gap, an unknown status and a
+// missing date each fail it in isolation.
+for (const name of ["bad-filename", "gap", "bad-status", "missing-date"]) {
+  await expectRed(`adr-lint (${name})`, ["bun", join(HERE, "adr-lint.mjs"), "--root", materialize(`adr-lint-${name}`)]);
+}
+
 // 13: pr-label / issue-label-check pure-function unit assertions. Both
 // scripts guard their live `gh api` calls behind `import.meta.main`, so
 // importing them here for closesIssueNumber/missingLabels/isMissingLabel
@@ -216,6 +222,17 @@ assertEqual("headingSlugs: collects every heading", [...headingSlugs("# Title\n\
     failures++;
   } else {
     console.log("SELFTEST ok: `make docs-links` is green on the real tree");
+  }
+}
+{
+  const { out, err, code } = await run(["bun", join(HERE, "adr-lint.mjs")]);
+  process.stdout.write(out);
+  process.stderr.write(err);
+  if (code !== 0) {
+    console.error("SELFTEST FAIL: `make adr-lint` is not green on the real tree");
+    failures++;
+  } else {
+    console.log("SELFTEST ok: `make adr-lint` is green on the real tree");
   }
 }
 {
