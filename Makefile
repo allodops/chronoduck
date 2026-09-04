@@ -72,6 +72,14 @@ constitution-check: ## A changed CONSTITUTION.md needs a version bump, new date 
 registry-closure: ## Every registry.def row has a test file and no kernel function registers outside the registry (Article V.1)
 	bun scripts/hygiene/registry-closure.mjs
 
+.PHONY: forbid-test-tolerance
+forbid-test-tolerance: ## No tolerance under test/ other than the comparator (Article V.3)
+	bun scripts/hygiene/forbid-test-tolerance.mjs
+
+.PHONY: comparator-test
+comparator-test: ## Compile and run test/kernel/comparator_test.cpp, the comparator's L1a direct test
+	bun scripts/hygiene/comparator-test.mjs
+
 .PHONY: forbid-deferral
 forbid-deferral: ## PR-diff deferral-language scan: make forbid-deferral PR=<n>
 	$(if $(PR),,$(error usage: make forbid-deferral PR=<n>))
