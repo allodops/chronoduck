@@ -26,7 +26,7 @@ std::string ChronoduckVersionString() {
 
 void ChronoduckVersionScalarFun(DataChunk &args, ExpressionState &state, Vector &result) {
 	Value val(ChronoduckVersionString());
-	result.Reference(val);
+	result.Reference(val, count_t(args.size()));
 }
 
 } // namespace
