@@ -1,0 +1,1 @@
+Replace Justfile with Makefile targets

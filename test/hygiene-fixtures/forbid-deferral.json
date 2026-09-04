@@ -1,3 +1,20 @@
 {
-  "diff": "ZGlmZiAtLWdpdCBhL3NyYy90aGluZy5jcHAgYi9zcmMvdGhpbmcuY3BwCmluZGV4IDExMS4uMjIyIDEwMDY0NAotLS0gYS9zcmMvdGhpbmcuY3BwCisrKyBiL3NyYy90aGluZy5jcHAKQEAgLTEsMiArMSw0IEBACiBpbnQgeCA9IDE7CisvLyB0aGlzIGlzIHRlbXBvcmFyeSwgd2lsbCBmaXggbGF0ZXIKK2ludCB5ID0gMjsKKy8vIHRoaXMgaXMgdGVtcG9yYXJ5IGJ1dCB0cmFja2VkICM0Mgo="
+  "diff": "ZGlmZiAtLWdpdCBhL3NyYy90aGluZy5jcHAgYi9zcmMvdGhpbmcuY3BwCmluZGV4IDExMS4uMjIyIDEwMDY0NAotLS0gYS9zcmMvdGhpbmcuY3BwCisrKyBiL3NyYy90aGluZy5jcHAKQEAgLTEsMiArMSw0IEBACiBpbnQgeCA9IDE7CisvLyB0aGlzIGlzIHRlbXBvcmFyeSwgd2lsbCBmaXggbGF0ZXIKK2ludCB5ID0gMjsKKy8vIHRoaXMgaXMgdGVtcG9yYXJ5IGJ1dCB0cmFja2VkICM0Mgo=",
+  "wordBoundaryBypassDiff": "ZGlmZiAtLWdpdCBhL3Rlc3QveC5zcWwgYi90ZXN0L3guc3FsCmluZGV4IDExMS4uMjIyIDEwMDY0NAotLS0gYS90ZXN0L3guc3FsCisrKyBiL3Rlc3QveC5zcWwKQEAgLTEsMSArMSwyIEBACiBzZWxlY3QgMTsKKyMxMjMgcXVpY2sgYW5kIGRpcnR5LCB3aWxsIGNsZWFuIHVwIGxhdGVyCg==",
+  "multiLineWrapDiff": "ZGlmZiAtLWdpdCBhL3NyYy9mb28uY3BwIGIvc3JjL2Zvby5jcHAKaW5kZXggMTExLi4yMjIgMTAwNjQ0Ci0tLSBhL3NyYy9mb28uY3BwCisrKyBiL3NyYy9mb28uY3BwCkBAIC0xLDEgKzEsMyBAQAogaW50IHggPSAxOworLy8gdGhpcyBpcyBhIHN0b3BnYXAgZm9yCisvLyBub3csIHdpbGwgcmVwbGFjZSBpdAo=",
+  "multiLineWrapExemptDiff": "ZGlmZiAtLWdpdCBhL3NyYy9iYXIuY3BwIGIvc3JjL2Jhci5jcHAKaW5kZXggMTExLi4yMjIgMTAwNjQ0Ci0tLSBhL3NyYy9iYXIuY3BwCisrKyBiL3NyYy9iYXIuY3BwCkBAIC0xLDEgKzEsMyBAQAogaW50IHggPSAxOworLy8gdGhpcyBpcyBhIHN0b3BnYXAgZm9yCisvLyBub3cgKCMxMjMpLCB3aWxsIHJlcGxhY2UgaXQK",
+  "adjacentUnrelatedCommentsDiff": "ZGlmZiAtLWdpdCBhL3Rlc3QveC5zcWwgYi90ZXN0L3guc3FsCmluZGV4IDExMS4uMjIyIDEwMDY0NAotLS0gYS90ZXN0L3guc3FsCisrKyBiL3Rlc3QveC5zcWwKQEAgLTEsMSArMSwzIEBACiBzZWxlY3QgMTsKKyMgcmVmICM5OTkgdW5yZWxhdGVkIG5vdGUKKyMgY2xlYW51cCB0ZW1wb3Jhcnkgc3RhdGUgaGVyZSwgbm8gb3duZXIgYXNzaWduZWQK",
+  "diffExpected": [
+    "src/thing.cpp: added line(s) use deferral language without \"#<issue>\": // this is temporary, will fix later"
+  ],
+  "wordBoundaryBypassExpected": [
+    "test/x.sql: added line(s) use deferral language without \"#<issue>\": #123 quick and dirty, will clean up later"
+  ],
+  "multiLineWrapExpected": [
+    "src/foo.cpp: added line(s) use deferral language without \"#<issue>\": // this is a stopgap for // now, will replace it"
+  ],
+  "multiLineWrapExemptExpected": [],
+  "adjacentUnrelatedCommentsExpected": [
+    "test/x.sql: added line(s) use deferral language without \"#<issue>\": # cleanup temporary state here, no owner assigned"
+  ]
 }
