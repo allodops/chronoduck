@@ -69,7 +69,7 @@ static void LoadInternal(ExtensionLoader &loader) {
 	loader.RegisterFunction(chronoduck_version_scalar_function);
 
 	// Canary: the first real function through claim -> branch -> implement ->
-	// PR -> review -> merge loop. Not yet in registry.def (T1.2 moves it
+	// PR -> review -> merge loop. Not yet in registry.def (#26 moves it
 	// there — Article V.1 does not apply until that file exists).
 	auto ts_grid_index_scalar_function =
 	    ScalarFunction("ts_grid_index", {LogicalType::TIMESTAMP, LogicalType::TIMESTAMP, LogicalType::BIGINT},

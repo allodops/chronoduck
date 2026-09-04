@@ -16,6 +16,14 @@ SELECT ts_grid_index(TIMESTAMP '2023-12-31 23:59:59', TIMESTAMP '2024-01-01 00:0
 ----
 -1
 
+# t < start with a non-zero remainder — exercises FloorDiv's decrement
+# branch specifically: truncating division would wrongly give -1
+# (floor(-1.5) = -2, but -1500000 / 1000000 truncates to -1 in C++)
+query I
+SELECT ts_grid_index(TIMESTAMP '2023-12-31 23:59:58.5', TIMESTAMP '2024-01-01 00:00:00', 1000000);
+----
+-2
+
 # t = start
 query I
 SELECT ts_grid_index(TIMESTAMP '2024-01-01 00:00:00', TIMESTAMP '2024-01-01 00:00:00', 1000000);
