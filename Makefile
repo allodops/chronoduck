@@ -106,3 +106,7 @@ docs-links: ## Resolve every relative link and #anchor under docs/ and README.md
 .PHONY: adr-lint
 adr-lint: ## Verify docs/decisions/*.md's filename, numbering and front matter (Article IX.1/IX.2)
 	bun scripts/adr-lint.mjs
+
+.PHONY: fixtures-validate
+fixtures-validate: ## Validate every test/fixtures/*.yaml against the language-neutral fixture format
+	bun scripts/fixtures-validate.mjs

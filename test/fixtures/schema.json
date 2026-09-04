@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://chronoduck/test/fixtures/schema.json",
+  "title": "ChronoDuck language-neutral fixture",
+  "description": "docs/testing/registry-and-fixtures.md's fixture format — enforced in practice by scripts/fixtures-validate.mjs, which implements these rules directly (dependency-light Bun script per Article IV.2) rather than a generic schema interpreter. This file is the canonical field reference.",
+  "type": "object",
+  "required": ["fixture", "function", "edge_mode", "domain", "grid", "window", "lookback", "samples", "provenance"],
+  "properties": {
+    "fixture": { "type": "string", "description": "A slug identifying this fixture, e.g. rate/reset-midwindow/extrapolate/step30" },
+    "function": { "type": "string", "description": "The registry function name this fixture exercises" },
+    "edge_mode": { "type": "string", "enum": ["INSIDE", "EXTRAPOLATE", "ANCHOR", "SMOOTH", "LOOKBACK"] },
+    "domain": { "type": "string", "enum": ["COUNTER", "GAUGE", "NONNEG", "ANY", "HISTOGRAM"] },
+    "grid": {
+      "type": "object",
+      "required": ["start", "end", "step"],
+      "properties": {
+        "start": { "type": "number" },
+        "end": { "type": "number" },
+        "step": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "window": { "type": "number" },
+    "lookback": { "type": "number" },
+    "samples": {
+      "type": "array",
+      "description": "Each item is [t, v] or [t, v, st]. v is a number, the literal tokens NaN/stale, or a histogram literal object when domain is HISTOGRAM.",
+      "items": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 3
+      }
+    },
+    "expected": {
+      "type": "array",
+      "description": "One entry per grid point; null means no value. Required whenever samples is non-empty — the inert-fixture rule (samples with no expected is not a fixture, it's dead weight)."
+    },
+    "wrong": {
+      "type": "object",
+      "description": "Optional: named-bug -> value a specific known-wrong implementation returns, for regression naming."
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["source"],
+      "description": "Roster identity and the L12 floor. The kernel stores this and never interprets it — a scan forbids branching on a provenance value. May legitimately contain forbidden-language tokens (e.g. a query-language name) since it is data, not code — scripts/hygiene/forbid-consumer.mjs scopes its scan to fixture keys, never values, for exactly this reason."
+    }
+  },
+  "histogramLiteral": {
+    "description": "The grammar a sample's v uses when domain is HISTOGRAM, per docs/testing/registry-and-fixtures.md.",
+    "type": "object",
+    "properties": {
+      "schema": { "type": "integer", "description": "Exponential-histogram scale; mutually exclusive with custom_bounds" },
+      "custom_bounds": { "type": "array", "description": "Classic-histogram bucket boundaries; mutually exclusive with schema" },
+      "zero_threshold": { "type": "number" },
+      "zero_count": { "type": "integer" },
+      "pos": { "type": "object", "properties": { "offset": { "type": "integer" }, "counts": { "type": "array" } } },
+      "neg": { "type": "object", "properties": { "offset": { "type": "integer" }, "counts": { "type": "array" } } },
+      "count": { "type": "integer" },
+      "sum": { "type": "number" },
+      "hint": { "type": "string" }
+    }
+  }
+}
