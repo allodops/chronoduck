@@ -18,6 +18,9 @@ here; run them by their upstream name directly.
 - `make check-pins` — verify the duckdb / extension-ci-tools submodule pins agree with the workflow file.
 - `make lanes-check` — verify every CI job is registered in `.github/ci-lanes.json` and vice versa.
 - `make ruleset-add-check CONTEXT=<name>` / `make ruleset-remove-check CONTEXT=<name>` — the only way to edit required status checks on the `main` ruleset.
+- `make description-validate` — validate `docs/community/description.yml` against `scripts/vendor/description.schema.json`.
+- `make changelog` / `make changelog-check` — write `CHANGELOG.md` from Conventional-Commit titles since the last tag, or fail if it's stale.
+- `make release-checklist` — print the steps for cutting a release.
 
 An M0 issue only touches the files its own scope implies (Article III.4); do not pre-create tooling a later issue owns.
 

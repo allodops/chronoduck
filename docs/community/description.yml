@@ -1,0 +1,25 @@
+extension:
+  name: chronoduck
+  description: Time-series building blocks for DuckDB — grid-aligned range folds, lookback resampling and mergeable histogram state, as SQL functions and one operator.
+  version: 0.1.0
+  language: C++
+  build: cmake
+  license: Apache-2.0
+  maintainers:
+    - tsouza
+  excluded_platforms: ""
+
+repo:
+  github: allodops/chronoduck
+  ref: 14ec0f3e2ac979e941b60ad2f88252bd5f5c9d8e
+
+docs:
+  hello_world: |
+    LOAD chronoduck;
+    SELECT chronoduck_version();
+
+    -- ts_grid_index(t, start, step) maps a timestamp onto its index on a
+    -- fixed grid starting at `start` with period `step` (microseconds),
+    -- floor-dividing so points before `start` get negative indices:
+    SELECT ts_grid_index(TIMESTAMP '2024-01-01 00:00:03', TIMESTAMP '2024-01-01 00:00:00', 1000000);
+    -- 3
