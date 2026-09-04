@@ -38,10 +38,10 @@ async function expectRed(label, cmd) {
 function materialize(manifestName) {
   const manifest = JSON.parse(readFileSync(join(FIXTURES, `${manifestName}.json`), "utf8"));
   const tmp = mkdtempSync(join(tmpdir(), `${manifestName}-selftest-`));
-  for (const [relPath, content] of Object.entries(manifest)) {
+  for (const [relPath, contentB64] of Object.entries(manifest)) {
     const full = join(tmp, relPath);
     mkdirSync(dirname(full), { recursive: true });
-    writeFileSync(full, content);
+    writeFileSync(full, Buffer.from(contentB64, "base64"));
   }
   return tmp;
 }
@@ -68,14 +68,14 @@ await expectRed("workflow-shape", ["bun", join(HERE, "hygiene", "workflow-shape.
   await expectRed("constitution-check", ["bun", join(HERE, "hygiene", "constitution-check.mjs"), "--root", tmp, "--base", "main"]);
 }
 
-// 6: forbid-deferral, diff-based — the fixture diff text lives inside a JSON
-// string value so it's never itself a "+"-prefixed comment line under src/
-// test/ scripts/ when this repo's own tree is scanned.
+// 6: forbid-deferral, diff-based — the fixture diff text is base64-encoded in
+// the manifest so its trigger words never exist as plaintext in a
+// git-tracked file for any scan (this one included) to stumble on.
 {
   const { diff } = JSON.parse(readFileSync(join(FIXTURES, "forbid-deferral.json"), "utf8"));
   const tmp = mkdtempSync(join(tmpdir(), "fd-selftest-"));
   const diffFile = join(tmp, "diff.patch");
-  writeFileSync(diffFile, diff);
+  writeFileSync(diffFile, Buffer.from(diff, "base64"));
   await expectRed("forbid-deferral", ["bun", join(HERE, "hygiene", "forbid-deferral.mjs"), "--diff-file", diffFile]);
 }
 
