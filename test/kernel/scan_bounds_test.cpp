@@ -9,15 +9,26 @@
 // Structure follows `docs/testing/primitives.md`'s Tier 1 `scan_bounds` row
 // exactly: the per-edge-mode unit-contract table, the invariant — this
 // issue's own "scan_bounds tested by folds over bounded vs unbounded data
-// with an excluded sample present" — checked with a small hand-rolled fold
-// per edge mode (real folds are Tier 4's, out of this issue's scope; these
-// stand-ins implement just enough of each edge mode's read pattern to prove
-// scan_bounds's own coverage claim), and the one named must-die mutant
-// ("dropping a term of the lower bound"), demonstrated exactly the way the
-// document says it must be: by asserting which rows fall inside the bound,
-// not by comparing fold output values (a fixture where the dropped term
-// happens not to change the answer would let a naive, value-only test miss
-// it).
+// with an excluded sample present" — checked per edge mode by running a
+// small hand-rolled fold (real folds are Tier 4's, out of this issue's
+// scope; these stand-ins implement just enough of each edge mode's read
+// pattern to prove scan_bounds's own coverage claim) over many
+// `std::mt19937_64`-randomized trials, the same standard `grid_test.cpp`,
+// `window_test.cpp` and `lookback_test.cpp` hold themselves to for their own
+// invariants (`docs/testing/primitives.md:scan-bounds-row:` `checked by
+// running the fold on random data with and without the bound and asserting
+// identical output`) — each trial also forcing a sample genuinely outside
+// the bound so "at least one excluded sample existed" holds every time, not
+// by chance. A fifth invariant test exercises a *combined* `EdgeMode`
+// bitmask (`LOOKBACK | ANCHOR`) folding real data, not just the bound
+// arithmetic `TestUnitContractTable`'s combined case already checks — the
+// header comment's own justification for additive (never max) combination
+// is that correctness must hold "even when a caller sets more than one
+// bit". The one named must-die mutant ("dropping a term of the lower
+// bound") is demonstrated exactly the way the document says it must be: by
+// asserting which rows fall inside the bound, not by comparing fold output
+// values (a fixture where the dropped term happens not to change the
+// answer would let a naive, value-only test miss it).
 #include "../../src/kernel/grid.hpp"
 #include "../../src/kernel/lookback.hpp"
 #include "../../src/kernel/scan_bounds.hpp"
@@ -26,6 +37,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <limits>
+#include <random>
 #include <vector>
 
 using namespace chronoduck;
@@ -148,6 +160,16 @@ double SmoothFold(int64_t anchor, int64_t window, int64_t lookback, const std::v
 	return (left_found ? left_val : 0.0) + (right_found ? right_val : 0.0);
 }
 
+// A row that declares *both* LOOKBACK and ANCHOR needs whatever either
+// mode's own read alone would need — this stand-in is the sum of both, so
+// the invariant below proves the combined bound (`scan_bounds.hpp`'s
+// additive, never-max combination) is a safe superset for both reads at
+// once, not just for either one in isolation.
+double CombinedLookbackAnchorFold(int64_t anchor, int64_t window, int64_t lookback,
+                                   const std::vector<Sample> &samples) {
+	return LookbackFold(anchor, window, lookback, samples) + AnchorFold(anchor, window, lookback, samples);
+}
+
 // Unit contract: per docs/testing/primitives.md's own table — "INSIDE →
 // [start − window, end]; +lookback for LOOKBACK; −extra for ANCHOR;
 // +lookahead for SMOOTH" — verified as exact numbers on one concrete grid.
@@ -178,122 +200,197 @@ void TestUnitContractTable() {
 	Check(combined.lower <= lb.lower, "the combined bound must be at least as wide as LOOKBACK alone");
 }
 
-// The invariant: "Every sample that any fold on this grid could read lies
-// inside the bounds" — checked per edge mode by running the mode's own fold
-// over the full sample set and over only the samples scan_bounds would
-// admit, and asserting they agree, with at least one sample genuinely
-// outside the bound present in the full set.
-void TestInsideModeInvariant() {
-	Grid grid(1000, 3000, 1000);
-	const int64_t window = 200, lookback = 150;
-	ScanBounds b = scan_bounds(grid, window, lookback, INSIDE);
+// Shared randomized-trial machinery for the per-mode invariant tests below.
+// Each trial gets its own random grid, window, lookback, and sample set,
+// with one sample deliberately forced outside the computed bound (on a
+// randomly chosen side) so "at least one excluded sample existed"
+// (`docs/testing/primitives.md:scan-bounds-row:` `checked by running the
+// fold on random data with and without the bound and asserting identical
+// output`) holds on every single trial, not merely by chance of the random
+// draw.
+struct RandomTrial {
+	Grid grid;
+	int64_t window;
+	int64_t lookback;
+	std::vector<Sample> samples;
+};
 
-	std::vector<Sample> all = {
-	    {900, 1.0},  // inside grid point 1000's window (800, 1000]
-	    {1900, 2.0}, // inside grid point 2000's window
-	    {2900, 3.0}, // inside grid point 3000's window
-	    {50, 99.0},  // well outside the bound [800, 3000] — the excluded sample
-	};
-	bool any_excluded = false;
-	for (const auto &s : all) {
-		if (s.t < b.lower || s.t > b.upper) {
-			any_excluded = true;
-		}
+RandomTrial MakeRandomTrial(std::mt19937_64 &rng, unsigned mode) {
+	std::uniform_int_distribution<int64_t> start_dist(-2000, 2000);
+	std::uniform_int_distribution<int64_t> step_dist(1, 40);
+	std::uniform_int_distribution<int64_t> points_dist(1, 5);
+	std::uniform_int_distribution<int64_t> window_dist(1, 120);
+	std::uniform_int_distribution<int64_t> lookback_dist(0, 120);
+	std::uniform_int_distribution<int64_t> sample_count_dist(3, 12);
+	std::uniform_int_distribution<int64_t> value_dist(-1000, 1000);
+	std::uniform_int_distribution<int64_t> side_dist(0, 1);
+
+	int64_t start = start_dist(rng);
+	int64_t step = step_dist(rng);
+	int64_t points = points_dist(rng);
+	int64_t end = start + step * (points - 1);
+	Grid grid(start, end, step);
+	int64_t window = window_dist(rng);
+	int64_t lookback = lookback_dist(rng);
+
+	ScanBounds b = scan_bounds(grid, window, lookback, mode);
+
+	// A margin generous enough that random samples land on both sides of
+	// the bound (well before it, well after it, and inside it), and that
+	// forcing a sample `margin` beyond the bound can never wrap or land
+	// back inside it.
+	int64_t margin = (end - start) + window + lookback + step + 10;
+	std::uniform_int_distribution<int64_t> t_dist(start - 3 * margin, end + 3 * margin);
+
+	std::vector<Sample> samples;
+	int64_t n = sample_count_dist(rng);
+	for (int64_t i = 0; i < n; i++) {
+		samples.push_back({t_dist(rng), static_cast<double>(value_dist(rng))});
 	}
-	Check(any_excluded, "INSIDE: at least one sample must lie outside the scan bound");
+	if (side_dist(rng) == 0) {
+		samples.push_back({b.lower - margin, static_cast<double>(value_dist(rng))});
+	} else {
+		samples.push_back({b.upper + margin, static_cast<double>(value_dist(rng))});
+	}
 
-	std::vector<Sample> bounded = Slice(all, b.lower, b.upper);
-	for (int64_t i = 0; i < grid.count(); i++) {
-		int64_t anchor = grid.at(i);
-		Check(InsideFold(anchor, window, all) == InsideFold(anchor, window, bounded),
-		      "INSIDE: the fold over the full data must equal the fold over only the bounded data");
+	return RandomTrial {grid, window, lookback, samples};
+}
+
+const int kTrialsPerMode = 500;
+
+// The invariant: "Every sample that any fold on this grid could read lies
+// inside the bounds" — checked per edge mode across many randomized trials
+// by running the mode's own fold over the full sample set and over only the
+// samples scan_bounds would admit, and asserting they agree, with at least
+// one sample genuinely outside the bound present in the full set of every
+// trial.
+void TestInsideModeInvariant() {
+	std::mt19937_64 rng(0xB0A7);
+	for (int trial = 0; trial < kTrialsPerMode; trial++) {
+		RandomTrial rt = MakeRandomTrial(rng, INSIDE);
+		ScanBounds b = scan_bounds(rt.grid, rt.window, rt.lookback, INSIDE);
+
+		bool any_excluded = false;
+		for (const auto &s : rt.samples) {
+			if (s.t < b.lower || s.t > b.upper) {
+				any_excluded = true;
+			}
+		}
+		Check(any_excluded, "INSIDE: at least one sample must lie outside the scan bound");
+
+		std::vector<Sample> bounded = Slice(rt.samples, b.lower, b.upper);
+		for (int64_t i = 0; i < rt.grid.count(); i++) {
+			int64_t anchor = rt.grid.at(i);
+			Check(InsideFold(anchor, rt.window, rt.samples) == InsideFold(anchor, rt.window, bounded),
+			      "INSIDE: the fold over the full data must equal the fold over only the bounded data");
+		}
 	}
 }
 
 void TestLookbackModeInvariant() {
-	Grid grid(1000, 3000, 1000);
-	const int64_t window = 200, lookback = 150;
-	ScanBounds b = scan_bounds(grid, window, lookback, LOOKBACK);
+	std::mt19937_64 rng(0xCA55E77E);
+	for (int trial = 0; trial < kTrialsPerMode; trial++) {
+		RandomTrial rt = MakeRandomTrial(rng, LOOKBACK);
+		ScanBounds b = scan_bounds(rt.grid, rt.window, rt.lookback, LOOKBACK);
 
-	std::vector<Sample> all = {
-	    {700, 5.0},   // carries into grid point 1000's empty window via lookback
-	    {1900, 6.0},  // inside grid point 2000's own window — no carry needed
-	    {2900, 7.0},  // inside grid point 3000's own window
-	    {500, 999.0}, // well outside the bound [650, 3000] — the excluded sample
-	};
-	bool any_excluded = false;
-	for (const auto &s : all) {
-		if (s.t < b.lower || s.t > b.upper) {
-			any_excluded = true;
+		bool any_excluded = false;
+		for (const auto &s : rt.samples) {
+			if (s.t < b.lower || s.t > b.upper) {
+				any_excluded = true;
+			}
+		}
+		Check(any_excluded, "LOOKBACK: at least one sample must lie outside the scan bound");
+
+		std::vector<Sample> bounded = Slice(rt.samples, b.lower, b.upper);
+		for (int64_t i = 0; i < rt.grid.count(); i++) {
+			int64_t anchor = rt.grid.at(i);
+			Check(LookbackFold(anchor, rt.window, rt.lookback, rt.samples) ==
+			          LookbackFold(anchor, rt.window, rt.lookback, bounded),
+			      "LOOKBACK: the fold over the full data must equal the fold over only the bounded data");
 		}
 	}
-	Check(any_excluded, "LOOKBACK: at least one sample must lie outside the scan bound");
-
-	std::vector<Sample> bounded = Slice(all, b.lower, b.upper);
-	for (int64_t i = 0; i < grid.count(); i++) {
-		int64_t anchor = grid.at(i);
-		Check(LookbackFold(anchor, window, lookback, all) == LookbackFold(anchor, window, lookback, bounded),
-		      "LOOKBACK: the fold over the full data must equal the fold over only the bounded data");
-	}
-	// Sanity: the carry actually fired (grid point 1000's window was empty).
-	Check(LookbackFold(1000, window, lookback, all) == 5.0, "sanity: grid point 1000 must carry the value 5.0");
 }
 
 void TestAnchorModeInvariant() {
-	Grid grid(1000, 3000, 1000);
-	const int64_t window = 200, lookback = 150;
-	ScanBounds b = scan_bounds(grid, window, lookback, ANCHOR);
+	std::mt19937_64 rng(0xACE0);
+	for (int trial = 0; trial < kTrialsPerMode; trial++) {
+		RandomTrial rt = MakeRandomTrial(rng, ANCHOR);
+		ScanBounds b = scan_bounds(rt.grid, rt.window, rt.lookback, ANCHOR);
 
-	std::vector<Sample> all = {
-	    {750, 11.0},  // anchors grid point 1000 (left edge 800, within lookback 150 of it)
-	    {1750, 12.0}, // anchors grid point 2000 (left edge 1800)
-	    {2750, 13.0}, // anchors grid point 3000 (left edge 2800)
-	    {100, 999.0}, // well outside the bound [650, 3000] — the excluded sample
-	};
-	bool any_excluded = false;
-	for (const auto &s : all) {
-		if (s.t < b.lower || s.t > b.upper) {
-			any_excluded = true;
+		bool any_excluded = false;
+		for (const auto &s : rt.samples) {
+			if (s.t < b.lower || s.t > b.upper) {
+				any_excluded = true;
+			}
+		}
+		Check(any_excluded, "ANCHOR: at least one sample must lie outside the scan bound");
+
+		std::vector<Sample> bounded = Slice(rt.samples, b.lower, b.upper);
+		for (int64_t i = 0; i < rt.grid.count(); i++) {
+			int64_t anchor = rt.grid.at(i);
+			Check(AnchorFold(anchor, rt.window, rt.lookback, rt.samples) ==
+			          AnchorFold(anchor, rt.window, rt.lookback, bounded),
+			      "ANCHOR: the fold over the full data must equal the fold over only the bounded data");
 		}
 	}
-	Check(any_excluded, "ANCHOR: at least one sample must lie outside the scan bound");
-
-	std::vector<Sample> bounded = Slice(all, b.lower, b.upper);
-	for (int64_t i = 0; i < grid.count(); i++) {
-		int64_t anchor = grid.at(i);
-		Check(AnchorFold(anchor, window, lookback, all) == AnchorFold(anchor, window, lookback, bounded),
-		      "ANCHOR: the fold over the full data must equal the fold over only the bounded data");
-	}
-	Check(AnchorFold(1000, window, lookback, all) == 11.0, "sanity: grid point 1000 must anchor on 11.0");
 }
 
 void TestSmoothModeInvariant() {
-	Grid grid(1000, 3000, 1000);
-	const int64_t window = 200, lookback = 150;
-	ScanBounds b = scan_bounds(grid, window, lookback, SMOOTH);
+	std::mt19937_64 rng(0x5300714);
+	for (int trial = 0; trial < kTrialsPerMode; trial++) {
+		RandomTrial rt = MakeRandomTrial(rng, SMOOTH);
+		ScanBounds b = scan_bounds(rt.grid, rt.window, rt.lookback, SMOOTH);
 
-	std::vector<Sample> all = {
-	    {2950, 20.0},  // left edge of grid point 3000's window
-	    {3100, 21.0},  // right of grid point 3000, within lookback — needs the +lookahead reach
-	    {1950, 30.0},  // left edge of grid point 2000's window
-	    {3200, 999.0}, // beyond the bound [800, 3150] — the excluded sample
-	};
-	bool any_excluded = false;
-	for (const auto &s : all) {
-		if (s.t < b.lower || s.t > b.upper) {
-			any_excluded = true;
+		bool any_excluded = false;
+		for (const auto &s : rt.samples) {
+			if (s.t < b.lower || s.t > b.upper) {
+				any_excluded = true;
+			}
+		}
+		Check(any_excluded, "SMOOTH: at least one sample must lie outside the scan bound");
+
+		std::vector<Sample> bounded = Slice(rt.samples, b.lower, b.upper);
+		for (int64_t i = 0; i < rt.grid.count(); i++) {
+			int64_t anchor = rt.grid.at(i);
+			Check(SmoothFold(anchor, rt.window, rt.lookback, rt.samples) ==
+			          SmoothFold(anchor, rt.window, rt.lookback, bounded),
+			      "SMOOTH: the fold over the full data must equal the fold over only the bounded data");
 		}
 	}
-	Check(any_excluded, "SMOOTH: at least one sample must lie outside the scan bound");
+}
 
-	std::vector<Sample> bounded = Slice(all, b.lower, b.upper);
-	for (int64_t i = 0; i < grid.count(); i++) {
-		int64_t anchor = grid.at(i);
-		Check(SmoothFold(anchor, window, lookback, all) == SmoothFold(anchor, window, lookback, bounded),
-		      "SMOOTH: the fold over the full data must equal the fold over only the bounded data");
+// The invariant, exercised for a *combined* bitmask on real data: a row
+// declaring `LOOKBACK | ANCHOR` needs both reads covered by one bound.
+// `TestUnitContractTable` already checks the combined bound's arithmetic;
+// this checks that the combined bound is actually wide enough for both
+// `LookbackFold` and `AnchorFold` to agree between full and bounded data —
+// the gap a bound-arithmetic-only check can't see (e.g. a wrong precedence
+// or double-counting between the two terms could still leave one mode's own
+// read outside the bound even while the numbers "look" additive).
+void TestCombinedModeInvariant() {
+	const unsigned kMode = LOOKBACK | ANCHOR;
+	std::mt19937_64 rng(0xC0DEC0DE);
+	for (int trial = 0; trial < kTrialsPerMode; trial++) {
+		RandomTrial rt = MakeRandomTrial(rng, kMode);
+		ScanBounds b = scan_bounds(rt.grid, rt.window, rt.lookback, kMode);
+
+		bool any_excluded = false;
+		for (const auto &s : rt.samples) {
+			if (s.t < b.lower || s.t > b.upper) {
+				any_excluded = true;
+			}
+		}
+		Check(any_excluded, "LOOKBACK|ANCHOR: at least one sample must lie outside the scan bound");
+
+		std::vector<Sample> bounded = Slice(rt.samples, b.lower, b.upper);
+		for (int64_t i = 0; i < rt.grid.count(); i++) {
+			int64_t anchor = rt.grid.at(i);
+			Check(CombinedLookbackAnchorFold(anchor, rt.window, rt.lookback, rt.samples) ==
+			          CombinedLookbackAnchorFold(anchor, rt.window, rt.lookback, bounded),
+			      "LOOKBACK|ANCHOR: the combined fold over the full data must equal the fold over only the bounded "
+			      "data");
+		}
 	}
-	Check(SmoothFold(3000, window, lookback, all) == 41.0,
-	      "sanity: grid point 3000 must combine both edges (20.0 + 21.0)");
 }
 
 // Must-die mutant: "Dropping a term of the lower bound"
@@ -350,6 +447,7 @@ int main() {
 	TestLookbackModeInvariant();
 	TestAnchorModeInvariant();
 	TestSmoothModeInvariant();
+	TestCombinedModeInvariant();
 	TestDroppedLowerBoundTermMutant();
 
 	if (g_failures > 0) {
