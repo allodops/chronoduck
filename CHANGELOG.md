@@ -4,9 +4,7 @@
 
 ## Unreleased
 
-- fix(hygiene): stop restating forbid-deferral's trigger word literally
-- fix(hygiene): put the #184 exemption on the same line as "temporary"
-- fix(hygiene): detect citations wrapped across comment lines (#184)
+- fix(hygiene): detect citations wrapped across comment lines (#189)
 - feat(kernel): add Tier 0 kahan_add/merge, is_stale/stale_marker, linear_regression, quantile_linear (#188)
 - fix(kernel): make registry_types.hpp citations actually checkable (#186)
 - feat(kernel): add the comparator with scale kinds and the headroom pin (#187)
