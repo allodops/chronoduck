@@ -8,7 +8,12 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A stale PR run is fine to cancel when a new commit supersedes it. A push
+  # to main never is: main is also where build-test/relassert's ccache gets
+  # saved for every other branch to restore from, and a cancelled run never
+  # reaches that save step — rapid successive merges were cancelling each
+  # other's main-branch run before completion, leaving no cache to inherit.
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 permissions:
   contents: read
