@@ -4,7 +4,9 @@
 
 ## Unreleased
 
-- fix(hygiene): type-check fixture values and scan fixture/function tokens
+- fix: widen ts_grid_index's subtraction to avoid int64 overflow (#179)
+- fix(hygiene): type-check fixture values and scan fixture/function tokens (#176)
+- fix(ci): harden pr-hygiene/forbid-deferral (Dependabot scope, deferral bypasses, DRY, merge-audit) (#178)
 - feat(hygiene): require accepted ADR to reference the changed Article in constitution-check (#177)
 - docs(adr): correct #24/#156 and #147/#148 citations in ADR 0014 (#175)
 - fix(release): make release-checklist step 4/5 executable, cite #103 in step 6 (#174)

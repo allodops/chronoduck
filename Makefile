@@ -111,6 +111,10 @@ adr-lint: ## Verify docs/decisions/*.md's filename, numbering and front matter (
 fixtures-validate: ## Validate every test/fixtures/*.yaml against the language-neutral fixture format
 	bun scripts/fixtures-validate.mjs
 
+.PHONY: coverage-check
+coverage-check: ## Verify docs/design/coverage.md's K/K+/P rows and milestone tokens against the design docs and the issue tracker
+	bun scripts/coverage-check.mjs
+
 .PHONY: description-validate
 description-validate: ## Validate docs/community/description.yml with hand-rolled checks documented by (not read from) scripts/vendor/description.schema.json
 	bun scripts/description-validate.mjs
