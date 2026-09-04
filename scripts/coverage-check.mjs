@@ -99,7 +99,7 @@ if (existsSync(DESIGN_DIR)) {
 
 // An identifier-shaped, underscore-bearing token — the shape of a registry
 // function name (rate_over_time, hist_detect_reset, ts_of_last_change_over_time)
-// not yet in registry.def, tolerated as a forward reference. No trailing
+// absent from registry.def, tolerated as a forward reference. No trailing
 // word-boundary assertion: a row's How column can end a token with a suffix
 // like "series_time_decayed_*" (a wildcard family name), where "_" keeps
 // \b from firing right after the identifier's last letter.
