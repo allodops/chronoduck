@@ -83,10 +83,10 @@ enum class ScaleKind {
 //     equality has no "scale" to be anything other than exact.
 
 // IsValidRow — the mechanically checkable half of the rule below, see
-// `docs/design/surface.md:static-rule:` `any state whose partial contains a float sum is D1 unless it uses reproducible_sum — applies to SLICE, HIST_MERGE and SKETCH alike`
-// There is no `reproducible_sum` column in this 7-column schema yet, so no row can claim that
-// exception: a future issue that implements reproducible summation extends this function then,
-// rather than a row silently claiming D0 today.
+// `docs/design/surface.md:static-rule:` `any state whose partial contains a float sum is D1 unless it uses
+// reproducible_sum — applies to SLICE, HIST_MERGE and SKETCH alike` There is no `reproducible_sum` column in this
+// 7-column schema yet, so no row can claim that exception: a future issue that implements reproducible summation
+// extends this function then, rather than a row silently claiming D0 today.
 //
 // Deliberate, documented limitation: this function does NOT check issue #26's Goal's second static
 // rule ("D2 only for SKETCH rows whose output carries [lo, hi]" — this exact wording is the issue's,
