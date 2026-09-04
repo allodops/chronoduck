@@ -48,6 +48,8 @@ jobs:
         with:
           key: ccache-ci-build-test-v1.5.4
           restore-keys: ccache-ci-relassert-v1.5.4
+          max-size: 5GB
+          evict-old-files: job
       - run: make release
       - run: make test
       - run: make smoke
@@ -65,5 +67,7 @@ jobs:
         with:
           key: ccache-ci-relassert-v1.5.4
           restore-keys: ccache-ci-build-test-v1.5.4
+          max-size: 5GB
+          evict-old-files: job
       - run: make relassert
       - run: make test-relassert
