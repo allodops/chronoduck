@@ -1,0 +1,13 @@
+extension:
+  name: fixturedb
+  description: A fixture missing repo.ref, to prove description-validate rejects it.
+  version: 0.1.0
+  language: C++
+  build: cmake
+  license: Apache-2.0
+  maintainers:
+    - fixture-author
+  excluded_platforms: ""
+
+repo:
+  github: fixture-org/fixturedb

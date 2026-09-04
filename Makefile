@@ -110,3 +110,19 @@ adr-lint: ## Verify docs/decisions/*.md's filename, numbering and front matter (
 .PHONY: fixtures-validate
 fixtures-validate: ## Validate every test/fixtures/*.yaml against the language-neutral fixture format
 	bun scripts/fixtures-validate.mjs
+
+.PHONY: description-validate
+description-validate: ## Validate docs/community/description.yml against scripts/vendor/description.schema.json
+	bun scripts/description-validate.mjs
+
+.PHONY: changelog
+changelog: ## Write CHANGELOG.md from Conventional-Commit titles since the last tag
+	bun scripts/changelog.mjs
+
+.PHONY: changelog-check
+changelog-check: ## Fail if CHANGELOG.md differs from what `make changelog` would write
+	bun scripts/changelog.mjs --check
+
+.PHONY: release-checklist
+release-checklist: ## Print the steps for cutting a chronoduck release
+	bun scripts/release-checklist.mjs

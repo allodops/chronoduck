@@ -1,0 +1,15 @@
+duckdb/community-extensions has no standalone JSON Schema file for description.yml to vendor a
+copy of — confirmed by inspecting its repository tree and every script under scripts/. The shape
+is enforced in code instead, across two scripts:
+
+- scripts/build.py @ 8543f13c6e7f31abda9f6f3caf58a38fcc1fc93b
+  Reads extension["name"], repo["github"] and repo["ref"] without a .get()/default — these three
+  are the only fields that actually break the build when absent, i.e. the real required set.
+- scripts/generate_extensions_json.py @ f5544a432f682fe1e7cb6327a49593f34c17acbe
+  Reads every other known field via .get() with no required check — this is where the full
+  optional-field list in description.schema.json comes from.
+
+Both commits are the latest touching that file as of 2026-09-04, on duckdb/community-extensions
+main @ ae481bd75e850ca5e3e0b32767b0deffc15fa918. description.schema.json is our own hand-written
+encoding of the union of both scripts' behavior, not a byte-for-byte vendored file — re-derive it
+by re-reading those two scripts (or their successors) if this ever needs updating.
