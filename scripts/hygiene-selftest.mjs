@@ -221,13 +221,23 @@ await expectRed("fixtures-validate (inert)", ["bun", join(HERE, "fixtures-valida
   await expectGreen("forbid-consumer (fixture provenance token exempt)", ["bun", join(HERE, "hygiene", "forbid-consumer.mjs"), "--root", dir]);
 }
 
-// description-validate: a description.yml missing repo.ref fails.
-await expectRed("description-validate (missing ref)", [
-  "bun",
-  join(HERE, "description-validate.mjs"),
-  "--file",
-  join(FIXTURES, "description-validate-missing-ref", "description.yml"),
-]);
+// description-validate: 6 distinct violation branches, each isolated to its
+// own otherwise-valid-and-complete description.yml fixture.
+for (const name of [
+  "missing-ref",
+  "missing-extension",
+  "missing-extension-name",
+  "missing-repo",
+  "missing-github",
+  "maintainers-not-array",
+]) {
+  await expectRed(`description-validate (${name})`, [
+    "bun",
+    join(HERE, "description-validate.mjs"),
+    "--file",
+    join(FIXTURES, `description-validate-${name}`, "description.yml"),
+  ]);
+}
 
 // changelog / changelog-check: a synthetic git repo with three
 // Conventional-Commit-titled commits and no tags — `make changelog` writes
