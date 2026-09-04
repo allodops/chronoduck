@@ -1,1 +1,1 @@
-dependabot[bot]
+app/dependabot
