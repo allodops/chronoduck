@@ -1,0 +1,4 @@
+Bumps duckdb from `08e34c4` to `462dc61`.
+
+A human-authored follow-up commit was added after Dependabot opened this PR
+to adapt to an upstream API change the bump introduced.

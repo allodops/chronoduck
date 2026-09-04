@@ -1,0 +1,9 @@
+## Goal
+A PR should carry the size:/area: labels of the issue it closes, so triage dashboards don't need
+to cross-reference the linked issue by hand.
+
+## Acceptance criteria
+- [ ] Event mode labels one PR on open/edit/reopen
+- [ ] Backfill mode walks every open PR
+- [ ] Fails its run if it processes zero PRs, or if a backfill applies zero labels while an
+      unlabeled-but-linked PR remains

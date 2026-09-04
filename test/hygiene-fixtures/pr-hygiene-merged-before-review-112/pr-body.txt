@@ -1,0 +1,22 @@
+Closes #111
+
+## How
+Deleted the Justfile and moved every recipe onto the root Makefile, updated the three workflow
+files and AGENTS.md to invoke `make <target>` directly, and swept the issue tracker for stray
+`just` tool-references.
+
+## Deviations
+None.
+
+## Risk
+Low — mechanical rename, verified with a fresh clone build.
+
+## Evidence
+- `make` / `make help` list all targets without submodules checked out.
+- `bun scripts/hygiene-selftest.mjs` passes end to end.
+- `grep -rn setup-just .github/workflows/` returns nothing.
+
+## Discovered
+None.
+
+Constitution check: none (no change to CONSTITUTION.md)

@@ -1,0 +1,1 @@
+chore(deps): bump duckdb from `08e34c4` to `462dc61`

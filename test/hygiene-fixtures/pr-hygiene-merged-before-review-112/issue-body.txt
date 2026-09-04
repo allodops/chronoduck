@@ -1,0 +1,8 @@
+## Goal
+The Justfile duplicates what the Makefile should own, and Article IV.1 says Makefile is the only
+project front-end.
+
+## Acceptance criteria
+- [ ] Justfile deleted
+- [ ] Every recipe available as a make target
+- [ ] CI workflows and docs updated to reference make instead of just

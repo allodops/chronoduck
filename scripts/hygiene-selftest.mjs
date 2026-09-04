@@ -102,24 +102,60 @@ await expectRed("workflow-shape", ["bun", join(HERE, "hygiene", "workflow-shape.
 // file's comment actually uses one of the deferral tags forbid-ledger scans
 // for — none currently do, so that latent gh-dependency has never actually
 // been exercised in CI). The
-// bug #154 fixed was specifically about which `gh pr diff` invocation these
-// two scripts use — `--patch` (a per-commit patch series) vs. the net diff —
-// so the deterministic, CI-safe way to prove the fix is reading the source
-// itself, not exercising a live call.
+// bug #154 fixed was specifically about which `gh pr diff` invocation is
+// used — `--patch` (a per-commit patch series) vs. the net diff — so the
+// deterministic, CI-safe way to prove the fix is reading the source itself,
+// not exercising a live call.
+//
+// #166 DRY'd the fetch itself into lib/gh-diff.mjs's fetchPrDiff(), so the
+// invocation now lives in exactly one place; the regression check follows it
+// there, plus a second assertion that both former call sites still get the
+// fix by importing the shared helper instead of re-duplicating the call.
 {
-  const CHECKED_FILES = ["pr-hygiene.mjs", "hygiene/forbid-deferral.mjs"];
-  for (const file of CHECKED_FILES) {
-    const src = readFileSync(join(HERE, file), "utf8");
-    const calls = src.match(/gh-tsouza pr diff[^`]*/g) ?? [];
-    const stillPatched = calls.filter((c) => c.includes("--patch"));
-    if (calls.length === 0) {
-      console.error(`SELFTEST FAIL: ${file} — no "gh-tsouza pr diff" invocation found; expected one (#154 regression check needs updating)`);
+  const src = readFileSync(join(HERE, "lib", "gh-diff.mjs"), "utf8");
+  const calls = src.match(/gh-tsouza pr diff[^`]*/g) ?? [];
+  const stillPatched = calls.filter((c) => c.includes("--patch"));
+  if (calls.length === 0) {
+    console.error('SELFTEST FAIL: lib/gh-diff.mjs — no "gh-tsouza pr diff" invocation found; expected one (#154 regression check needs updating)');
+    failures++;
+  } else if (stillPatched.length > 0) {
+    console.error(`SELFTEST FAIL: lib/gh-diff.mjs still fetches the --patch (per-commit) diff: ${stillPatched.join(", ")}`);
+    failures++;
+  } else {
+    console.log("SELFTEST ok: lib/gh-diff.mjs fetches the net PR diff, not --patch (#154 regression)");
+  }
+
+  const IMPORTERS = ["pr-hygiene.mjs", "hygiene/forbid-deferral.mjs"];
+  for (const file of IMPORTERS) {
+    const importerSrc = readFileSync(join(HERE, file), "utf8");
+    if (/gh-tsouza pr diff/.test(importerSrc)) {
+      console.error(`SELFTEST FAIL: ${file} still calls "gh-tsouza pr diff" directly instead of importing fetchPrDiff from lib/gh-diff.mjs (#166 DRY)`);
       failures++;
-    } else if (stillPatched.length > 0) {
-      console.error(`SELFTEST FAIL: ${file} still fetches the --patch (per-commit) diff: ${stillPatched.join(", ")}`);
+    } else if (!/from\s+["'].*lib\/gh-diff\.mjs["']/.test(importerSrc)) {
+      console.error(`SELFTEST FAIL: ${file} does not import fetchPrDiff from lib/gh-diff.mjs (#166 DRY)`);
       failures++;
     } else {
-      console.log(`SELFTEST ok: ${file} fetches the net PR diff, not --patch (#154 regression)`);
+      console.log(`SELFTEST ok: ${file} imports the shared fetchPrDiff() instead of duplicating the gh-tsouza call (#166 DRY)`);
+    }
+  }
+}
+
+// 6c: CONVENTIONAL_COMMITS_RE — #166 DRY. Both pr-hygiene.mjs and
+// changelog.mjs used to define this regex identically (undrifted, but
+// nothing enforced that); they now both import it from one shared constant,
+// so drift is structurally impossible rather than merely accidental.
+{
+  const IMPORTERS = ["pr-hygiene.mjs", "changelog.mjs"];
+  for (const file of IMPORTERS) {
+    const src = readFileSync(join(HERE, file), "utf8");
+    if (/CONVENTIONAL_COMMITS_RE\s*=\s*\//.test(src)) {
+      console.error(`SELFTEST FAIL: ${file} still defines CONVENTIONAL_COMMITS_RE locally instead of importing the shared constant (#166 DRY)`);
+      failures++;
+    } else if (!/from\s+["'].*lib\/conventional-commits\.mjs["']/.test(src)) {
+      console.error(`SELFTEST FAIL: ${file} does not import CONVENTIONAL_COMMITS_RE from lib/conventional-commits.mjs (#166 DRY)`);
+      failures++;
+    } else {
+      console.log(`SELFTEST ok: ${file} imports the shared CONVENTIONAL_COMMITS_RE instead of duplicating it (#166 DRY)`);
     }
   }
 }
@@ -127,11 +163,44 @@ await expectRed("workflow-shape", ["bun", join(HERE, "hygiene", "workflow-shape.
 // 7: pr-hygiene, fixture-based (a PR body that pastes the issue body verbatim).
 await expectRed("pr-hygiene", ["bun", join(HERE, "pr-hygiene.mjs"), "--fixture", join(FIXTURES, "pr-hygiene")]);
 
-// pr-hygiene: a dependabot[bot]-authored PR is exempt from every body rule
-// (Article III.1) — this fixture's body would fail every other check (no
+// pr-hygiene: a dependabot[bot]-authored PR is exempt from the Article III.1
+// *body* rules — this fixture's body would fail every one of those (no
 // Closes #N, no required sections, no Constitution check line) if the
-// exemption didn't short-circuit before any of them ran.
-await expectGreen("pr-hygiene (dependabot exemption)", ["bun", join(HERE, "pr-hygiene.mjs"), "--fixture", join(FIXTURES, "pr-hygiene-dependabot")]);
+// exemption didn't apply. It still needs a Fresh-session review comment,
+// which the fixture now carries — #166 narrowed the exemption to stop
+// reaching Article VIII.2, so this fixture would go red without it.
+await expectGreen("pr-hygiene (dependabot exemption, body rules only)", ["bun", join(HERE, "pr-hygiene.mjs"), "--fixture", join(FIXTURES, "pr-hygiene-dependabot")]);
+
+// #166: the Dependabot exemption must NOT reach Article VIII.2. Proven with
+// the real shape of PR #147 — a Dependabot-opened PR that later gained a
+// human-authored commit (`pr.author.login` stays "app/dependabot" the whole
+// time) — no Fresh-session review comment, so this must go red on the
+// review-gate violation specifically, not silently pass via the old
+// short-circuit or fail on an Article III body rule that should stay exempt.
+{
+  const { out, err, code } = await run(["bun", join(HERE, "pr-hygiene.mjs"), "--fixture", join(FIXTURES, "pr-hygiene-dependabot-review-required")]);
+  // Only stderr carries reported violations (one per line, two-space
+  // indented) — stdout carries the informational "which checks were
+  // skipped" log line, which necessarily names the skipped Article III
+  // rules in its own explanation and would otherwise false-positive this
+  // leak check against itself.
+  const violationLines = err
+    .split("\n")
+    .filter((l) => l.startsWith("  "))
+    .join("\n");
+  if (code === 0) {
+    console.error("SELFTEST FAIL: pr-hygiene (dependabot PR with added human commit) was expected to fail on the missing review but exited 0");
+    failures++;
+  } else if (!err.includes("Article VIII.2")) {
+    console.error(`SELFTEST FAIL: pr-hygiene (dependabot PR with added human commit) failed, but not on the Article VIII.2 review gate:\n${out}${err}`);
+    failures++;
+  } else if (violationLines.split("\n").filter(Boolean).length !== 1) {
+    console.error(`SELFTEST FAIL: pr-hygiene (dependabot PR with added human commit) reported more than just the review-gate violation — an Article III body rule leaked through the exemption:\n${violationLines}`);
+    failures++;
+  } else {
+    console.log("SELFTEST ok: pr-hygiene (dependabot PR with added human commit) still requires a Fresh-session review comment, and only that");
+  }
+}
 
 // pr-hygiene: Article VIII.2 — "make pr-hygiene requires one [Fresh-session
 // review: comment] dated after the PR's last commit." Three fixtures, each
@@ -141,6 +210,39 @@ await expectGreen("pr-hygiene (dependabot exemption)", ["bun", join(HERE, "pr-hy
 await expectRed("pr-hygiene (no Fresh-session review comment)", ["bun", join(HERE, "pr-hygiene.mjs"), "--fixture", join(FIXTURES, "pr-hygiene-review-missing")]);
 await expectRed("pr-hygiene (Fresh-session review comment predates last commit)", ["bun", join(HERE, "pr-hygiene.mjs"), "--fixture", join(FIXTURES, "pr-hygiene-review-stale")]);
 await expectGreen("pr-hygiene (Fresh-session review comment postdates last commit)", ["bun", join(HERE, "pr-hygiene.mjs"), "--fixture", join(FIXTURES, "pr-hygiene-review-fresh")]);
+
+// pr-hygiene: #166 — a native `gh pr review` submission (the `reviews` GraphQL
+// field) satisfies Article VIII.2 exactly like a plain issue comment does;
+// this fixture carries a "Fresh-session review:"-prefixed body only in
+// reviews.json (no comments.json at all), so it can only pass if pr-hygiene
+// actually inspects `reviews`, not just `comments`.
+await expectGreen("pr-hygiene (Fresh-session review via native PR review, not a comment)", ["bun", join(HERE, "pr-hygiene.mjs"), "--fixture", join(FIXTURES, "pr-hygiene-review-native")]);
+
+// pr-hygiene: #166 — merge-before-review audit. Real historical instances:
+// PR #112 and PR #125 both merged before their "Fresh-session review:"
+// comment posted (mergedAt predates the review's createdAt in both cases);
+// these fixtures reproduce that exact real data and must both be caught.
+// Each fixture is otherwise fully valid (Closes#N, all sections, a review
+// dated after the last commit) so the merge-before-review violation is
+// isolated as the only thing that can fail.
+for (const name of ["pr-hygiene-merged-before-review-112", "pr-hygiene-merged-before-review-125"]) {
+  const { out, err, code } = await run(["bun", join(HERE, "pr-hygiene.mjs"), "--fixture", join(FIXTURES, name)]);
+  const combined = out + err;
+  if (code === 0) {
+    console.error(`SELFTEST FAIL: pr-hygiene (${name}) was expected to fail on the merge-before-review audit but exited 0`);
+    failures++;
+  } else if (!/merged before review completed/.test(combined)) {
+    console.error(`SELFTEST FAIL: pr-hygiene (${name}) failed, but not on the merge-before-review audit:\n${combined}`);
+    failures++;
+  } else {
+    console.log(`SELFTEST ok: pr-hygiene (${name}) correctly flags merging before its review completed`);
+  }
+}
+
+// pr-hygiene: #166 — the merge-before-review audit must not false-positive
+// when the order is correct (merged after the review posted); reuses the
+// review-fresh fixture with a mergedAt added after its review comment.
+await expectGreen("pr-hygiene (merged after review — no audit false-positive)", ["bun", join(HERE, "pr-hygiene.mjs"), "--fixture", join(FIXTURES, "pr-hygiene-review-fresh")]);
 
 // check-pins: a submodule pinned to a branch (not its remote's default
 // branch) that's freshly cloned + `submodule update --init`ed describes as
@@ -288,6 +390,57 @@ assertEqual("isMissingLabel: has both", isMissingLabel(["size:S", "area:ci"]), f
 assertEqual("slugify: basic", slugify("The layer map"), "the-layer-map");
 assertEqual("slugify: strips punctuation", slugify("Registry closure & the fixture format"), "registry-closure--the-fixture-format");
 assertEqual("headingSlugs: collects every heading", [...headingSlugs("# Title\n\nSome text\n\n## A section\n")].sort(), ["a-section", "title"]);
+
+// scanDiffForDeferral: pure-function assertions on actual violation
+// content/count (#166 — the old fixture-based expectRed here only proved
+// the scan goes red on a two-line fixture where the first line alone
+// guarantees a nonzero exit, regardless of whether the second, "exempt"
+// line was handled correctly at all; it could not prove the #<issue>
+// exemption logic actually works). Both the diffs AND their expected
+// violation text live in test/hygiene-fixtures/forbid-deferral.json (diffs
+// base64-encoded, expectations plain) rather than as literals in this file:
+// a JSON file is outside forbid-deferral's own comment-marker detection
+// (commentMarkerFor returns null for ".json"), but this .mjs file is not —
+// an expected string like '// this is temporary, will fix later' written
+// directly here would itself be flagged when this very PR's diff is
+// scanned.
+{
+  const manifest = JSON.parse(readFileSync(join(FIXTURES, "forbid-deferral.json"), "utf8"));
+  const decode = (key) => Buffer.from(manifest[key], "base64").toString("utf8");
+
+  // The original fixture: one violating line, one line with a genuine
+  // "#<issue>" exemption right after it — asserting the exact violations
+  // array (not just its length being nonzero) proves the exemption line
+  // was actually evaluated and correctly excluded, not merely masked by
+  // the first line's violation.
+  assertEqual("scanDiffForDeferral: violation + genuine exemption, exact violations", scanDiffForDeferral(decode("diff")), manifest.diffExpected);
+
+  // #166 AC: "#\d+" exemption requires a real word boundary and is not
+  // satisfiable by the comment marker's own leading digits — a .sql
+  // comment marker is "#", so a line starting with the marker immediately
+  // followed by digits used to exempt itself purely because its own marker
+  // happened to be followed by digits. Must still be flagged.
+  assertEqual(
+    "scanDiffForDeferral: comment-marker digits do not satisfy the #<issue> exemption",
+    scanDiffForDeferral(decode("wordBoundaryBypassDiff")),
+    manifest.wordBoundaryBypassExpected,
+  );
+
+  // #166 AC: a two-word deferral phrase wrapped across two
+  // clang-format/prettier-style comment lines must be caught by joining
+  // consecutive same-file comment lines into one logical block before
+  // testing.
+  assertEqual("scanDiffForDeferral: deferral phrase split across a wrapped comment is still caught", scanDiffForDeferral(decode("multiLineWrapDiff")), manifest.multiLineWrapExpected);
+
+  // The same wrapped block, but with a genuine "#<issue>" reference on its
+  // second line — the block-join must also make the exemption reachable
+  // across the wrap, not just the deferral phrase.
+  assertEqual(
+    "scanDiffForDeferral: exemption reachable across the same wrapped comment block",
+    scanDiffForDeferral(decode("multiLineWrapExemptDiff")),
+    manifest.multiLineWrapExemptExpected,
+  );
+}
 
 // Now the real tree must be green.
 {
