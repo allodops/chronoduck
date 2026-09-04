@@ -1,0 +1,67 @@
+{
+  "lanes": [
+    {
+      "context": "hygiene",
+      "workflow": "ci.yml",
+      "posture": "merge",
+      "layers": ["L13"],
+      "owner": "tsouza"
+    },
+    {
+      "context": "build-test",
+      "workflow": "ci.yml",
+      "posture": "merge",
+      "layers": ["L5"],
+      "owner": "tsouza"
+    },
+    {
+      "context": "relassert",
+      "workflow": "ci.yml",
+      "posture": "merge",
+      "layers": ["L9"],
+      "owner": "tsouza"
+    },
+    {
+      "context": "duckdb-stable-build",
+      "workflow": "MainDistributionPipeline.yml",
+      "posture": "merge",
+      "layers": [],
+      "owner": "tsouza"
+    },
+    {
+      "context": "code-quality-check",
+      "workflow": "MainDistributionPipeline.yml",
+      "posture": "merge",
+      "layers": [],
+      "owner": "tsouza"
+    },
+    {
+      "context": "tsan",
+      "workflow": "nightly.yml",
+      "posture": "nightly",
+      "layers": ["L4", "L9"],
+      "owner": "tsouza"
+    },
+    {
+      "context": "vector-size-2",
+      "workflow": "nightly.yml",
+      "posture": "nightly",
+      "layers": ["L4"],
+      "owner": "tsouza"
+    },
+    {
+      "context": "analyze",
+      "workflow": "codeql.yml",
+      "posture": "release",
+      "layers": [],
+      "owner": "tsouza"
+    },
+    {
+      "context": "scorecard",
+      "workflow": "scorecard.yml",
+      "posture": "release",
+      "layers": [],
+      "owner": "tsouza"
+    }
+  ]
+}
