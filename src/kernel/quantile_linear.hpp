@@ -2,11 +2,10 @@
 // (`docs/design/primitives.md:tier0-row-quantile:` `quantile_linear`).
 // The Hyndman-Fan Type 7 / R7 rank convention `docs/design/surface.md`'s
 // `quantile_over_time` row names as this kernel's shared quantile
-// convention (`docs/design/surface.md:quantile-over-time-row:` `R7 linear is the default and the convention the oracles share`).
-// Deliberately dependency-free: no `#include "duckdb.hpp"`, compiles
-// standalone with a bare `g++`/`clang++ -std=c++17` — the pattern
-// `comparator.hpp`, `kahan.hpp` and `linear_regression.hpp` established for
-// Article V.1's TU-per-primitive rule.
+// convention (`docs/design/surface.md:quantile-over-time-row:` `R7 linear is the default and the convention the oracles
+// share`). Deliberately dependency-free: no `#include "duckdb.hpp"`, compiles standalone with a bare `g++`/`clang++
+// -std=c++17` — the pattern `comparator.hpp`, `kahan.hpp` and `linear_regression.hpp` established for Article V.1's
+// TU-per-primitive rule.
 //
 // This primitive does not sort: sorting is Tier 2's job
 // (`docs/design/primitives.md`'s `SampleBuffer`'s `sort_dedup`), so the

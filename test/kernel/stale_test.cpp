@@ -44,8 +44,10 @@ constexpr uint64_t kReferenceStaleNaNBits = 0x7ff0000000000002ULL;
 
 // Unit contract: "Bit pattern round-trips".
 void TestBitPatternRoundTrip() {
-	Check(kStaleNaNBits == kReferenceStaleNaNBits, "kStaleNaNBits must match the reference's documented StaleNaN bit pattern exactly");
-	Check(Bits(stale_marker()) == kReferenceStaleNaNBits, "stale_marker() must reconstruct the reference's exact bit pattern");
+	Check(kStaleNaNBits == kReferenceStaleNaNBits,
+	      "kStaleNaNBits must match the reference's documented StaleNaN bit pattern exactly");
+	Check(Bits(stale_marker()) == kReferenceStaleNaNBits,
+	      "stale_marker() must reconstruct the reference's exact bit pattern");
 	// Round-trip through is_stale in both directions: the marker classifies
 	// as stale, and a value built from any other bit pattern does not.
 	Check(is_stale(stale_marker()), "is_stale(stale_marker()) must be true");
@@ -56,7 +58,8 @@ void TestOrdinaryNaNIsNotStale() {
 	Check(std::isnan(stale_marker()), "stale_marker() must be a NaN");
 	double ordinary_nan = 0.0 / 0.0;
 	Check(std::isnan(ordinary_nan), "sanity: 0.0/0.0 must actually be a NaN on this platform");
-	Check(Bits(ordinary_nan) != kStaleNaNBits, "sanity: the ordinary NaN this platform produces must not itself be the stale bit pattern");
+	Check(Bits(ordinary_nan) != kStaleNaNBits,
+	      "sanity: the ordinary NaN this platform produces must not itself be the stale bit pattern");
 	Check(!is_stale(ordinary_nan), "an ordinary NaN must not be classified as stale");
 }
 
@@ -64,7 +67,8 @@ void TestOrdinaryNaNIsNotStale() {
 // `is_stale(stale_marker()) ∧ isnan(stale_marker()) ∧ ¬is_stale(0.0/0.0)`.
 void TestPrimitivesMdInvariant() {
 	Check(is_stale(stale_marker()) && std::isnan(stale_marker()) && !is_stale(0.0 / 0.0),
-	      "is_stale(stale_marker()) and isnan(stale_marker()) and not is_stale(0.0/0.0), the primitive's stated invariant, must all hold together");
+	      "is_stale(stale_marker()) and isnan(stale_marker()) and not is_stale(0.0/0.0), the primitive's stated "
+	      "invariant, must all hold together");
 }
 
 // Not stale: a real finite value, positive and negative infinity, and every
@@ -91,8 +95,10 @@ void TestNonStaleValues() {
 	double negative_stale_bit_pattern = FromBits(kStaleNaNBits | (1ULL << 63));
 
 	Check(std::isnan(quiet_nan) && !is_stale(quiet_nan), "a different quiet NaN payload must not be stale");
-	Check(std::isnan(payload_off_by_one_low) && !is_stale(payload_off_by_one_low), "a NaN payload one bit above the stale marker must not be stale");
-	Check(std::isnan(payload_off_by_one_high) && !is_stale(payload_off_by_one_high), "a NaN payload one bit below the stale marker must not be stale");
+	Check(std::isnan(payload_off_by_one_low) && !is_stale(payload_off_by_one_low),
+	      "a NaN payload one bit above the stale marker must not be stale");
+	Check(std::isnan(payload_off_by_one_high) && !is_stale(payload_off_by_one_high),
+	      "a NaN payload one bit below the stale marker must not be stale");
 	Check(std::isnan(negative_stale_bit_pattern) && !is_stale(negative_stale_bit_pattern),
 	      "must-die (payload comparison widened to any NaN): the stale marker's payload with the sign bit set is a "
 	      "*different* bit pattern and must not be classified as stale by a comparison that only checked the payload");

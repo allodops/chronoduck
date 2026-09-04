@@ -18,8 +18,8 @@
 
 using chronoduck::equal_values;
 using chronoduck::kUnitRoundoff;
-using chronoduck::LinearFit;
 using chronoduck::linear_regression;
+using chronoduck::LinearFit;
 
 namespace {
 
@@ -76,7 +76,7 @@ struct Table {
 
 // Unit contract: "two points; collinear; constant series (slope 0)".
 const Table kTable[] = {
-    {"two points", {0.0, 10.0}, {1.0, 21.0}, 0.0},                             // slope 2, intercept 1
+    {"two points", {0.0, 10.0}, {1.0, 21.0}, 0.0},                                         // slope 2, intercept 1
     {"collinear, five points", {0.0, 1.0, 2.0, 3.0, 4.0}, {1.0, 3.0, 5.0, 7.0, 9.0}, 0.0}, // slope 2, intercept 1
     {"constant series (slope 0)", {5.0, 6.0, 7.0, 8.0}, {3.0, 3.0, 3.0, 3.0}, 0.0},
     {"negative slope, nonzero origin", {100.0, 101.0, 102.0}, {50.0, 47.0, 44.0}, 100.0}, // slope -3
@@ -87,7 +87,8 @@ void TestTableAgainstOracle() {
 		LinearFit oracle = OracleFit(c.t, c.v, c.origin);
 		LinearFit actual = linear_regression(c.t.data(), c.v.data(), c.t.size(), c.origin);
 		char what[256];
-		std::snprintf(what, sizeof(what), "%s: slope %.17g must match the oracle's %.17g", c.name, actual.slope, oracle.slope);
+		std::snprintf(what, sizeof(what), "%s: slope %.17g must match the oracle's %.17g", c.name, actual.slope,
+		              oracle.slope);
 		Check(std::fabs(actual.slope - oracle.slope) <= FitBound(oracle.slope), what);
 		std::snprintf(what, sizeof(what), "%s: intercept %.17g must match the oracle's %.17g", c.name, actual.intercept,
 		              oracle.intercept);
@@ -237,7 +238,8 @@ void TestSampleCountMutant() {
 	LinearFit real_fit = linear_regression(t.data(), v.data(), t.size(), 0.0);
 	LinearFit mutant_fit = MutantInconsistentCount(t.data(), v.data(), t.size(), 0.0);
 
-	Check(std::fabs(real_fit.slope - true_slope) <= FitBound(true_slope), "linear_regression must recover the true slope on an exact line");
+	Check(std::fabs(real_fit.slope - true_slope) <= FitBound(true_slope),
+	      "linear_regression must recover the true slope on an exact line");
 	Check(std::fabs(mutant_fit.slope - true_slope) > FitBound(true_slope) * 1000.0,
 	      "must-die: using the sample count minus one in exactly one division must observably diverge from the true "
 	      "slope");

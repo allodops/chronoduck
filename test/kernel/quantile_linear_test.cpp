@@ -40,7 +40,7 @@ double SortedVectorOracle(const std::vector<double> &sorted, double phi) {
 	if (n == 1)
 		return sorted[0];
 	double rank = phi * static_cast<double>(n - 1);
-	std::size_t lo = static_cast<std::size_t>(rank);        // truncation toward zero == floor for rank >= 0
+	std::size_t lo = static_cast<std::size_t>(rank); // truncation toward zero == floor for rank >= 0
 	std::size_t hi = (lo + 1 < n) ? lo + 1 : lo;
 	double weight = rank - static_cast<double>(lo);
 	return sorted[lo] + weight * (sorted[hi] - sorted[lo]); // a differently-shaped, algebraically equal formula
@@ -71,8 +71,8 @@ void TestTableAgainstOracle() {
 			double expected = SortedVectorOracle(sorted, phi);
 			double actual = quantile_linear(sorted.data(), n, phi);
 			char what[256];
-			std::snprintf(what, sizeof(what), "n=%zu phi=%.2f: quantile_linear (%.17g) must match the oracle (%.17g)", n, phi,
-			              actual, expected);
+			std::snprintf(what, sizeof(what), "n=%zu phi=%.2f: quantile_linear (%.17g) must match the oracle (%.17g)",
+			              n, phi, actual, expected);
 			Check(actual == expected, what);
 		}
 	}
@@ -84,14 +84,18 @@ void TestTableAgainstOracle() {
 // above.
 void TestRankExactlyOnElement() {
 	std::vector<double> xs = {10.0, 20.0, 30.0, 40.0, 50.0}; // n=5, rank = phi*4
-	Check(quantile_linear(xs.data(), 5, 0.25) == 20.0, "rank exactly on element 1 (phi=0.25, rank=1.0) must return that element exactly");
-	Check(quantile_linear(xs.data(), 5, 0.75) == 40.0, "rank exactly on element 3 (phi=0.75, rank=3.0) must return that element exactly");
+	Check(quantile_linear(xs.data(), 5, 0.25) == 20.0,
+	      "rank exactly on element 1 (phi=0.25, rank=1.0) must return that element exactly");
+	Check(quantile_linear(xs.data(), 5, 0.75) == 40.0,
+	      "rank exactly on element 3 (phi=0.75, rank=3.0) must return that element exactly");
 }
 
 void TestRankBetweenElements() {
 	std::vector<double> xs = {0.0, 10.0}; // n=2, rank = phi
-	Check(quantile_linear(xs.data(), 2, 0.5) == 5.0, "rank between elements 0 and 1 (phi=0.5) must interpolate halfway");
-	Check(quantile_linear(xs.data(), 2, 0.25) == 2.5, "rank between elements 0 and 1 (phi=0.25) must interpolate a quarter of the way");
+	Check(quantile_linear(xs.data(), 2, 0.5) == 5.0,
+	      "rank between elements 0 and 1 (phi=0.5) must interpolate halfway");
+	Check(quantile_linear(xs.data(), 2, 0.25) == 2.5,
+	      "rank between elements 0 and 1 (phi=0.25) must interpolate a quarter of the way");
 }
 
 // Invariant: "Monotone in φ".
@@ -168,7 +172,8 @@ void TestWeightInversionMutant() {
 	double real_answer = quantile_linear(xs.data(), 2, 0.25);
 	double mutant_answer = MutantWeightInversion(xs.data(), 2, 0.25);
 	Check(real_answer == 25.0, "sanity: the real primitive gives 25.0 at phi=0.25 on {0, 100}");
-	Check(mutant_answer != real_answer, "must-die: swapping the interpolation weights must diverge from the true interpolated answer");
+	Check(mutant_answer != real_answer,
+	      "must-die: swapping the interpolation weights must diverge from the true interpolated answer");
 
 	// And confirm the mutation really is invisible exactly at the two
 	// boundary phis, so this test could not have been satisfied by

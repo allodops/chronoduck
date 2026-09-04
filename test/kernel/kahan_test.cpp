@@ -31,8 +31,8 @@
 using chronoduck::equal_values;
 using chronoduck::kahan_add;
 using chronoduck::kahan_merge;
-using chronoduck::kUnitRoundoff;
 using chronoduck::KahanState;
+using chronoduck::kUnitRoundoff;
 
 namespace {
 
@@ -171,7 +171,8 @@ void TestSubnormal() {
 	const double oracle = ExactOracle(terms);
 	const double compensated = FoldKahan(terms);
 	Check(compensated == oracle, "subnormal term folded into a normal sum must be recovered exactly");
-	Check(compensated == std::numeric_limits<double>::denorm_min(), "the recovered value must equal denorm_min exactly");
+	Check(compensated == std::numeric_limits<double>::denorm_min(),
+	      "the recovered value must equal denorm_min exactly");
 }
 
 // Must-die mutant #2: "removing the Inf special case"
@@ -285,7 +286,8 @@ void TestAnyOrderAgreesWithinReorderBound() {
 	double first = FoldKahan(orderings[0]);
 	for (std::size_t i = 1; i < orderings.size(); i++) {
 		double other = FoldKahan(orderings[i]);
-		Check(equal_values(first, other, scale_abs_sum), "kahan_add: sums of a reordered term set must agree within the reorder bound");
+		Check(equal_values(first, other, scale_abs_sum),
+		      "kahan_add: sums of a reordered term set must agree within the reorder bound");
 	}
 }
 
