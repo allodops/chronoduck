@@ -4,6 +4,8 @@ import { mkdtempSync, cpSync, readFileSync, writeFileSync, mkdirSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { closesIssueNumber, missingLabels } from "./pr-label.mjs";
+import { isMissingLabel } from "./issue-label-check.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -148,6 +150,31 @@ await expectRed("pr-hygiene", ["bun", join(HERE, "pr-hygiene.mjs"), "--fixture",
 for (const name of ["unregistered", "missing", "continue-on-error", "continue-on-error-step", "lanes-md-drift"]) {
   await expectRed(`lanes-check (${name})`, ["bun", join(HERE, "lanes-check.mjs"), "--root", materialize(`lanes-check-${name}`)]);
 }
+
+// 13: pr-label / issue-label-check pure-function unit assertions. Both
+// scripts guard their live `gh api` calls behind `import.meta.main`, so
+// importing them here for closesIssueNumber/missingLabels/isMissingLabel
+// never touches the network.
+function assertEqual(label, actual, expected) {
+  const a = JSON.stringify(actual);
+  const e = JSON.stringify(expected);
+  if (a !== e) {
+    console.error(`SELFTEST FAIL: ${label} — expected ${e}, got ${a}`);
+    failures++;
+  } else {
+    console.log(`SELFTEST ok: ${label}`);
+  }
+}
+
+assertEqual("closesIssueNumber: single match", closesIssueNumber("intro\n\nCloses #42\n\nmore text"), 42);
+assertEqual("closesIssueNumber: case-insensitive", closesIssueNumber("closes #7"), 7);
+assertEqual("closesIssueNumber: no match", closesIssueNumber("no link here"), null);
+assertEqual("closesIssueNumber: ambiguous (two matches)", closesIssueNumber("Closes #1\n\nAlso closes #2"), null);
+assertEqual("missingLabels: some missing", missingLabels(["size:S", "area:ci"], ["size:S"]), ["area:ci"]);
+assertEqual("missingLabels: none missing", missingLabels(["size:S"], ["size:S", "area:ci"]), []);
+assertEqual("isMissingLabel: missing both", isMissingLabel([]), true);
+assertEqual("isMissingLabel: missing area", isMissingLabel(["size:S"]), true);
+assertEqual("isMissingLabel: has both", isMissingLabel(["size:S", "area:ci"]), false);
 
 // Now the real tree must be green.
 {
