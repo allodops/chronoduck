@@ -4,19 +4,30 @@
 #include "kernel/counter_fold.hpp"
 #include "kernel/extrapolate.hpp"
 #include "kernel/grid.hpp"
+#include "kernel/grid_stream.hpp"
 #include "kernel/registry_types.hpp"
 #include "kernel/sample_buffer.hpp"
 #include "kernel/window_walk.hpp"
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
+#include "duckdb/common/sorting/sort_strategy.hpp"
+#include "duckdb/common/types/column/column_data_collection.hpp"
 #include "duckdb/common/types/timestamp.hpp"
 #include "duckdb/common/types/vector.hpp"
 #include "duckdb/common/vector_operations/ternary_executor.hpp"
 #include "duckdb/execution/expression_executor.hpp"
+#include "duckdb/execution/operator/filter/physical_filter.hpp"
+#include "duckdb/execution/physical_operator.hpp"
+#include "duckdb/execution/physical_plan_generator.hpp"
 #include "duckdb/function/aggregate_function.hpp"
 #include "duckdb/function/function_set.hpp"
 #include "duckdb/function/scalar_function.hpp"
 #include "duckdb/function/table_function.hpp"
+#include "duckdb/planner/bound_result_modifier.hpp"
+#include "duckdb/planner/expression/bound_operator_expression.hpp"
+#include "duckdb/planner/expression/bound_reference_expression.hpp"
+#include "duckdb/planner/operator/logical_extension_operator.hpp"
+#include "duckdb/planner/operator/logical_get.hpp"
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
 #include <limits>
 #include <map>
@@ -499,6 +510,597 @@ AggregateFunction MakeTsRateAggregate(bool has_st) {
 	                         /*simple_update=*/nullptr, BindTsRate, RateDestroy);
 }
 
+//===--------------------------------------------------------------------===//
+// ts_rate, the operator form — a custom sink-and-source physical operator
+// (`docs/decisions/0003-operator-as-partition-sort-sink.md`,
+// `docs/decisions/0018-partition-sort-sink-over-windowed-aggregates.md`):
+// partition by series hash, spillable per-partition sort by `ts` (DuckDB's
+// own `SortStrategy` — the same generic partition-and-sort machinery
+// `PhysicalWindow` and `PhysicalAsOfJoin` are built on, not a hand-rolled
+// thread pool or a no-spill buffer, the two spike simplifications ADR 0018
+// names as *not* to inherit unmeasured), then `grid_stream`
+// (`src/kernel/grid_stream.hpp`) walks each partition's sorted stream holding
+// one window resident, released at the series boundary.
+//
+// Registered as a second, table-function overload of the *same* SQL name
+// `ts_rate` (DuckDB's own `range` is scalar-context and table-context at
+// once; a table function and an aggregate are different catalog entries, so
+// this adds no new row to `src/kernel/registry.def` — Article V.1's fence is
+// the *name* `ts_rate`, which already has one). Reached through a table
+// function's `bind_operator` hook (`table_function_bind_operator_t`), the
+// one DuckDB entry point that lets an out-of-tree extension hand back an
+// arbitrary `LogicalOperator` — here a `LogicalExtensionOperator` whose
+// `CreatePlan` builds the physical sink-and-source directly, no
+// `OptimizerExtension` needed for this single-child shape (that heavier
+// mechanism is what the *anchored* fold form, out of this issue's scope,
+// would need for a second, relation-valued child — ADR 0018's own closing
+// paragraph).
+//
+// SQL shape: `ts_rate(TABLE (SELECT series_id, ts, value[, start_ts] FROM
+// ...), grid_start, grid_end, grid_step, window)` — one row per series,
+// `(series_id, values LIST(DOUBLE))`, grid order, directly comparable to the
+// aggregate form's own `GROUP BY series_id` output.
+//===--------------------------------------------------------------------===//
+
+// The operator's own bind data: which column of the input relation plays
+// which numeric-contract role (resolved by name, not position, since the
+// input arrives as a single `TABLE` argument rather than positional scalar
+// columns), plus the same grid/window bind data `RateBindData` carries for
+// the aggregate form.
+struct RangeStreamBindData {
+	bool has_st = false;
+	Grid grid {0, 0, 1};
+	int64_t window = 1;
+	idx_t series_idx = 0;
+	idx_t ts_idx = 0;
+	idx_t value_idx = 0;
+	idx_t start_ts_idx = 0; // meaningful only when has_st
+	LogicalType series_type = LogicalType::UBIGINT;
+};
+
+class PhysicalGridStream : public PhysicalOperator {
+public:
+	static constexpr const PhysicalOperatorType TYPE = PhysicalOperatorType::EXTENSION;
+
+	PhysicalGridStream(PhysicalPlan &physical_plan, PhysicalOperator &child, RangeStreamBindData bind_data_p,
+	                   vector<LogicalType> types_p, idx_t estimated_cardinality)
+	    : PhysicalOperator(physical_plan, PhysicalOperatorType::EXTENSION, std::move(types_p), estimated_cardinality),
+	      bind_data(std::move(bind_data_p)) {
+		children.push_back(child);
+	}
+
+	RangeStreamBindData bind_data;
+
+public:
+	// Sink interface — pure delegation to `SortStrategy`, the same shape
+	// `PhysicalWindow::Sink`/`Combine`/`Finalize` use: this operator never
+	// touches raw chunks itself, only the partitioned-and-sorted result.
+	unique_ptr<GlobalSinkState> GetGlobalSinkState(ClientContext &context) const override;
+	unique_ptr<LocalSinkState> GetLocalSinkState(ExecutionContext &context) const override;
+	SinkResultType Sink(ExecutionContext &context, DataChunk &chunk, OperatorSinkInput &input) const override;
+	SinkCombineResultType Combine(ExecutionContext &context, OperatorSinkCombineInput &input) const override;
+	SinkFinalizeType Finalize(Pipeline &pipeline, Event &event, ClientContext &context,
+	                          OperatorSinkFinalizeInput &input) const override;
+
+	bool IsSink() const override {
+		return true;
+	}
+	bool ParallelSink() const override {
+		return true;
+	}
+
+public:
+	// Source interface — one thread per hash bin, claimed from a shared
+	// atomic counter. A bin is a coarse hash partition, not one series each:
+	// `SortStrategy` sorts a bin by `(series_id, ts)` together (partition
+	// columns lead the sort key), so distinct series sharing a bin still
+	// each get their own contiguous run, detected as a boundary where
+	// `series_id` changes between consecutive rows — but two *different*
+	// series can and do land in the same bin whenever the radix bit count
+	// (chosen internally from estimated cardinality) is smaller than the
+	// series count. Each claimed bin is streamed through `grid_stream` one
+	// run at a time, holding one window resident per run, releasing it at
+	// the series boundary before starting the next. N concurrently-active
+	// threads therefore hold O(N × window) resident, never O(series ×
+	// window) — the memory law this issue's second acceptance criterion
+	// states — independent of how many series exist in total or how they
+	// happen to fall into bins.
+	unique_ptr<GlobalSourceState> GetGlobalSourceState(ClientContext &context) const override;
+	unique_ptr<LocalSourceState> GetLocalSourceState(ExecutionContext &context,
+	                                                 GlobalSourceState &gstate) const override;
+
+	bool IsSource() const override {
+		return true;
+	}
+	bool ParallelSource() const override {
+		return true;
+	}
+
+	// Output rows are one per series, in whichever order threads finish
+	// claiming hash bins — unrelated to the input's own row order, the same
+	// posture `PhysicalWindow::SourceOrder` takes once any partitioning is in
+	// play.
+	OrderPreservationType SourceOrder() const override {
+		return OrderPreservationType::NO_ORDER;
+	}
+
+	InsertionOrderPreservingMap<string> ParamsToString() const override {
+		InsertionOrderPreservingMap<string> result;
+		result["Function"] = "ts_rate (operator)";
+		SetEstimatedCardinality(result, estimated_cardinality);
+		return result;
+	}
+
+protected:
+	SourceResultType GetDataInternal(ExecutionContext &context, DataChunk &chunk,
+	                                 OperatorSourceInput &input) const override;
+
+public:
+	class GlobalSourceStateImpl;
+	class LocalSourceStateImpl;
+
+private:
+	// Every distinct-series run found in `bin`, each as (series_id value,
+	// per-grid-point results) — usually one entry, more whenever the bin
+	// collides two or more series together (see the Source interface
+	// comment above).
+	vector<std::pair<Value, vector<RatePoint>>> ProcessOneBin(ExecutionContext &context, idx_t bin,
+	                                                          GlobalSourceStateImpl &gsource,
+	                                                          OperatorSourceInput &input) const;
+	static void WriteOutputRow(DataChunk &chunk, idx_t out_row, const Value &series_id_value,
+	                           const vector<RatePoint> &points);
+};
+
+class GridStreamGlobalSinkState : public GlobalSinkState {
+public:
+	GridStreamGlobalSinkState(ClientContext &client, const PhysicalGridStream &op) {
+		vector<unique_ptr<Expression>> partition_bys;
+		partition_bys.push_back(make_uniq<BoundReferenceExpression>(op.bind_data.series_type, op.bind_data.series_idx));
+		vector<BoundOrderByNode> order_bys;
+		order_bys.emplace_back(OrderType::ASCENDING, OrderByNullType::NULLS_LAST,
+		                       make_uniq<BoundReferenceExpression>(LogicalType::TIMESTAMP, op.bind_data.ts_idx));
+		const vector<unique_ptr<BaseStatistics>> partition_stats;
+		sort_strategy = SortStrategy::Factory(client, partition_bys, order_bys, op.children[0].get().GetTypes(),
+		                                      partition_stats, op.estimated_cardinality, /*require_payload=*/false);
+		strategy_sink = sort_strategy->GetGlobalSinkState(client);
+	}
+
+	unique_ptr<SortStrategy> sort_strategy;
+	unique_ptr<GlobalSinkState> strategy_sink;
+};
+
+class GridStreamLocalSinkState : public LocalSinkState {
+public:
+	GridStreamLocalSinkState(ExecutionContext &context, GridStreamGlobalSinkState &gstate)
+	    : local_group(gstate.sort_strategy->GetLocalSinkState(context)) {
+	}
+	unique_ptr<LocalSinkState> local_group;
+};
+
+unique_ptr<GlobalSinkState> PhysicalGridStream::GetGlobalSinkState(ClientContext &context) const {
+	return make_uniq<GridStreamGlobalSinkState>(context, *this);
+}
+
+unique_ptr<LocalSinkState> PhysicalGridStream::GetLocalSinkState(ExecutionContext &context) const {
+	auto &gstate = sink_state->Cast<GridStreamGlobalSinkState>();
+	return make_uniq<GridStreamLocalSinkState>(context, gstate);
+}
+
+SinkResultType PhysicalGridStream::Sink(ExecutionContext &context, DataChunk &chunk, OperatorSinkInput &sink) const {
+	auto &gstate = sink.global_state.Cast<GridStreamGlobalSinkState>();
+	auto &lstate = sink.local_state.Cast<GridStreamLocalSinkState>();
+	OperatorSinkInput hsink {*gstate.strategy_sink, *lstate.local_group, sink.interrupt_state};
+	return gstate.sort_strategy->Sink(context, chunk, hsink);
+}
+
+SinkCombineResultType PhysicalGridStream::Combine(ExecutionContext &context, OperatorSinkCombineInput &combine) const {
+	auto &gstate = combine.global_state.Cast<GridStreamGlobalSinkState>();
+	auto &lstate = combine.local_state.Cast<GridStreamLocalSinkState>();
+	OperatorSinkCombineInput hcombine {*gstate.strategy_sink, *lstate.local_group, combine.interrupt_state};
+	return gstate.sort_strategy->Combine(context, hcombine);
+}
+
+SinkFinalizeType PhysicalGridStream::Finalize(Pipeline &pipeline, Event &event, ClientContext &client,
+                                              OperatorSinkFinalizeInput &input) const {
+	auto &gsink = input.global_state.Cast<GridStreamGlobalSinkState>();
+	OperatorSinkFinalizeInput hfinalize {*gsink.strategy_sink, input.interrupt_state};
+	return gsink.sort_strategy->Finalize(client, hfinalize);
+}
+
+// The per-grid-point result `grid_stream`'s `emit` callback fills in,
+// finalized into one `LIST(DOUBLE)` row per series — reuses `RatePoint`, the
+// same struct `ComputeRatePoints`/`RateFinalize` already use for the
+// aggregate form's identical output shape.
+
+class PhysicalGridStream::GlobalSourceStateImpl : public GlobalSourceState {
+public:
+	GlobalSourceStateImpl(ClientContext &client, GridStreamGlobalSinkState &gsink_p) : gsink(gsink_p) {
+		hashed_source = gsink.sort_strategy->GetGlobalSourceState(client, *gsink.strategy_sink);
+		auto &groups = gsink.sort_strategy->GetHashGroups(*hashed_source);
+		for (idx_t i = 0; i < groups.size(); i++) {
+			if (groups[i].chunks > 0) {
+				non_empty_bins.push_back(i);
+			}
+		}
+	}
+
+	idx_t MaxThreads() override {
+		return std::max<idx_t>(1, non_empty_bins.size());
+	}
+
+	GridStreamGlobalSinkState &gsink;
+	unique_ptr<GlobalSourceState> hashed_source;
+	vector<idx_t> non_empty_bins;
+	atomic<idx_t> next_bin {0};
+};
+
+unique_ptr<GlobalSourceState> PhysicalGridStream::GetGlobalSourceState(ClientContext &context) const {
+	auto &gsink = sink_state->Cast<GridStreamGlobalSinkState>();
+	return make_uniq<GlobalSourceStateImpl>(context, gsink);
+}
+
+// Ready-to-emit output rows this thread has already computed, queued for
+// writing into a DuckDB-supplied output chunk: `ProcessOneBin` fully drains
+// one hash bin (which may hold several distinct series, see the Source
+// interface comment above) into this queue in one call, and `GetDataInternal`
+// pulls from it across as many calls as it takes to drain — never more than
+// one bin's worth of *output* queued at a time per thread.
+class PhysicalGridStream::LocalSourceStateImpl : public LocalSourceState {
+public:
+	vector<std::pair<Value, vector<RatePoint>>> pending_rows;
+	idx_t pending_idx = 0;
+};
+
+unique_ptr<LocalSourceState> PhysicalGridStream::GetLocalSourceState(ExecutionContext &context,
+                                                                     GlobalSourceState &gstate) const {
+	return make_uniq<LocalSourceStateImpl>();
+}
+
+// Sorts, materializes and streams exactly one hash bin end to end on the
+// calling thread, releasing one series' window state before starting the
+// next whenever `series_id` changes between consecutive rows (bins are
+// sorted by `(series_id, ts)` together, so every series' own rows are
+// contiguous within the bin even when several series share it). Never
+// called twice for the same `bin` (each is claimed exactly once from
+// `gsource.next_bin`), so this never races another thread over the same
+// partition's state.
+vector<std::pair<Value, vector<RatePoint>>> PhysicalGridStream::ProcessOneBin(ExecutionContext &context, idx_t bin,
+                                                                              GlobalSourceStateImpl &gsource,
+                                                                              OperatorSourceInput &input) const {
+	auto &sort_strategy = *gsource.gsink.sort_strategy;
+
+	auto local_unused = make_uniq<LocalSourceState>();
+	OperatorSourceInput hashed_input {*gsource.hashed_source, *local_unused, input.interrupt_state};
+
+	{
+		OperatorSinkFinalizeInput finalize {*gsource.gsink.strategy_sink, input.interrupt_state};
+		sort_strategy.SortColumnData(context, bin, finalize);
+	}
+	while (sort_strategy.MaterializeColumnData(context, bin, hashed_input) == SourceResultType::HAVE_MORE_OUTPUT) {
+		// Loop until this bin's partition is fully materialized — this
+		// thread owns `bin` exclusively, so no other caller can finish it out
+		// from under it.
+	}
+	auto coll = sort_strategy.GetColumnData(bin, hashed_input);
+	if (!coll) {
+		throw InternalException("ts_rate (operator): SortStrategy did not return the materialized partition for a "
+		                        "bin this thread exclusively owns");
+	}
+
+	vector<std::pair<Value, vector<RatePoint>>> rows;
+	if (coll->Count() == 0) {
+		return rows;
+	}
+
+	// The currently-open series run: `active_points`/`active_stream` are
+	// reset every time `series_id` changes, so at most one series' window
+	// state is ever resident at a time within this bin.
+	unique_ptr<chronoduck::GridStream> active_stream;
+	unique_ptr<vector<RatePoint>> active_points;
+	Value active_series_id;
+	bool have_active = false;
+
+	auto emit = [&](int64_t grid_index, const CounterSample *data, std::size_t n) {
+		const CounterSample *sub = n > 0 ? data : nullptr;
+		CounterFoldSummary summary =
+		    chronoduck::counter_fold(sub, n, nullptr, [](const CounterSample &p, const CounterSample &c) {
+			    return chronoduck::value_or_st_reset(p, c, /*from_delta_temporality=*/false);
+		    });
+		int64_t anchor = bind_data.grid.at(grid_index);
+		int64_t window_start = anchor - bind_data.window;
+		ExtrapolateResult ex = chronoduck::extrapolate(summary, window_start, anchor, /*is_counter=*/true);
+		RatePoint &point = (*active_points)[static_cast<std::size_t>(grid_index)];
+		point.has_value = ex.has_value;
+		if (ex.has_value) {
+			point.value = ex.value / static_cast<double>(bind_data.window);
+		}
+	};
+
+	auto flush_active = [&]() {
+		if (!have_active) {
+			return;
+		}
+		active_stream->end();
+		active_stream->resume(emit);
+		rows.emplace_back(std::move(active_series_id), std::move(*active_points));
+		have_active = false;
+	};
+	auto start_series = [&](Value series_id_value) {
+		flush_active();
+		active_series_id = std::move(series_id_value);
+		active_points = make_uniq<vector<RatePoint>>(static_cast<std::size_t>(bind_data.grid.count()));
+		active_stream = make_uniq<chronoduck::GridStream>(bind_data.grid, bind_data.window);
+		have_active = true;
+	};
+
+	ColumnDataScanState scan_state;
+	coll->InitializeScan(scan_state);
+	DataChunk in_chunk;
+	coll->InitializeScanChunk(scan_state, in_chunk);
+	while (coll->Scan(scan_state, in_chunk)) {
+		idx_t count = in_chunk.size();
+
+		UnifiedVectorFormat ts_data, value_data, st_data;
+		in_chunk.data[bind_data.ts_idx].ToUnifiedFormat(count, ts_data);
+		in_chunk.data[bind_data.value_idx].ToUnifiedFormat(count, value_data);
+		if (bind_data.has_st) {
+			in_chunk.data[bind_data.start_ts_idx].ToUnifiedFormat(count, st_data);
+		}
+		auto ts_ptr = UnifiedVectorFormat::GetData<timestamp_t>(ts_data);
+		auto value_ptr = UnifiedVectorFormat::GetData<double>(value_data);
+		auto st_ptr = bind_data.has_st ? UnifiedVectorFormat::GetData<timestamp_t>(st_data) : nullptr;
+
+		for (idx_t i = 0; i < count; i++) {
+			Value row_series_id = in_chunk.GetValue(bind_data.series_idx, i);
+			if (!have_active || row_series_id != active_series_id) {
+				start_series(std::move(row_series_id));
+			}
+
+			auto ts_idx_u = ts_data.sel->get_index(i);
+			auto value_idx_u = value_data.sel->get_index(i);
+			// The upstream `PhysicalFilter` (`LogicalGridStream::CreatePlan`)
+			// already excludes NULL ts/value rows before the sink, so every
+			// row reaching this scan is valid — no re-check needed here.
+			CounterSample cs;
+			cs.t = ts_ptr[ts_idx_u].value;
+			cs.v = value_ptr[value_idx_u];
+			if (bind_data.has_st) {
+				auto st_idx_u = st_data.sel->get_index(i);
+				if (st_data.validity.RowIsValid(st_idx_u)) {
+					cs.has_st = true;
+					cs.st = st_ptr[st_idx_u].value;
+				}
+			}
+			active_stream->feed(cs, emit);
+		}
+	}
+	flush_active();
+
+	return rows;
+}
+
+void PhysicalGridStream::WriteOutputRow(DataChunk &chunk, idx_t out_row, const Value &series_id_value,
+                                        const vector<RatePoint> &points) {
+	chunk.SetValue(0, out_row, series_id_value);
+
+	auto &list_vec = chunk.data[1];
+	auto result_data = FlatVector::GetData<list_entry_t>(list_vec);
+	idx_t old_len = ListVector::GetListSize(list_vec);
+	ListVector::Reserve(list_vec, old_len + points.size());
+	auto &child = ListVector::GetEntry(list_vec);
+	auto &child_validity = FlatVector::Validity(child);
+	auto child_data = FlatVector::GetData<double>(child);
+	idx_t offset = old_len;
+	for (const RatePoint &point : points) {
+		if (point.has_value) {
+			child_data[offset] = point.value;
+		} else {
+			child_validity.SetInvalid(offset);
+		}
+		offset++;
+	}
+	result_data[out_row] = {old_len, points.size()};
+	ListVector::SetListSize(list_vec, offset);
+}
+
+SourceResultType PhysicalGridStream::GetDataInternal(ExecutionContext &context, DataChunk &chunk,
+                                                     OperatorSourceInput &input) const {
+	auto &gsource = input.global_state.Cast<GlobalSourceStateImpl>();
+	auto &lstate = input.local_state.Cast<LocalSourceStateImpl>();
+	idx_t produced = 0;
+	while (produced < STANDARD_VECTOR_SIZE) {
+		if (lstate.pending_idx >= lstate.pending_rows.size()) {
+			idx_t slot = gsource.next_bin.fetch_add(1);
+			if (slot >= gsource.non_empty_bins.size()) {
+				break;
+			}
+			lstate.pending_rows = ProcessOneBin(context, gsource.non_empty_bins[slot], gsource, input);
+			lstate.pending_idx = 0;
+			if (lstate.pending_rows.empty()) {
+				continue; // an empty bin (shouldn't happen for a non_empty_bins entry, but harmless if it does)
+			}
+		}
+		auto &row = lstate.pending_rows[lstate.pending_idx];
+		WriteOutputRow(chunk, produced, row.first, row.second);
+		lstate.pending_idx++;
+		produced++;
+	}
+	chunk.SetCardinality(produced);
+	return produced > 0 ? SourceResultType::HAVE_MORE_OUTPUT : SourceResultType::FINISHED;
+}
+
+// The logical-plan side of the `bind_operator` hook: built directly by
+// `GridStreamBindOperator` below, with no `OptimizerExtension` in between —
+// robust to `enable_optimizer=false` (DuckDB's own "unoptimized" statement
+// verifier, run automatically alongside every query) precisely because
+// nothing about wiring this node's child depends on the optimizer running at
+// all. `bind_table_function.cpp`'s own binder wires the `TABLE` argument's
+// bound subquery in beneath *whichever leaf* the returned plan bottoms out
+// at, asserting that leaf is a `LogicalGet` — so `GridStreamBindOperator`
+// gives this node a one-column-passthrough `LogicalGet` child of its own
+// (see `GridStreamPassthroughFn`) for the subquery to land under, rather
+// than being that leaf itself.
+class LogicalGridStream : public LogicalExtensionOperator {
+public:
+	LogicalGridStream(idx_t bind_index_p, RangeStreamBindData bind_data_p)
+	    : bind_index(bind_index_p), stream_bind_data(std::move(bind_data_p)) {
+		SetEstimatedCardinality(1000);
+	}
+
+	idx_t bind_index;
+	RangeStreamBindData stream_bind_data;
+
+	void ResolveTypes() override {
+		types = {stream_bind_data.series_type, LogicalType::LIST(LogicalType::DOUBLE)};
+	}
+
+	vector<ColumnBinding> GetColumnBindings() override {
+		return GenerateColumnBindings(bind_index, types.size());
+	}
+
+	string GetName() const override {
+		return "GRID_STREAM";
+	}
+
+	PhysicalOperator &CreatePlan(ClientContext &context, PhysicalPlanGenerator &planner) override {
+		auto &child = planner.CreatePlan(*children[0]);
+
+		// Drop NULL ts/value rows before they ever reach the sink, the same
+		// posture `RateUpdate` applies per row for the aggregate form (see
+		// its own "NULL ts or value" comment).
+		vector<unique_ptr<Expression>> filters;
+		auto ts_not_null =
+		    make_uniq<BoundOperatorExpression>(ExpressionType::OPERATOR_IS_NOT_NULL, LogicalType::BOOLEAN);
+		ts_not_null->children.push_back(
+		    make_uniq<BoundReferenceExpression>(LogicalType::TIMESTAMP, stream_bind_data.ts_idx));
+		filters.push_back(std::move(ts_not_null));
+		auto value_not_null =
+		    make_uniq<BoundOperatorExpression>(ExpressionType::OPERATOR_IS_NOT_NULL, LogicalType::BOOLEAN);
+		value_not_null->children.push_back(
+		    make_uniq<BoundReferenceExpression>(LogicalType::DOUBLE, stream_bind_data.value_idx));
+		filters.push_back(std::move(value_not_null));
+
+		auto &filtered = planner.Make<PhysicalFilter>(child.GetTypes(), std::move(filters), estimated_cardinality);
+		filtered.children.push_back(child);
+
+		return planner.Make<PhysicalGridStream>(filtered, stream_bind_data, types, estimated_cardinality);
+	}
+};
+
+// GridStreamPassthroughFn — the `in_out_function` body for the one-column
+// passthrough `LogicalGet` `GridStreamBindOperator` gives `LogicalGridStream`
+// as its child: references every input column into the output unchanged.
+// Its only job is to be a real `LogicalGet` for the generic subquery-attach
+// code to descend to (see `LogicalGridStream`'s own header comment) — it
+// never does anything to the data itself.
+OperatorResultType GridStreamPassthroughFn(ExecutionContext &context, TableFunctionInput &data, DataChunk &input,
+                                           DataChunk &output) {
+	output.SetCardinality(input.size());
+	for (idx_t col = 0; col < input.ColumnCount(); col++) {
+		output.data[col].Reference(input.data[col]);
+	}
+	return OperatorResultType::NEED_MORE_INPUT;
+}
+
+// table_function_bind_operator_t for `ts_rate`'s operator overload: resolves
+// the input relation's column roles *by name* (`series_id`, `ts`, `value`,
+// optional `start_ts`) — the `TABLE` argument carries no positional
+// convention of its own — reusing `BindGridArgs`, the same grid/window
+// bind-time validation `BindTsRate` applies for the aggregate form.
+unique_ptr<LogicalOperator> GridStreamBindOperator(ClientContext &context, TableFunctionBindInput &input,
+                                                   idx_t bind_index, vector<string> &return_names) {
+	auto &names = input.input_table_names;
+	auto &col_types = input.input_table_types;
+
+	auto find_col = [&](const char *role) -> idx_t {
+		for (idx_t i = 0; i < names.size(); i++) {
+			if (names[i] == role) {
+				return i;
+			}
+		}
+		return DConstants::INVALID_INDEX;
+	};
+
+	idx_t series_idx = find_col("series_id");
+	idx_t ts_idx = find_col("ts");
+	idx_t value_idx = find_col("value");
+	idx_t start_ts_idx = find_col("start_ts");
+	if (series_idx == DConstants::INVALID_INDEX || ts_idx == DConstants::INVALID_INDEX ||
+	    value_idx == DConstants::INVALID_INDEX) {
+		throw BinderException("ts_rate: the TABLE argument must project columns named 'series_id', 'ts' and 'value'");
+	}
+	if (col_types[ts_idx] != LogicalType::TIMESTAMP) {
+		throw BinderException("ts_rate: 'ts' column must be TIMESTAMP");
+	}
+	if (col_types[value_idx] != LogicalType::DOUBLE) {
+		throw BinderException("ts_rate: 'value' column must be DOUBLE");
+	}
+	bool has_st = start_ts_idx != DConstants::INVALID_INDEX;
+	if (has_st && col_types[start_ts_idx] != LogicalType::TIMESTAMP) {
+		throw BinderException("ts_rate: 'start_ts' column must be TIMESTAMP");
+	}
+
+	if (input.inputs.size() != 5) {
+		throw BinderException("ts_rate: expected (TABLE relation, grid_start, grid_end, grid_step, window)");
+	}
+	auto require = [&](idx_t idx, const char *name) -> Value {
+		Value v = input.inputs[idx];
+		if (v.IsNull()) {
+			throw BinderException("ts_rate: %s must not be NULL", name);
+		}
+		return v;
+	};
+	Value grid_start_v = require(1, "grid_start");
+	Value grid_end_v = require(2, "grid_end");
+	Value grid_step_v = require(3, "grid_step");
+	Value window_v = require(4, "window");
+
+	int64_t window = window_v.GetValue<int64_t>();
+	if (window <= 0) {
+		throw BinderException("ts_rate: window must be positive, got %lld", (long long)window);
+	}
+	Grid grid = BindGridArgs(grid_start_v.GetValue<timestamp_t>().value, grid_end_v.GetValue<timestamp_t>().value,
+	                         grid_step_v.GetValue<int64_t>());
+
+	RangeStreamBindData bind_data;
+	bind_data.has_st = has_st;
+	bind_data.grid = grid;
+	bind_data.window = window;
+	bind_data.series_idx = series_idx;
+	bind_data.ts_idx = ts_idx;
+	bind_data.value_idx = value_idx;
+	bind_data.start_ts_idx = has_st ? start_ts_idx : 0;
+	bind_data.series_type = col_types[series_idx];
+
+	if (!input.binder) {
+		throw InternalException("ts_rate: bind_operator invoked without a binder");
+	}
+	TableFunction passthrough_fn("__ts_rate_operator_input", col_types, nullptr);
+	passthrough_fn.in_out_function = GridStreamPassthroughFn;
+	auto passthrough_get = make_uniq<LogicalGet>(input.binder->GenerateTableIndex(), passthrough_fn,
+	                                             make_uniq<TableFunctionData>(), col_types, names);
+	passthrough_get->input_table_types = col_types;
+	passthrough_get->input_table_names = names;
+	for (idx_t i = 0; i < col_types.size(); i++) {
+		passthrough_get->AddColumnId(i);
+	}
+
+	auto logical_grid_stream = make_uniq<LogicalGridStream>(bind_index, std::move(bind_data));
+	logical_grid_stream->children.push_back(std::move(passthrough_get));
+
+	return_names = {"series_id", "values"};
+	return std::move(logical_grid_stream);
+}
+
+TableFunction MakeTsRateOperatorTableFunction() {
+	TableFunction fn(
+	    "ts_rate",
+	    {LogicalType::TABLE, LogicalType::TIMESTAMP, LogicalType::TIMESTAMP, LogicalType::BIGINT, LogicalType::BIGINT},
+	    nullptr);
+	fn.bind_operator = GridStreamBindOperator;
+	return fn;
+}
+
 // Registration functions, one per registry.def row, named Register_<name> so
 // LoadInternal's registry.def-driven dispatch below can call each by
 // token-pasting its row name onto "Register_" — no per-row special-casing.
@@ -528,6 +1130,11 @@ void Register_ts_rate(ExtensionLoader &loader) {
 	ts_rate_function_set.AddFunction(MakeTsRateAggregate(/*has_st=*/false));
 	ts_rate_function_set.AddFunction(MakeTsRateAggregate(/*has_st=*/true));
 	loader.RegisterFunction(ts_rate_function_set);
+
+	// The operator form (T2.2): a second, table-function catalog entry under
+	// the same name — see the block comment above `RangeStreamBindData` for
+	// why this needs no new `registry.def` row.
+	loader.RegisterFunction(MakeTsRateOperatorTableFunction());
 }
 
 } // namespace
