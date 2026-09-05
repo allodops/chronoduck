@@ -1,0 +1,18 @@
+{
+  "pass": [
+    "rate/cadence-window-smaller-than-scrape@chdb",
+    "rate/clamp-zero-crossing@chdb",
+    "rate/dup-duplicate-timestamp@chdb",
+    "rate/edge-boundary@chdb",
+    "rate/reset-midwindow@chdb",
+    "rate/sweep-eval-instant-offsets@chdb",
+    "rate/threshold-single-sample-without-st@chdb",
+    "rate/derived/cerberus-fixed-accumulator-rate-range-step-web@chdb",
+    "rate/derived/cerberus-rate-empty-window@chdb",
+    "rate/derived/cerberus-rate-http-count@chdb"
+  ],
+  "shape_gap": [
+    "rate/start-ts-reset-no-value-drop@chdb",
+    "rate/threshold-single-sample-with-st@chdb"
+  ]
+}

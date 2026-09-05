@@ -90,6 +90,13 @@
       "posture": "nightly",
       "layers": ["L15"],
       "owner": "tsouza"
+    },
+    {
+      "context": "chdb-differential",
+      "workflow": "ci.yml",
+      "posture": "merge",
+      "layers": ["L6a"],
+      "owner": "tsouza"
     }
   ]
 }

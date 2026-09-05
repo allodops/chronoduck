@@ -16,6 +16,17 @@
 // the Makefile's own "extension-ci-tools submodule not checked out" warning
 // (never a failure — the check that does build the partner first, the
 // partner-rawduck lane, is where this comparison actually bites).
+//
+// Same shape again (#43) for the libchdb pin declared in
+// scripts/live-oracles/chdb.json: also never a submodule, never committed —
+// scripts/live-oracles/chdb-fetch.mjs fetches a checksummed release tarball
+// into build/live-oracles/chdb/<tag>/ instead of cloning a source tree. There
+// is no independent HEAD to compare against (there's no git checkout at
+// all); chdb-fetch.mjs itself already refuses to vendor anything whose
+// sha256 doesn't match the pin, so the fact that libchdb.so and chdb.h exist
+// at the pinned tag's own directory is the "actual matches pinned" evidence
+// here. Absent that directory, it's "pending" (run `make chdb-fetch`), same
+// as the rawduck case never being a failure on its own.
 import { $ } from "bun";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -172,6 +183,49 @@ if (partnerPin.present) {
     );
   } else {
     notes.push(`rawduck partner pin: ${partnerPin.pinned} — OK (matches build/partners/rawduck/ checkout)`);
+  }
+}
+
+// libchdb pin (#43): scripts/live-oracles/chdb.json names the pinned
+// (repository, tag, per-platform sha256) scripts/live-oracles/chdb-fetch.mjs
+// vendors into build/live-oracles/chdb/<tag>/ (never a submodule, never
+// committed — see that script's own header comment).
+async function libchdbPinStatus(rootDir) {
+  const configPath = join(rootDir, "scripts", "live-oracles", "chdb.json");
+  if (!existsSync(configPath)) return { present: false };
+  let config;
+  try {
+    config = JSON.parse(readFileSync(configPath, "utf8"));
+  } catch (e) {
+    return { present: true, error: `could not parse ${configPath} (${e.message})` };
+  }
+  if (!config.repository || !config.tag) {
+    return { present: true, error: `${configPath} must declare "repository" and "tag"` };
+  }
+  const pinned = `${config.repository}@${config.tag}`;
+  // Only linux-x86_64 is pinned today (chdb.json's own comment: the only
+  // platform the chdb-differential CI lane runs on) — the same
+  // "no pin for this platform" case chdb-fetch.mjs itself fails loudly on,
+  // reported here as a violation for the same reason, not silently skipped.
+  const platformKey = process.platform === "linux" && process.arch === "x64" ? "linux-x86_64" : null;
+  const platformPin = platformKey ? config.platforms?.[platformKey] : null;
+  if (!platformKey || !platformPin) {
+    return { present: true, pinned, error: `no pinned libchdb asset for this platform (${process.platform}/${process.arch}) in ${configPath}` };
+  }
+  const vendoredRel = join("build", "live-oracles", "chdb", config.tag);
+  const vendoredDir = join(rootDir, vendoredRel);
+  const vendored = existsSync(join(vendoredDir, "libchdb.so")) && existsSync(join(vendoredDir, "chdb.h"));
+  return { present: true, pinned, sha256: platformPin.sha256, vendoredRel, vendored, error: null };
+}
+
+const libchdbPin = await libchdbPinStatus(root);
+if (libchdbPin.present) {
+  if (libchdbPin.error) {
+    violations.push(`libchdb pin: ${libchdbPin.error}`);
+  } else if (!libchdbPin.vendored) {
+    notes.push(`libchdb pin: ${libchdbPin.pinned} — pending (${libchdbPin.vendoredRel} not vendored; run \`make chdb-fetch\`)`);
+  } else {
+    notes.push(`libchdb pin: ${libchdbPin.pinned} — OK (vendored at ${libchdbPin.vendoredRel}, sha256 ${libchdbPin.sha256} verified on fetch)`);
   }
 }
 
