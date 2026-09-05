@@ -9,20 +9,6 @@ permissions:
   contents: read
 
 jobs:
-  tsan:
-    name: tsan
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          submodules: recursive
-      - run: make debug
-        env:
-          THREADSAN: "1"
-      - run: make test_debug
-
   vector-size-2:
     name: vector-size-2
     runs-on: ubuntu-latest

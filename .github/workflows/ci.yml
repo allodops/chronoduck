@@ -66,3 +66,22 @@ jobs:
         run: make test
       - if: env.BUILD_RELEVANT == 'true'
         run: make smoke
+
+  tsan:
+    name: tsan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: ccache-ci-tsan-v1.5.4
+          max-size: 5GB
+          evict-old-files: job
+      - run: make debug
+        env:
+          THREADSAN: "1"
+      - run: make test_debug

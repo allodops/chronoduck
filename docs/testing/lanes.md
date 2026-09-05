@@ -12,6 +12,6 @@ Coverage is per translation unit, raise-only, and refuses to record zero; a drop
 
 Chronoduck's own lane registry is the repository-relative path `.github/ci-lanes.json`; `make lanes-check` verifies it against the actual workflow files and against this document — a registered lane missing from this page, or a name on this page that isn't registered, both fail the check. M0 has no kernel yet, so today's lanes are the scaffolding and governance layer the kernel's own lanes above will join as they're built, not a replacement for that composition:
 
-- **merge posture**: `hygiene` (the tree hygiene scans, L13), `build-test` (the release build and sqllogictest suite, L5), `code-quality-check` (the vendored format/tidy pipeline)
-- **nightly posture**: `tsan` (ThreadSanitizer, L4/L9), `vector-size-2` (the reduced-vector-size debug build, L4)
+- **merge posture**: `hygiene` (the tree hygiene scans, L13), `build-test` (the release build and sqllogictest suite, L5), `code-quality-check` (the vendored format/tidy pipeline), `tsan` (ThreadSanitizer over the debug build and sqllogictest suite, L4)
+- **nightly posture**: `vector-size-2` (the reduced-vector-size debug build, L4)
 - **release posture**: `analyze` (CodeQL), `scorecard` (OpenSSF Scorecard), `label` and `backfill` (the PR auto-labeler), `check` (the issue-label drift check), `duckdb-stable-build` (the vendored multi-platform distribution matrix — manual dispatch only; every PR/push previously ran it unconditionally for zero merge-gating value)
