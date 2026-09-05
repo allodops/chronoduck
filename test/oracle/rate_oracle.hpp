@@ -60,9 +60,8 @@ inline bool TotalOrderLess(double a, double b) {
 // never matters since two samples with the same timestamp AND the same
 // total-order rank must be bit-identical values).
 inline std::vector<OracleSample> SortDedup(std::vector<OracleSample> samples) {
-	std::stable_sort(samples.begin(), samples.end(), [](const OracleSample &a, const OracleSample &b) {
-		return a.t < b.t;
-	});
+	std::stable_sort(samples.begin(), samples.end(),
+	                 [](const OracleSample &a, const OracleSample &b) { return a.t < b.t; });
 	std::vector<OracleSample> out;
 	out.reserve(samples.size());
 	for (const OracleSample &s : samples) {
@@ -85,7 +84,7 @@ inline std::vector<OracleSample> SortDedup(std::vector<OracleSample> samples) {
 // — `test/fixtures/rate/edge-boundary.yaml` — pin it). `data` must already be
 // sorted ascending by `t` (`SortDedup`'s own postcondition).
 inline std::pair<std::size_t, std::size_t> WindowRange(const std::vector<OracleSample> &data, int64_t anchor,
-                                                        int64_t width) {
+                                                       int64_t width) {
 	std::size_t lo = 0, hi = 0;
 	while (lo < data.size() && data[lo].t <= anchor - width) {
 		lo++;
@@ -143,7 +142,8 @@ inline std::optional<double> EvaluateOnePoint(const std::vector<OracleSample> &s
 	std::size_t n = hi - lo;
 	int64_t window_start = anchor - width;
 
-	bool left_st_inside_window = n > 0 && sorted[lo].has_st && sorted[lo].st > window_start && sorted[lo].st < sorted[lo].t;
+	bool left_st_inside_window =
+	    n > 0 && sorted[lo].has_st && sorted[lo].st > window_start && sorted[lo].st < sorted[lo].t;
 
 	std::size_t eff_n = n + (left_st_inside_window ? 1u : 0u);
 	if (n == 0 || eff_n < 2) {
@@ -199,7 +199,7 @@ inline std::optional<double> EvaluateOnePoint(const std::vector<OracleSample> &s
 // Evaluates every point of `grid`, `window` ticks wide, from raw (possibly
 // duplicate-timestamped, possibly unsorted) `samples`.
 inline std::vector<std::optional<double>> EvaluateSeries(const std::vector<OracleSample> &samples,
-                                                          const OracleGrid &grid, int64_t window) {
+                                                         const OracleGrid &grid, int64_t window) {
 	std::vector<OracleSample> sorted = SortDedup(samples);
 	std::vector<std::optional<double>> out;
 	int64_t count = grid.count();

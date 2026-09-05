@@ -99,7 +99,7 @@ constexpr double kStepMin = 1.0;
 constexpr double kStepMax = 50.0;
 
 inline std::vector<OracleSample> MakeMonotoneSeries(SplitMix64 &rng, std::size_t n, int64_t t0, int64_t min_gap,
-                                                     int64_t max_gap) {
+                                                    int64_t max_gap) {
 	std::vector<OracleSample> out;
 	out.reserve(n);
 	int64_t t = t0;
@@ -177,7 +177,7 @@ inline std::vector<OracleSample> Shuffled(const std::vector<OracleSample> &data,
 // the fold, see `metamorphic.hpp`'s own MR-PART header comment), both
 // reduce to the same "any permutation of the input rows" invariant.
 inline std::vector<OracleSample> Partitioned(const std::vector<OracleSample> &data, std::size_t parts,
-                                              SplitMix64 &rng) {
+                                             SplitMix64 &rng) {
 	if (parts < 2 || data.size() < parts) {
 		return Shuffled(data, rng);
 	}
@@ -215,7 +215,8 @@ inline std::vector<OracleSample> Partitioned(const std::vector<OracleSample> &da
 // `test/fixtures/rate/sweep-eval-instant-offsets.yaml`'s own 15-tick-step
 // grid is a superset of the eight named offsets.
 inline constexpr int64_t kEvalInstantOffsetsSeconds[] = {0, 15, 30, 60, 90, 120, 180, 300};
-constexpr std::size_t kEvalInstantOffsetCount = sizeof(kEvalInstantOffsetsSeconds) / sizeof(kEvalInstantOffsetsSeconds[0]);
+constexpr std::size_t kEvalInstantOffsetCount =
+    sizeof(kEvalInstantOffsetsSeconds) / sizeof(kEvalInstantOffsetsSeconds[0]);
 
 // A grid whose step is the GCD-friendly 15 (every named offset is a multiple
 // of 15), running from `base_t` to `base_t + 300 * tick_scale` inclusive —

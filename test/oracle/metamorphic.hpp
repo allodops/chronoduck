@@ -100,7 +100,8 @@ inline MrResult ExactEqual(const std::vector<std::optional<double>> &a, const st
 		bool same = a[i].has_value() == b[i].has_value() && (!a[i].has_value() || *a[i] == *b[i]);
 		if (!same) {
 			std::ostringstream oss;
-			oss << relation << ": grid point " << i << " differs: " << PointToString(a[i]) << " vs " << PointToString(b[i]);
+			oss << relation << ": grid point " << i << " differs: " << PointToString(a[i]) << " vs "
+			    << PointToString(b[i]);
 			return MrFail(oss.str());
 		}
 	}
@@ -489,8 +490,8 @@ MrResult CheckEdge(Evaluate &&eval, SplitMix64 &rng, const std::vector<OracleSam
 	}
 	if (!same(base_point, c[target_index])) {
 		std::ostringstream oss;
-		oss << "MR-EDGE: sample strictly past anchor (excluded) changed the result: " << detail::PointToString(base_point)
-		    << " vs " << detail::PointToString(c[target_index]);
+		oss << "MR-EDGE: sample strictly past anchor (excluded) changed the result: "
+		    << detail::PointToString(base_point) << " vs " << detail::PointToString(c[target_index]);
 		return MrFail(oss.str());
 	}
 	return MrPass();
@@ -530,12 +531,14 @@ MrResult CheckGrid(Evaluate &&eval, const std::vector<OracleSample> &base, const
 		if (static_cast<std::size_t>(refined_index) >= refined.size()) {
 			return MrFail("MR-GRID: refined grid shorter than expected");
 		}
-		bool same = coarse[static_cast<std::size_t>(i)].has_value() == refined[static_cast<std::size_t>(refined_index)].has_value() &&
+		bool same = coarse[static_cast<std::size_t>(i)].has_value() ==
+		                refined[static_cast<std::size_t>(refined_index)].has_value() &&
 		            (!coarse[static_cast<std::size_t>(i)].has_value() ||
 		             *coarse[static_cast<std::size_t>(i)] == *refined[static_cast<std::size_t>(refined_index)]);
 		if (!same) {
 			std::ostringstream oss;
-			oss << "MR-GRID: coarse point " << i << " (anchor " << grid.at(i) << ") differs from the refined grid's own value there: "
+			oss << "MR-GRID: coarse point " << i << " (anchor " << grid.at(i)
+			    << ") differs from the refined grid's own value there: "
 			    << detail::PointToString(coarse[static_cast<std::size_t>(i)]) << " vs "
 			    << detail::PointToString(refined[static_cast<std::size_t>(refined_index)]);
 			return MrFail(oss.str());

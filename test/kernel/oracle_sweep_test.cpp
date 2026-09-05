@@ -84,7 +84,7 @@ Grid ToGrid(const OracleGrid &g) {
 }
 
 std::vector<fixtures::RatePoint> ProductionEvaluateFull(const std::vector<OracleSample> &samples,
-                                                         const OracleGrid &grid, int64_t window) {
+                                                        const OracleGrid &grid, int64_t window) {
 	return fixtures::EvaluateRate(ToRaw(samples), ToGrid(grid), window);
 }
 
@@ -116,7 +116,8 @@ void TestShapeIdRoster() {
 			continue;
 		}
 		if (!prod[0].has_value || !oracle_vals[0].has_value()) {
-			std::fprintf(stderr, "SHAPE FAIL %s: expected a value, got null (production has_value=%d, oracle has_value=%d)\n",
+			std::fprintf(stderr,
+			             "SHAPE FAIL %s: expected a value, got null (production has_value=%d, oracle has_value=%d)\n",
 			             ex.shape_id.c_str(), prod[0].has_value, oracle_vals[0].has_value());
 			g_failures++;
 			continue;
@@ -128,9 +129,10 @@ void TestShapeIdRoster() {
 		if (prod_ok && oracle_ok && cross_ok) {
 			std::printf("SHAPE PASS %s\n", ex.shape_id.c_str());
 		} else {
-			std::fprintf(stderr,
-			             "SHAPE FAIL %s: expected=%.17g production=%.17g oracle=%.17g (prod_ok=%d oracle_ok=%d cross_ok=%d)\n",
-			             ex.shape_id.c_str(), ex.expected, prod[0].value, *oracle_vals[0], prod_ok, oracle_ok, cross_ok);
+			std::fprintf(
+			    stderr,
+			    "SHAPE FAIL %s: expected=%.17g production=%.17g oracle=%.17g (prod_ok=%d oracle_ok=%d cross_ok=%d)\n",
+			    ex.shape_id.c_str(), ex.expected, prod[0].value, *oracle_vals[0], prod_ok, oracle_ok, cross_ok);
 			g_failures++;
 		}
 	}
@@ -168,7 +170,8 @@ void TestPropertySweep() {
 		for (std::size_t i = 0; i < oracle_vals.size() && i < prod.size(); i++) {
 			bool oracle_has = oracle_vals[i].has_value();
 			if (oracle_has != prod[i].has_value) {
-				Check(false, "property sweep: has_value mismatch between oracle and production at grid point " + std::to_string(i));
+				Check(false, "property sweep: has_value mismatch between oracle and production at grid point " +
+				                 std::to_string(i));
 				continue;
 			}
 			if (oracle_has) {
@@ -224,7 +227,9 @@ void TestMetamorphicRelations() {
 	// the harness compute [scale] from its samples") in a context where the
 	// only thing on hand is the two values being compared, not the fold's own
 	// internal Sigma|terms| bookkeeping.
-	auto scale_aware_equal = [](double expected, double actual) { return equal_values(expected, actual, std::fabs(expected)); };
+	auto scale_aware_equal = [](double expected, double actual) {
+		return equal_values(expected, actual, std::fabs(expected));
+	};
 
 	const int kTrials = 250;
 	for (int trial = 0; trial < kTrials; trial++) {
