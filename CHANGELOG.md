@@ -4,6 +4,7 @@
 
 ## Unreleased
 
+- feat(kernel): add Tier 3 window_walk and edge_context (#192)
 - feat(kernel): add Tier 2 SampleBuffer with totalOrder dedup (#191)
 - feat(kernel): add Tier 1 Grid, Window.contains, lookback/carry, scan_bounds (#190)
 - fix(hygiene): detect citations wrapped across comment lines (#189)
