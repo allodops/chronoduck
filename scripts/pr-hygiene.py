@@ -13,12 +13,6 @@ fetches via the configurable interactive GitHub CLI directly
 subprocess calls below) rather than scripts/lib/gh.py's plain-`gh` helpers,
 which are the CI-safe equivalent for standalone scripts run without an
 interactively-configured GitHub CLI identity.
-
-Deferral-scan duplication note: scanDiffForDeferral below duplicates
-scripts/hygiene/forbid_deferral.py's pure function of the same name, so
-this script keeps running standalone without importing across the
-scripts/hygiene/ package boundary. #251 tracks collapsing this into a
-single shared implementation (#166-style DRY).
 """
 
 import json
@@ -32,6 +26,17 @@ from pathlib import Path
 from lib.conventional_commits import CONVENTIONAL_COMMITS_RE
 from lib.gh_diff import fetchPrDiff
 
+# scripts/hygiene.py (this repo's hygiene orchestrator) and scripts/hygiene/
+# (the scan directory) share the name "hygiene" -- Python's import system
+# resolves a same-directory "hygiene.py" module ahead of a "hygiene/"
+# namespace package for that name, so `from hygiene.forbid_deferral import
+# scanDiffForDeferral` would find the wrong one. Importing directly from
+# scripts/hygiene/ (added to sys.path on its own, ahead of the
+# module-vs-package collision) sidesteps that, the same way
+# scripts/hygiene-selftest.py already does (#241).
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "hygiene"))
+from forbid_deferral import scanDiffForDeferral  # noqa: E402
+
 # The interactive GitHub CLI identity: configured per-operator via the
 # environment, outside tracked source, so no personal alias is ever a literal
 # in this file. Defaults to plain `gh` for anyone without one configured.
@@ -40,82 +45,6 @@ GH_INTERACTIVE = os.environ.get("CHRONODUCK_GH_INTERACTIVE_CLI", "gh")
 REQUIRED_SECTIONS = ["## How", "## Deviations", "## Risk", "## Evidence", "## Discovered"]
 
 FRESH_SESSION_REVIEW_PREFIX = "Fresh-session review:"
-
-
-# ---------------------------------------------------------------------------
-# Deferral scan -- duplicates scripts/hygiene/forbid_deferral.py's
-# scanDiffForDeferral(); see module docstring above.
-# ---------------------------------------------------------------------------
-
-_SCOPE_PREFIXES = ["src/", "test/", "scripts/"]
-_DEFERRAL_RE = re.compile(r"\b(later|for now|temporary|will be|not yet|follow-up|TBD)\b", re.IGNORECASE)
-_ISSUE_REF_RE = re.compile(r"(?:^|[^A-Za-z0-9#])#\d+\b")
-
-
-def _comment_marker_for(path):
-    if re.search(r"\.(mjs|cpp|cc|cxx|hpp|hh|h|c)$", path):
-        return "//"
-    if re.search(r"\.(test|sql|yml|yaml)$", path):
-        return "#"
-    return None
-
-
-def _tail_words(text, n):
-    words = [w for w in text.strip().split() if w]
-    return " ".join(words[-n:]) if n else ""
-
-
-def _head_words(text, n):
-    words = [w for w in text.strip().split() if w]
-    return " ".join(words[:n])
-
-
-def scanDiffForDeferral(diff):
-    lines = diff.split("\n")
-    current_file = None
-    violations = []
-    prev = None  # (added, after_marker) of the previous added comment line, if immediately preceding
-
-    for line in lines:
-        if line.startswith("+++ "):
-            path = line[4:].strip()
-            current_file = path[2:] if path.startswith("b/") else path
-            prev = None
-            continue
-        if not line.startswith("+") or line.startswith("+++"):
-            prev = None
-            continue
-        if not current_file or not any(current_file.startswith(p) for p in _SCOPE_PREFIXES):
-            prev = None
-            continue
-
-        added = line[1:]
-        marker = _comment_marker_for(current_file)
-        marker_at = added.find(marker) if marker else -1
-        if marker_at == -1:
-            prev = None
-            continue
-        after_marker = added[marker_at + len(marker):]
-
-        flagged = False
-        if _DEFERRAL_RE.search(after_marker) and not _ISSUE_REF_RE.search(after_marker):
-            violations.append(f"{current_file}: added line(s) use deferral language without \"#<issue>\": {added.strip()}")
-            flagged = True
-        elif (
-            not flagged
-            and prev is not None
-            and not _DEFERRAL_RE.search(prev[1])
-            and not _DEFERRAL_RE.search(after_marker)
-            and _DEFERRAL_RE.search(f"{_tail_words(prev[1], 4)} {_head_words(after_marker, 4)}")
-            and not _ISSUE_REF_RE.search(after_marker)
-        ):
-            violations.append(
-                f"{current_file}: added line(s) use deferral language without \"#<issue>\": {prev[0].strip()} {added.strip()}"
-            )
-
-        prev = (added, after_marker)
-
-    return violations
 
 
 # ---------------------------------------------------------------------------
