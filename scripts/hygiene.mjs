@@ -4,21 +4,26 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+// Paths are relative to this file's own directory (scripts/), not implicitly
+// rooted under scripts/hygiene/ — most scans live there, but fixtures-validate
+// (#194) lives at scripts/fixtures-validate.mjs, schema.json's sibling per
+// #146, so it's named without the "hygiene/" prefix like every other entry.
 const TREE_SCANS = [
-  "forbid-ledger",
-  "forbid-consumer",
-  "verify-citations",
-  "workflow-shape",
-  "constitution-check",
-  "registry-closure",
-  "forbid-test-tolerance",
-  "kernel-primitive-tests",
-  "kernel-fixture-loader",
+  "hygiene/forbid-ledger",
+  "hygiene/forbid-consumer",
+  "hygiene/verify-citations",
+  "hygiene/workflow-shape",
+  "hygiene/constitution-check",
+  "hygiene/registry-closure",
+  "hygiene/forbid-test-tolerance",
+  "hygiene/kernel-primitive-tests",
+  "hygiene/kernel-fixture-loader",
+  "fixtures-validate",
 ];
 
 let failed = false;
 for (const scan of TREE_SCANS) {
-  const proc = Bun.spawn(["bun", join(HERE, "hygiene", `${scan}.mjs`)], { stdout: "pipe", stderr: "pipe" });
+  const proc = Bun.spawn(["bun", join(HERE, `${scan}.mjs`)], { stdout: "pipe", stderr: "pipe" });
   const [out, err, code] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
