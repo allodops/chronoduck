@@ -43,8 +43,14 @@ def validate(doc):
         if not repo.get("ref"):
             violations.append('missing required field "repo.ref"')
 
-    maintainers = extension.get("maintainers") if isinstance(extension, dict) else None
-    if maintainers is not None and not isinstance(maintainers, list):
+    # `.get()` can't distinguish an absent key from an explicit `maintainers:
+    # null` (both return None); the .mjs original's `extension?.maintainers
+    # !== undefined` check treats an explicit null as present-but-wrong-type
+    # and flags it, so mirror that by checking key presence explicitly
+    # rather than truthiness of the looked-up value.
+    maintainers_present = isinstance(extension, dict) and "maintainers" in extension
+    maintainers = extension.get("maintainers") if maintainers_present else None
+    if maintainers_present and not isinstance(maintainers, list):
         violations.append('"extension.maintainers" must be an array')
 
     return violations

@@ -18,10 +18,40 @@ script does not duplicate that scan).
 """
 
 import json
+import re
 import sys
 from pathlib import Path
 
 import yaml
+
+# PyYAML's default (YAML 1.1) float resolver requires both a decimal point
+# and a signed exponent to recognize scientific notation, so `1e9`, `1E9`,
+# `-1e21` and even `1.5e21` (no exponent sign) are left as plain strings —
+# only `1.5e+21` (decimal point *and* signed exponent) already resolves as a
+# float. The JS `yaml` package (YAML 1.2 core schema) accepts all of these
+# as numbers, matching what `Number(str)` parses — and this script's numeric
+# fixture fields (grid.start/end/step, window, lookback, sample values)
+# depend on that broader recognition to stay behaviorally equivalent to
+# fixtures-validate.mjs (see adr-lint.py's `_NoTimestampLoader` for the
+# sibling fix to a different PyYAML/JS-`yaml` resolver divergence). A loader
+# whose float implicit resolver additionally matches JS's numeric-literal
+# grammar — `^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$`, i.e. scientific
+# notation with or without a decimal point, with or without a signed
+# exponent — closes that gap without touching anything else PyYAML already
+# resolves as a number: the resolver is appended after PyYAML's own
+# int/float resolvers for the same leading characters, so already-correct
+# matches (plain integers, `0x1A` hex, a YAML-1.1-style `007` octal,
+# decimal-with-signed-exponent floats) are found first and never reach this
+# one.
+class _JsNumberLoader(yaml.SafeLoader):
+    pass
+
+
+_JsNumberLoader.add_implicit_resolver(
+    "tag:yaml.org,2002:float",
+    re.compile(r"^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$"),
+    list("-+0123456789."),
+)
 
 # JS has one Number type, so both direct template-literal interpolation
 # (`${x}`) and JSON.stringify(x) render an integral float like -1.0 as "-1",
@@ -217,7 +247,7 @@ for file in files:
     rel = file.relative_to(root)
     try:
         with open(file, encoding="utf8") as f:
-            doc = yaml.safe_load(f)
+            doc = yaml.load(f, Loader=_JsNumberLoader)
     except yaml.YAMLError as e:
         violations.append(f"{rel}: could not parse YAML ({e})")
         continue

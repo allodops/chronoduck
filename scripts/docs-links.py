@@ -76,8 +76,16 @@ def main():
             if re.match(r"^https?://", target):
                 continue
 
+            # The .mjs original does `const [pathPart, anchor] =
+            # target.split("#")` — JS's unlimited split() then destructured
+            # to two elements, which for a target with two-or-more literal
+            # "#" characters keeps only the first two segments and silently
+            # drops the rest (unlike a maxsplit=1 split, which would rejoin
+            # everything after the first "#" into `anchor`). Match that
+            # exactly rather than rejoining.
             if "#" in target:
-                path_part, anchor = target.split("#", 1)
+                parts = target.split("#")
+                path_part, anchor = parts[0], parts[1]
             else:
                 path_part, anchor = target, None
 
