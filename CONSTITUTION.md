@@ -3,7 +3,7 @@
 This document governs how ChronoDuck is built. It supersedes every other practice. It is amended
 only by a pull request that also adds an ADR under `docs/decisions/` explaining the change.
 
-**Version** 1.2.3 · **Ratified** 2026-09-04 · **Last amended** 2026-09-04
+**Version** 1.2.4 · **Ratified** 2026-09-04 · **Last amended** 2026-09-05
 
 ## Article I — What ChronoDuck is
 ChronoDuck is a DuckDB extension providing time-series building blocks: grid-aligned range folds,
@@ -49,10 +49,10 @@ holds the design, `docs/testing/` the testing discipline, `docs/decisions/` the 
    `extension-ci-tools/makefiles/duckdb_extension.Makefile` (mandatory — the distribution and
    code-quality reusable CI workflows invoke targets from it directly) and adds every project
    target beside that include; a project target never shadows one the include already defines.
-2. Every script lives in `scripts/` as a Bun shell module (`.mjs`, `import { $ } from "bun"`).
-   No bash files, no inline workflow logic, no other scripting language in the tree. Scans skip
-   submodule paths.
-3. The chain is `.github/workflows → make <target> → bun scripts/<name>.mjs`. A workflow step
+2. Every script lives in `scripts/` as Python (`.py`), except a script whose entire job is a short
+   sequence of external-command invocations, which is POSIX shell (`.sh`) instead. No inline
+   workflow logic, no other scripting language in the tree. Scans skip submodule paths.
+3. The chain is `.github/workflows → make <target> → python3 scripts/<name>.py`. A workflow step
    that is not `make …` (with `env:` allowed) after checkout and tool setup fails `make hygiene`,
    except a job whose entire content is `uses:` naming a reusable workflow or action whose ref
    `make check-pins` verifies.

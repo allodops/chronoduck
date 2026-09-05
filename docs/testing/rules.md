@@ -15,7 +15,7 @@ is cited; the rest are new to this kernel.
     `require` skips silently, L13 additionally asserts that every `.test` file produced at least one
     query result in the run log. The single sanctioned exclusion is a closed-vocabulary *declared
     divergence* (see the comparator) with an issue link and an age cap. (Prior art: invariants 6, 7;
-    `forbid-skip.mjs`.)
+    `forbid-skip.py`.)
 3.  **T3. One comparator, one derivation, applied to every value in every layer.** The derivation is
     parameterised by a conditioning quantity the fold exposes (Σ|terms|), so cancelling folds are
     held to the bound their arithmetic admits rather than excused from it. No fixture, function or
@@ -36,7 +36,7 @@ is cited; the rest are new to this kernel.
 7.  **T7. Ratchets gate on identity, never counts.** Every roster — fixture IDs, ShapeIDs,
     partition schemes, mutation legs — records the set that must pass; the verdicts `REGRESSED`,
     `VANISHED`, `ARRIVED-FAILING`, `UNRECORDED` are all fatal. A swap that leaves the count
-    unchanged is caught. (Prior art: `compat-ratchet.mjs`.)
+    unchanged is caught. (Prior art: `compat-ratchet.py`.)
 8.  **T8. Goldens are regenerated, never edited, and cannot certify what they cannot see.**
     Generated artefacts are `-merge` in `.gitattributes`; regeneration is sharded and refuses to run
     for a shard the diff does not imply. Any property that changes what is *read* but not what is
@@ -53,11 +53,11 @@ is cited; the rest are new to this kernel.
 11. **T11. Mutation efficacy is per translation unit, floored at 95%, and scored monotonically.**
     Unadjudicated timeouts sit in the denominator only; a closed status set; a measured per-mutant
     budget. Surviving relational-operator mutants in reset detection, window-edge and
-    extrapolation-threshold code must be zero. (Prior art: `mutation-phases.mjs`,
-    `gremlins-threshold.mjs`.)
+    extrapolation-threshold code must be zero. (Prior art: `mutation-phases.py`,
+    `gremlins-threshold.py`.)
 12. **T12. Citations name constructs, not lines.** Every "NOT KILLABLE", "kills", and "pins" comment
     names `` file:function:`construct` `` and a gate resolves each to exactly one code line. (Prior
-    art: `verify-code-citations.mjs`.)
+    art: `verify-code-citations.py`.)
 13. **T13. Divergence from a reference is a bug, never a tweak.** The only permitted normalisations
     are those the kernel *documents as its contract* (NULL for "no value on this grid point" is the
     one candidate), listed in a closed enum the comparator reads — never an ad hoc adjustment tuned
