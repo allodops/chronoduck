@@ -4,6 +4,7 @@
 
 ## Unreleased
 
+- test(sql): add L4 partition/determinism harness for ts_rate (#199)
 - ci(hygiene): wire fixtures-validate into hygiene.mjs's TREE_SCANS (#198)
 - feat(kernel): add Tier 6 host glue and the ts_rate aggregate + ts_grid table function (#196)
 - feat(kernel): add L2 fixture loader and hand-derived rate fixtures (#195)
