@@ -166,7 +166,7 @@ double SmoothFold(int64_t anchor, int64_t window, int64_t lookback, const std::v
 // additive, never-max combination) is a safe superset for both reads at
 // once, not just for either one in isolation.
 double CombinedLookbackAnchorFold(int64_t anchor, int64_t window, int64_t lookback,
-                                   const std::vector<Sample> &samples) {
+                                  const std::vector<Sample> &samples) {
 	return LookbackFold(anchor, window, lookback, samples) + AnchorFold(anchor, window, lookback, samples);
 }
 
