@@ -30,7 +30,7 @@
 // `window.hpp`'s own header comment — "No other file in this kernel spells
 // this inequality itself; every caller goes through `contains` below." —
 // this file never recomputes that subtraction itself. Instead `lo` advances past
-// every sample that is not yet admitted by `Window::contains` *and* has not
+// every sample `Window::contains` does not admit *and* that has not
 // already passed `anchor` — the second clause is what tells the empty-window
 // case (no sample ever satisfies `contains`) to stop `lo` exactly where `hi`
 // stops, rather than running `lo` past the whole buffer. Since `data` is

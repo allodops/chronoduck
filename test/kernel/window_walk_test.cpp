@@ -229,7 +229,7 @@ void TestMutantHiExclusiveDies() {
 // Must-die mutant 2 ("monotonicity shortcuts that skip a sample"): `lo`
 // drops its `data[lo].t <= anchor` guard, advancing past any sample that
 // merely fails `Window.contains` right now — including a *future* sample
-// (`t > anchor`) that a later, wider window is supposed to still admit.
+// (`t > anchor`) that a wider window, at a still-larger anchor, must still admit.
 std::vector<WindowRange> MutantLoNoUpperGuard(const Sample *data, std::size_t n, const Grid &grid, int64_t width) {
 	std::vector<WindowRange> ranges;
 	std::size_t lo = 0, hi = 0;
