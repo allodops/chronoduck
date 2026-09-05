@@ -2,7 +2,7 @@
 // (docs/testing/layers.md's L1a row: "every Tier 0-5 primitive has its own
 // translation unit, its own table-driven tests ... exercised directly").
 // Hand-rolled `main()`, no test framework, compiled and run with a bare
-// `g++ -std=c++17` by `scripts/hygiene/kernel-primitive-tests.mjs`.
+// `g++ -std=c++17` by `scripts/hygiene/kernel-primitive-tests.py`.
 //
 // Follows `docs/testing/primitives.md`'s Tier 0 `is_stale / stale_marker`
 // row exactly: bit-pattern round-trips, the one invariant, the reference's

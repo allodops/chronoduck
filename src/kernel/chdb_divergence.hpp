@@ -14,7 +14,7 @@
 // sides' two-sample-floor NULL rule agree, so neither member widens
 // `equal_values`'s tolerance by one bit — they exist so the roster names
 // *why* a fixture's agreement is expected, not to excuse a mismatch.
-// `scripts/hygiene/divergence-enum-coverage.mjs` requires each member to be
+// `scripts/hygiene/divergence-enum-coverage.py` requires each member to be
 // named by some fixture or sqllogictest file; both are, in
 // test/fixtures/rate/dup-duplicate-timestamp.yaml and
 // test/fixtures/rate/threshold-single-sample-without-st.yaml respectively.
@@ -28,7 +28,7 @@
 // fixture.
 //
 // No explicit underlying-type specifier and no comma inside a comment in
-// the body below: both would break divergence-enum-coverage.mjs's
+// the body below: both would break divergence-enum-coverage.py's
 // regex-based enum scan (`enum\s+class\s+(\w+Divergence)\s*\{` requires the
 // opening brace immediately after the name, and its member splitter is a
 // plain comma-split), which is deliberately a scan, not a real C++ parser,

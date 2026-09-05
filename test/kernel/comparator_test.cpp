@@ -2,11 +2,11 @@
 // (docs/testing/layers.md's L1a row: "every Tier 0-5 primitive has its own
 // translation unit, its own table-driven tests ... exercised directly").
 // Hand-rolled `main()`, no test framework, compiled and run with a bare
-// `g++ -std=c++17` by `scripts/hygiene/comparator-test.mjs` — the same
+// `g++ -std=c++17` by `scripts/hygiene/kernel-primitive-tests.py` — the same
 // dependency-free-TU pattern `registry_types.hpp`'s fixtures established.
 //
 // This is a scale-derived, absolute bound throughout — never a fixed
-// epsilon (see docs/testing/comparator.md). `scripts/hygiene/forbid-test-tolerance.mjs`
+// epsilon (see docs/testing/comparator.md). `scripts/hygiene/forbid-test-tolerance.py`
 // enforces that no other file under test/ defines one of its own; this
 // comment is the one legitimate mention the scan's own fixture whitelists.
 #include "kernel/comparator.hpp"

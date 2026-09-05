@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """make adr-lint
 
-Port of scripts/adr-lint.mjs. Enforces docs/decisions/*.md's shape (Article
-IX.1/IX.2): filename matches \\d{4}-[a-z0-9-]+.md, numbers form one
-contiguous sequence from 0000 (the template), front matter `status` is one
-of proposed/accepted/deprecated/superseded with an ISO date, and a
-superseded ADR names its successor. 0000-template.md is exempt from the
-front-matter content checks (its values are placeholders, not a real
-decision record) but still occupies its slot in the numbering sequence.
+Enforces docs/decisions/*.md's shape (Article IX.1/IX.2): filename matches
+\\d{4}-[a-z0-9-]+.md, numbers form one contiguous sequence from 0000 (the
+template), front matter `status` is one of
+proposed/accepted/deprecated/superseded with an ISO date, and a superseded
+ADR names its successor. 0000-template.md is exempt from the front-matter
+content checks (its values are placeholders, not a real decision record)
+but still occupies its slot in the numbering sequence.
 """
 
 import re
@@ -17,11 +17,11 @@ from pathlib import Path
 import yaml
 
 # PyYAML's default (YAML 1.1) resolver auto-converts an unquoted
-# `date: 2026-09-04` into a datetime.date object; the JS `yaml` package (YAML
-# 1.2 core schema, no implicit timestamp tag) keeps it a plain string, and
-# this script's `typeof fm.date !== "string"` check depends on that. A
-# resolver with the timestamp implicit-tag removed restores that behavior
-# without hand-rolling a YAML parser.
+# `date: 2026-09-04` into a datetime.date object, but the `isinstance(date,
+# str)` check below (ISO_DATE_RE) needs the front matter's date to stay a
+# plain string so a malformed date is rejected by regex instead of silently
+# accepted as a valid datetime.date. A resolver with the timestamp
+# implicit-tag removed keeps it a string without hand-rolling a YAML parser.
 class _NoTimestampLoader(yaml.SafeLoader):
     pass
 

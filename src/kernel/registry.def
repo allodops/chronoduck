@@ -11,7 +11,7 @@
 // `ts_grid_index`, both already live in `src/chronoduck_extension.cpp`. A
 // later issue that implements one more of surface.md's rows adds exactly
 // one TS_FN line here, plus its `test/sql/<name>.test` file (checked by
-// scripts/hygiene/registry-closure.mjs).
+// scripts/hygiene/registry-closure.py).
 //
 // Columns: name, family, state, det, edge_modes, domain, scale_kind — see
 // src/kernel/registry_types.hpp for what each enum means and for the family

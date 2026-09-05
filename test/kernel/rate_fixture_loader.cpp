@@ -23,7 +23,7 @@
 //   NEXPECTED <m>
 //   <value-or-NULL>                  (m lines)
 //
-// `edge_mode`/`domain` are not read here at all: `scripts/kernel-fixture-loader.mjs`
+// `edge_mode`/`domain` are not read here at all: `scripts/hygiene/kernel-fixture-loader.py`
 // only ever invokes this program for a fixture already checked to be
 // `edge_mode: EXTRAPOLATE`, `domain: COUNTER` — the only combination
 // `rate_fixture_eval.hpp`'s composed primitives support (its own header
@@ -36,7 +36,7 @@
 // Output: one `POINT <i> <PASS|FAIL> <actual-or-NULL> <expected-or-NULL>`
 // line per grid point (diagnostic, always printed), then exactly one final
 // line, `RESULT PASS` or `RESULT FAIL` — the sentinel
-// `scripts/kernel-fixture-loader.mjs` greps for. Exit code mirrors it: 0 for
+// `scripts/hygiene/kernel-fixture-loader.py` greps for. Exit code mirrors it: 0 for
 // PASS, 1 for FAIL or a malformed wire payload.
 #include "kernel/comparator.hpp"
 #include "rate_fixture_eval.hpp"

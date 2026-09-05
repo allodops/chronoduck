@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """make fixtures-validate
 
-Port of scripts/fixtures-validate.mjs. Validates every fixture under
+Validates every fixture under
 test/fixtures/*.yaml against the shape docs/testing/registry-and-fixtures.md
 defines (test/fixtures/schema.json is the canonical field reference; this
 script implements the checks directly rather than a generic JSON-Schema
@@ -28,37 +28,36 @@ import yaml
 # and a signed exponent to recognize scientific notation, so `1e9`, `1E9`,
 # `-1e21` and even `1.5e21` (no exponent sign) are left as plain strings —
 # only `1.5e+21` (decimal point *and* signed exponent) already resolves as a
-# float. The JS `yaml` package (YAML 1.2 core schema) accepts all of these
-# as numbers, matching what `Number(str)` parses — and this script's numeric
-# fixture fields (grid.start/end/step, window, lookback, sample values)
-# depend on that broader recognition to stay behaviorally equivalent to
-# fixtures-validate.mjs (see adr-lint.py's `_NoTimestampLoader` for the
-# sibling fix to a different PyYAML/JS-`yaml` resolver divergence). A loader
-# whose float implicit resolver additionally matches JS's numeric-literal
-# grammar — `^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$`, i.e. scientific
-# notation with or without a decimal point, with or without a signed
-# exponent — closes that gap without touching anything else PyYAML already
-# resolves as a number: the resolver is appended after PyYAML's own
+# float. Fixture authors write numeric grid/window/lookback/sample values in
+# all of these forms, and this script's numeric type checks (_is_number
+# below) need every one of them recognized as a number, not a string (see
+# adr-lint.py's `_NoTimestampLoader` for a similar PyYAML implicit-resolver
+# override). A loader whose float implicit resolver additionally matches the
+# broader numeric-literal grammar — `^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$`,
+# i.e. scientific notation with or without a decimal point, with or without
+# a signed exponent — closes that gap without touching anything else PyYAML
+# already resolves as a number: the resolver is appended after PyYAML's own
 # int/float resolvers for the same leading characters, so already-correct
 # matches (plain integers, `0x1A` hex, a YAML-1.1-style `007` octal,
 # decimal-with-signed-exponent floats) are found first and never reach this
 # one.
-class _JsNumberLoader(yaml.SafeLoader):
+class _ScientificNotationLoader(yaml.SafeLoader):
     pass
 
 
-_JsNumberLoader.add_implicit_resolver(
+_ScientificNotationLoader.add_implicit_resolver(
     "tag:yaml.org,2002:float",
     re.compile(r"^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$"),
     list("-+0123456789."),
 )
 
-# JS has one Number type, so both direct template-literal interpolation
-# (`${x}`) and JSON.stringify(x) render an integral float like -1.0 as "-1",
-# never "-1.0". Python's json.dumps/str keep the ".0". These two helpers
-# normalize a value to what the .mjs original would have printed, so a
-# violation message stays byte-identical regardless of whether YAML parsed a
-# number as float or int.
+# YAML doesn't distinguish "5" from "5.0" the way a violation message
+# should: whether a value parses as float or int depends only on how it
+# happens to be spelled in the fixture file, not on anything meaningful to
+# the person reading the message. These two helpers collapse an integral
+# float like -1.0 to -1 before rendering it, so a violation message names
+# the same value the same way regardless of which YAML spelling produced
+# it.
 
 
 def _collapse_floats(value):
@@ -73,13 +72,13 @@ def _collapse_floats(value):
     return value
 
 
-def js_json(value):
-    """Equivalent of JSON.stringify(value)."""
+def format_json(value):
+    """JSON-render value with integral floats collapsed to ints."""
     return json.dumps(_collapse_floats(value), separators=(",", ":"))
 
 
-def js_str(value):
-    """Equivalent of direct template-literal interpolation, `${value}`."""
+def format_value(value):
+    """Render value as it would appear inline in a violation message."""
     if value is None:
         return "null"
     if value is True:
@@ -116,11 +115,10 @@ SAMPLE_LITERAL_TOKENS = ["NaN", "stale"]
 
 
 def _is_number(value):
-    # JS Number.isFinite(v) requires typeof v === "number" already implied by
-    # the caller check; Python bools are ints, but the .mjs original has no
-    # such distinction to preserve (JSON/YAML booleans were never a realistic
-    # input here), so isinstance(value, bool) is excluded explicitly to avoid
-    # Python's bool-is-an-int surprising a caller that means "a number".
+    # Python bools are ints, but a YAML `true`/`false` is never a realistic
+    # numeric fixture value, so isinstance(value, bool) is excluded
+    # explicitly to avoid Python's bool-is-an-int surprising a caller that
+    # means "a number".
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
@@ -171,7 +169,7 @@ def matches_type(value, node):
 def validate_histogram_literal(value, rel, idx):
     violations = []
     if not matches_type(value, HISTOGRAM_LITERAL):
-        violations.append(f'{rel}: samples[{idx}] value is not a valid histogram literal object for domain "HISTOGRAM", got {js_json(value)}')
+        violations.append(f'{rel}: samples[{idx}] value is not a valid histogram literal object for domain "HISTOGRAM", got {format_json(value)}')
         return violations
     if isinstance(value, dict) and "schema" in value and "custom_bounds" in value:
         violations.append(f'{rel}: samples[{idx}] histogram literal cannot declare both "schema" and "custom_bounds" (mutually exclusive per schema.json)')
@@ -184,7 +182,7 @@ def validate_sample_value(v, domain, rel, idx):
     if domain == "HISTOGRAM":
         return validate_histogram_literal(v, rel, idx)
     if not _is_number(v):
-        return [f'{rel}: samples[{idx}] value must be a number for domain "{domain}" (or literal token {"/".join(SAMPLE_LITERAL_TOKENS)}), got {js_json(v)}']
+        return [f'{rel}: samples[{idx}] value must be a number for domain "{domain}" (or literal token {"/".join(SAMPLE_LITERAL_TOKENS)}), got {format_json(v)}']
     return []
 
 
@@ -198,21 +196,21 @@ def validate_fixture(doc, rel):
         return violations  # structural — no point checking further
 
     if doc.get("edge_mode") not in EDGE_MODES:
-        violations.append(f'{rel}: edge_mode "{js_str(doc.get("edge_mode"))}" is not one of {", ".join(EDGE_MODES)}')
+        violations.append(f'{rel}: edge_mode "{format_value(doc.get("edge_mode"))}" is not one of {", ".join(EDGE_MODES)}')
     if doc.get("domain") not in DOMAINS:
-        violations.append(f'{rel}: domain "{js_str(doc.get("domain"))}" is not one of {", ".join(DOMAINS)}')
+        violations.append(f'{rel}: domain "{format_value(doc.get("domain"))}" is not one of {", ".join(DOMAINS)}')
 
     for field in ["window", "lookback"]:
         node = SCHEMA["properties"][field]
         if not matches_type(doc.get(field), node):
-            violations.append(f'{rel}: {field} must be a {node["type"]}, got {js_json(doc.get(field))}')
+            violations.append(f'{rel}: {field} must be a {node["type"]}, got {format_json(doc.get(field))}')
 
     grid = doc.get("grid") or {}
     for field in ["start", "end", "step"]:
         if not _is_number(grid.get(field)):
             violations.append(f"{rel}: grid.{field} must be a number")
     if _is_number(grid.get("step")) and grid.get("step") <= 0:
-        violations.append(f'{rel}: grid.step must be positive, got {js_str(grid.get("step"))}')
+        violations.append(f'{rel}: grid.step must be positive, got {format_value(grid.get("step"))}')
 
     samples = doc.get("samples")
     if not isinstance(samples, list):
@@ -247,7 +245,7 @@ for file in files:
     rel = file.relative_to(root)
     try:
         with open(file, encoding="utf8") as f:
-            doc = yaml.load(f, Loader=_JsNumberLoader)
+            doc = yaml.load(f, Loader=_ScientificNotationLoader)
     except yaml.YAMLError as e:
         violations.append(f"{rel}: could not parse YAML ({e})")
         continue

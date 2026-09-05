@@ -1,7 +1,7 @@
 {
   "tool": "chronoduck-manual-ingest",
   "tool_version": "0.1.0",
-  "notes": "The cross-repo derivation tool (issue #37's own out-of-scope note) has no implementation in this repository; this batch's three fixtures were hand-transcribed from cerberus@64663c2711ad9d8c6ee6fa9f2f5026febbbf9f74's test/spec/promql/*.txtar files and independently re-derived against this kernel's own extrapolate arithmetic, matching cerberus's own recorded expected values exactly. scripts/hygiene/derivation-sync.mjs holds this manifest to the same identity-and-version discipline a real automated tool's drop would need to pass.",
+  "notes": "The cross-repo derivation tool (issue #37's own out-of-scope note) has no implementation in this repository; this batch's three fixtures were hand-transcribed from cerberus@64663c2711ad9d8c6ee6fa9f2f5026febbbf9f74's test/spec/promql/*.txtar files and independently re-derived against this kernel's own extrapolate arithmetic, matching cerberus's own recorded expected values exactly. scripts/hygiene/derivation-sync.py holds this manifest to the same identity-and-version discipline a real automated tool's drop would need to pass.",
   "fixtures": [
     "rate/derived/cerberus-rate-http-count",
     "rate/derived/cerberus-rate-empty-window",

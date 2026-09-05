@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """make coverage-check
 
-Port of scripts/coverage-check.mjs. Verifies docs/design/coverage.md's
+Verifies docs/design/coverage.md's
 matrix still holds, per issue #25's acceptance criteria: (a) every
 K-disposition row names a real construct, (b) every milestone-shaped token
 cited in the matrix (a "(class N)" cross-reference, or a "T<major>.<minor>"

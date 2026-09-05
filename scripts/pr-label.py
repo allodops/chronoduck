@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """make pr-label [PR=<n>]
 
-Port of scripts/pr-label.mjs. A PR should carry the size:/area: labels of
-the issue it closes -- every issue is already labelled that way at
-creation (BOOTSTRAP §2.3), but nothing ever copied them onto the PR
-(confirmed against #112/#113: no PR in this repo has ever had a label).
-With PR set, labels that one PR (event mode, invoked by
-.github/workflows/pr-label.yml on open/edit/reopen); without it, walks
-every open PR (backfill mode) -- additive and idempotent, never removes a
-label a human added by hand.
+A PR should carry the size:/area: labels of the issue it closes -- every
+issue is already labelled that way at creation (BOOTSTRAP §2.3), but
+nothing ever copied them onto the PR (confirmed against #112/#113: no PR in
+this repo has ever had a label). With PR set, labels that one PR (event
+mode, invoked by .github/workflows/pr-label.yml on open/edit/reopen);
+without it, walks every open PR (backfill mode) -- additive and idempotent,
+never removes a label a human added by hand.
 """
 
 import os

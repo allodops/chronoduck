@@ -3,7 +3,7 @@
 // "every Tier 0-5 primitive has its own translation unit, its own
 // table-driven tests ... exercised directly"). Hand-rolled `main()`, no
 // test framework, compiled and run with a bare `g++ -std=c++17` by
-// `scripts/hygiene/kernel-primitive-tests.mjs`.
+// `scripts/hygiene/kernel-primitive-tests.py`.
 //
 // Follows `docs/testing/primitives.md`'s Tier 0 `linear_regression` row:
 // the table (two points, collinear, constant series), the three invariants,

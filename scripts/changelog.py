@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """make changelog / make changelog-check
 
-Port of scripts/changelog.mjs. Writes CHANGELOG.md from every
-Conventional-Commit-titled commit on main since the last tag -- or since
+Writes CHANGELOG.md from every Conventional-Commit-titled commit on main since the last tag -- or since
 the first commit when no tag exists yet -- squash-merge titles being the
 PR titles themselves (Article III.5: squash merges only). --check exits
 non-zero when the file on disk differs from what this would write, without

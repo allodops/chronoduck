@@ -5,9 +5,7 @@
 # property roster `docs/testing/registry-and-fixtures.md` names: "the
 # property roster (each name x edge mode x value domain is a ShapeID)".
 #
-# See scripts/hygiene/shape-roster.mjs's own header comment for the full
-# rationale (verdict shapes, citation convention, roster derivation) — this
-# is a mechanical port, unchanged.
+# Verdict shapes, citation convention and roster derivation follow below.
 import json
 import os
 import re

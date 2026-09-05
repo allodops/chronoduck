@@ -5,7 +5,7 @@
 -- RawDuck-backed table answers a ts_rate query. Real layout-parity fixtures
 -- against RawDuck's actual on-disk layout are issue #48's scope, not this
 -- one — this file only proves the two extensions coexist and interoperate at
--- all. Run by scripts/partners/rawduck-test.mjs, which LOADs both
+-- all. Run by scripts/partners/rawduck-test.py, which LOADs both
 -- .duckdb_extension files (plus RawDuck's own json sibling artifact) before
 -- this script runs. Deliberately NOT named `*.test`: DuckDB's own sqllogic
 -- test runner (`./build/release/test/unittest "test/*"`, what `make test`

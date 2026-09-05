@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """make build-relevant-changed
 
-Port of scripts/build-relevant-changed.mjs. Determines whether a PR's
-changed files could affect the compiled extension -- writes
+Determines whether a PR's changed files could affect the compiled extension -- writes
 BUILD_RELEVANT=true/false to $GITHUB_ENV (or prints it, outside CI) so
 ci.yml's build-test job can skip its expensive steps (ccache, `make
 release`, `make test`, `make smoke`) on a docs/script-only PR instead of
@@ -82,7 +81,7 @@ def main():
 
     try:
         files = changedFiles(root, base)
-    except Exception:  # noqa: BLE001 - mirrors the .mjs's catch-all
+    except Exception:  # noqa: BLE001 - any diff failure should fail open toward building, not crash
         print(
             "build-relevant-changed: could not diff against base — treating as relevant (fail open toward building)",
             file=sys.stderr,

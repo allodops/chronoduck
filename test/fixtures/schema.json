@@ -41,7 +41,7 @@
     "provenance": {
       "type": "object",
       "required": ["source"],
-      "description": "Roster identity and the L12 floor. The kernel stores this and never interprets it — a scan forbids branching on a provenance value. May legitimately contain forbidden-language tokens (e.g. a query-language name) since it is data, not code — scripts/hygiene/forbid-consumer.mjs scopes its scan to fixture keys, never values, for exactly this reason."
+      "description": "Roster identity and the L12 floor. The kernel stores this and never interprets it — a scan forbids branching on a provenance value. May legitimately contain forbidden-language tokens (e.g. a query-language name) since it is data, not code — scripts/hygiene/forbid-consumer.py scopes its scan to fixture keys, never values, for exactly this reason."
     }
   },
   "histogramLiteral": {

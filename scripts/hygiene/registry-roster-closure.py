@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-# make registry-roster-closure — issue #36's second meta-test. See
-# registry-roster-closure.mjs's own header comment for the full rationale
-# (which rosters this fences, the DOMAIN_NONE carve-out, the ts_ prefix
-# stripping convention). This is a mechanical port, unchanged.
+# make registry-roster-closure — issue #36's second meta-test (which
+# rosters this fences, the DOMAIN_NONE carve-out, the ts_ prefix stripping
+# convention).
 import os
 import re
 import sys

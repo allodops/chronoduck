@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 # make divergence-enum-coverage — issue #36's third meta-test: "divergence
-# enum values no fixture exercises" (Article V.3). See
-# divergence-enum-coverage.mjs's own header comment for the full rationale.
+# enum values no fixture exercises" (Article V.3).
 #
-# This is a mechanical, line-for-line port of parseEnumMembers()'s exact
-# behavior, INCLUDING its known edge case: it splits the enum body on "," up
-# front, before stripping "//" / "/* */" comments out of each resulting
-# piece — a comment containing a literal comma (or a block comment spanning
-# a comma) is split apart first and only has its comment markers stripped
-# from each half separately. Porting this scan's exact current behavior is
-# this issue's job; fixing that parsing edge case is explicitly not (see
-# scripts/hygiene/divergence-enum-coverage.mjs, unchanged, for the original).
+# Known edge case in parseEnumMembers() below, not a bug to silently work
+# around: it splits the enum body on "," up front, before stripping "//" /
+# "/* */" comments out of each resulting piece — a comment containing a
+# literal comma (or a block comment spanning a comma) is split apart first
+# and only has its comment markers stripped from each half separately.
+# Tightening that parsing edge case is a separate concern from this scan's
+# own job (declared-divergence coverage) and is left alone here.
 import os
 import re
 import sys

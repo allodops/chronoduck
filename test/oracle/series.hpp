@@ -4,7 +4,7 @@
 // modes"). Part of `test/oracle/`, the from-scratch oracle AGENTS.md's
 // "Where things are" section pins to "must never include `src/`" — this file
 // includes nothing from this repository at all beyond the C++ standard
-// library, so the fence (`scripts/hygiene/oracle-fence.mjs`, T5) has nothing
+// library, so the fence (`scripts/hygiene/oracle-fence.py`, T5) has nothing
 // to walk into here.
 //
 // `OracleSample`/`OracleGrid` are this directory's OWN sample/grid types —

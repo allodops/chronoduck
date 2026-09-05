@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """make ruleset-add-check CONTEXT=<name> / make ruleset-remove-check CONTEXT=<name>
 
-Port of scripts/ruleset.mjs. The `main` branch ruleset's
-required_status_checks list is never edited any other way (Article
-VII.3). Resolves the ruleset by name, refuses a context that isn't backed
+The `main` branch ruleset's required_status_checks list is never edited any
+other way (Article VII.3). Resolves the ruleset by name, refuses a context that isn't backed
 by a registered merge-posture lane or hasn't reported green on main, edits
 required_status_checks, PUTs the whole ruleset back.
 
@@ -57,7 +56,7 @@ def findOwningLane(lanes, live_context):
         wf_path = ROOT / ".github" / "workflows" / lane["workflow"]
         try:
             doc = yaml.safe_load(wf_path.read_text(encoding="utf8"))
-        except Exception:  # noqa: BLE001 - mirrors the .mjs's catch-all
+        except Exception:  # noqa: BLE001 - an unparseable workflow file just isn't this lane's owner
             continue
         job = (doc or {}).get("jobs", {}).get(lane["context"]) or {}
         job_name = job.get("name")

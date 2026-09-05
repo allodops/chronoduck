@@ -3,9 +3,7 @@
 # The L2 fixture-replay harness this issue's (#33) Goal names: "Loader runs
 # every fixture with the comparator; roster with
 # REGRESSED/VANISHED/ARRIVED-FAILING/UNRECORDED" (docs/testing/layers.md's
-# L2 row, docs/testing/rules.md's T7). See kernel-fixture-loader.mjs's own
-# header comment for the full rationale — this is a mechanical port,
-# unchanged.
+# L2 row, docs/testing/rules.md's T7).
 import os
 import re
 import subprocess

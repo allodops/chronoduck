@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # make derivation-sync
-# #37's own sync test — see derivation-sync.mjs's own header comment for the
-# full rationale (DROPPED/UNDECLARED/UNRECORDED/VERSION-MISMATCH verdicts).
-# This is a mechanical port, unchanged.
+# #37's own sync test (DROPPED/UNDECLARED/UNRECORDED/VERSION-MISMATCH
+# verdicts).
 import json
 import os
 import sys

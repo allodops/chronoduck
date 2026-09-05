@@ -6,7 +6,7 @@
 # every rate fixture (`test/fixtures/rate/*.yaml` and
 # `test/fixtures/derived/**/*.yaml`) either runs through
 # `test/live_oracles/chdb/chdb_diff_eval.cpp` (compiled once here, the same
-# "compile once, drive over stdin" shape `scripts/hygiene/kernel-fixture-loader.mjs`
+# "compile once, drive over stdin" shape `scripts/hygiene/kernel-fixture-loader.py`
 # already established for the L2 leg) or is recorded as a ✗-by-shape roster
 # gap when chDB's own `timeSeriesRateToGrid(ts, value)` signature has no
 # argument for a bound start timestamp (`docs/testing/live-oracles.md`: "A
@@ -14,7 +14,7 @@
 # roster gap").
 #
 # Scope: the same "rate fixture corpus" definition
-# `scripts/hygiene/kernel-fixture-loader.mjs` already established for the L2
+# `scripts/hygiene/kernel-fixture-loader.py` already established for the L2
 # leg -- every fixture actually found under `test/fixtures/rate/*.yaml` OR
 # `test/fixtures/derived/**/*.yaml`, read alongside each other rather than
 # through a second, narrower scan. A fixture this leg cannot run through
@@ -103,7 +103,7 @@ def run(cmd, input=None, env=None):
 # Recursive, so `test/fixtures/derived/rate/*.yaml` (and any further
 # per-source subdirectory a future batch adds) is found the same way
 # `test/fixtures/rate/*.yaml`'s own flat listing already is -- one walker,
-# mirroring `scripts/hygiene/kernel-fixture-loader.mjs`'s own, not a second
+# mirroring `scripts/hygiene/kernel-fixture-loader.py`'s own, not a second
 # copy for the nested case.
 def list_fixture_files(directory):
     if not directory.exists():
@@ -150,8 +150,8 @@ def build_wire_payload(doc, divergence_tag):
 # "../../kernel/rate_fixture_eval.hpp", which in turn reaches its own kernel
 # headers with the clean, non-`../` `#include "kernel/foo.hpp"` form that
 # #229 gave every test/kernel/*.cpp file. That form only resolves against
-# `<root>/src` (the same root `kernel-primitive-tests.mjs` and
-# `kernel-fixture-loader.mjs` use), so this g++ invocation needs the
+# `<root>/src` (the same root `kernel-primitive-tests.py` and
+# `kernel-fixture-loader.py` use), so this g++ invocation needs the
 # matching `-I <root>/src` flag even though chdb_diff_eval.cpp itself lives
 # outside test/kernel/ and keeps its own original relative includes.
 def compile_evaluator(tmp_dir, chdb_dir):
@@ -217,10 +217,10 @@ def main():
 
     roster = json.loads(ROSTER_PATH.read_text()) if ROSTER_PATH.exists() else {"pass": [], "shape_gap": []}
     # dict.fromkeys(...), not set(...): an insertion-ordered de-duplicated
-    # container, matching JS's `new Set(array)` iteration order exactly (a
-    # plain Python set's iteration order is hash-based, not insertion-based,
-    # which would make the violation ordering below diverge from the .mjs
-    # original whenever more than one violation lands in the same category).
+    # container, so the roster's own declared order is preserved. A plain
+    # Python set's iteration order is hash-based, not insertion-based, which
+    # would make the violation ordering below vary run to run whenever more
+    # than one violation lands in the same category.
     roster_pass = dict.fromkeys(roster.get("pass") or [])
     roster_gap = dict.fromkeys(roster.get("shape_gap") or [])
 

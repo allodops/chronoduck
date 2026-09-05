@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """make lanes-check
 
-Port of scripts/lanes-check.mjs. Verifies .github/ci-lanes.json against the
+Verifies .github/ci-lanes.json against the
 actual workflow files (Article VII.2: "A lane is registered in
 .github/ci-lanes.json or it is not a lane.").
 """

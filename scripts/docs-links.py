@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 """make docs-links
 
-Port of scripts/docs-links.mjs. Resolves every relative markdown link and
-#anchor under docs/ and README.md: a relative path must exist, and an
-#anchor must match some heading's generated slug in the target file
-(GitHub's algorithm — lowercase, spaces to hyphens, strip anything but
+Resolves every relative markdown link and #anchor under docs/ and
+README.md: a relative path must exist, and an #anchor must match some
+heading's generated slug in the target file (GitHub's algorithm —
+lowercase, spaces to hyphens, strip anything but
 letters/digits/hyphens/underscores). An http(s):// link is never checked (no
 network access).
 
 `slugify` and `headingSlugs` are kept as importable, side-effect-free
-functions (like the .mjs original, guarded by `if __name__ == "__main__"`
-below) for a future Python hygiene-selftest to import for its own fixtures,
-matching scripts/hygiene-selftest.mjs's `import { slugify, headingSlugs }
-from "./docs-links.mjs"` today.
+functions (guarded by `if __name__ == "__main__"` below) so
+scripts/hygiene-selftest.py can import them directly for its own
+pure-function unit assertions.
 """
 
 import os
@@ -76,13 +75,12 @@ def main():
             if re.match(r"^https?://", target):
                 continue
 
-            # The .mjs original does `const [pathPart, anchor] =
-            # target.split("#")` — JS's unlimited split() then destructured
-            # to two elements, which for a target with two-or-more literal
-            # "#" characters keeps only the first two segments and silently
-            # drops the rest (unlike a maxsplit=1 split, which would rejoin
-            # everything after the first "#" into `anchor`). Match that
-            # exactly rather than rejoining.
+            # split() finds every "#" in target; only parts[0] (the path)
+            # and parts[1] (the anchor) are kept, so a target with
+            # two-or-more literal "#" characters silently drops everything
+            # after the second one -- unlike a maxsplit=1 split, which
+            # would rejoin everything after the first "#" into `anchor`.
+            # That's the deliberate behavior here, not an oversight.
             if "#" in target:
                 parts = target.split("#")
                 path_part, anchor = parts[0], parts[1]
@@ -91,10 +89,10 @@ def main():
 
             target_file = file
             if path_part:
-                # os.path.join + normpath mirrors Node's path.join (lexical
-                # ".."/"." collapsing, no symlink resolution) so a link like
-                # "../foo.md" compares equal to how the original file's own
-                # path would be joined, not just similar.
+                # os.path.normpath collapses ".."/"." purely lexically, with
+                # no symlink resolution, so a link like "../foo.md" compares
+                # equal to how the original file's own path would be
+                # joined.
                 target_file = Path(os.path.normpath(file.parent / path_part))
                 if not target_file.exists():
                     violations.append(f'{rel}: dead link to "{path_part}"')

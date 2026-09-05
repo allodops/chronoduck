@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # make tier-coverage-floor — issue #36's fourth meta-test: "a per-tier
-# coverage floor, raise-only, refusing zero." See tier-coverage-floor.mjs's
-# own header comment for the full rationale (REGRESSED/STALE/UNTRACKED/
-# ZERO-FLOOR/UNKNOWN-PRIMITIVE). This is a mechanical port, unchanged.
+# coverage floor, raise-only, refusing zero"
+# (REGRESSED/STALE/UNTRACKED/ZERO-FLOOR/UNKNOWN-PRIMITIVE).
 import json
 import os
 import re

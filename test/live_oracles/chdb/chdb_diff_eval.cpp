@@ -2,9 +2,9 @@
 // `rate` fixture against chDB's own native `timeSeriesRateToGrid` aggregate
 // and compares its array to the kernel's under `src/kernel/comparator.hpp`'s
 // own `equal_values`, applying `src/kernel/chdb_divergence.hpp`'s
-// `ChdbDivergence` enum. Compiled once by `scripts/live-oracles/chdb-differential.mjs`
+// `ChdbDivergence` enum. Compiled once by `scripts/live-oracles/chdb-differential.py`
 // with a bare `g++` against the vendored `libchdb.so`
-// (`scripts/live-oracles/chdb-fetch.mjs`) — the same "wire protocol over
+// (`scripts/live-oracles/chdb-fetch.py`) — the same "wire protocol over
 // stdin, bare g++, real kernel headers" shape `test/kernel/rate_fixture_loader.cpp`
 // already established for the L2 leg, extended here with one more
 // dependency (chDB) on one side of the comparison.

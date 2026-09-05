@@ -18,20 +18,20 @@
 //
 // This file lives under `test/kernel/`, not `test/oracle/`: it is the one
 // place the from-scratch world (`test/oracle/*.hpp`, fenced from `src/` by
-// `scripts/hygiene/oracle-fence.mjs`) and the real kernel composition meet,
+// `scripts/hygiene/oracle-fence.py`) and the real kernel composition meet,
 // exactly the role `test/kernel/rate_fixture_eval.hpp` already plays for L2
 // (its own header comment: "used only by `rate_fixture_loader.cpp`'s CLI...,
 // never included from `src/`"). Compiled and run with a bare
-// `g++ -std=c++17` by `scripts/hygiene/kernel-primitive-tests.mjs`, the same
+// `g++ -std=c++17` by `scripts/hygiene/kernel-primitive-tests.py`, the same
 // dependency-free-TU pattern every other `test/kernel/*_test.cpp` follows —
 // "provably executed by an unconditional, failure-propagating lane"
 // (Article V.5) needs no new machinery here, since that scan already globs
 // every `test/kernel/*_test.cpp`.
 //
 // `SHAPE PASS <id>` / `SHAPE FAIL <id>: ...` lines on stdout are this file's
-// own contract with `scripts/hygiene/shape-roster.mjs` — no, that script
+// own contract with `scripts/hygiene/shape-roster.py` — no, that script
 // reads `// ShapeID:` CITATIONS from `test/oracle/shape_examples.hpp`
-// directly (a static scan, matching `scripts/hygiene/tier-coverage-floor.mjs`'s
+// directly (a static scan, matching `scripts/hygiene/tier-coverage-floor.py`'s
 // own citation convention) rather than this binary's runtime output, so the
 // roster is checkable without compiling anything; this binary's `SHAPE
 // PASS`/`SHAPE FAIL` lines are its own diagnostic, read only by a human or by

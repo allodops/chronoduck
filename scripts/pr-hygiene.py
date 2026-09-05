@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """make pr-hygiene PR=<n>
 
-Port of scripts/pr-hygiene.mjs. Scans an open (or merged) PR against
-Article III/VIII's rules: exactly one "Closes #N", the required PR-body
-sections, a "Constitution check:" line, a Conventional-Commits title, no
-deferral language without an issue reference in the diff, and Article
-VIII.2's fresh-session-review-postdates-last-commit gate.
+Scans an open (or merged) PR against Article III/VIII's rules: exactly one
+"Closes #N", the required PR-body sections, a "Constitution check:" line, a
+Conventional-Commits title, no deferral language without an issue reference
+in the diff, and Article VIII.2's fresh-session-review-postdates-last-commit
+gate.
 
 Run interactively by a human/Claude Code (never by a CI workflow), so this
 fetches via gh-tsouza directly (scripts/lib/gh_diff.py's fetchPrDiff, and
@@ -13,15 +13,11 @@ its own gh-tsouza subprocess calls below) rather than scripts/lib/gh.py's
 plain-`gh` helpers, which are the CI-safe equivalent for standalone scripts
 run without a Claude Code session.
 
-Deferral-scan duplication note: scanDiffForDeferral below is a direct,
-unmodified port of scripts/hygiene/forbid-deferral.mjs's pure function of
-the same name. scripts/hygiene/forbid-deferral.py -- the canonical Python
-home for this logic -- belongs to #241 (porting scripts/hygiene/*.mjs),
-which had not landed as of this port; duplicating the pure function here
-(rather than leaving pr-hygiene.py unable to run standalone) keeps this
-issue's acceptance criteria satisfiable without reaching into #241's file.
-Filed as a discovered follow-up to re-point this import at
-scripts/hygiene/forbid_deferral.py once #241 lands (#166-style DRY).
+Deferral-scan duplication note: scanDiffForDeferral below duplicates
+scripts/hygiene/forbid_deferral.py's pure function of the same name, so
+this script keeps running standalone without importing across the
+scripts/hygiene/ package boundary. #251 tracks collapsing this into a
+single shared implementation (#166-style DRY).
 """
 
 import json
@@ -42,7 +38,7 @@ FRESH_SESSION_REVIEW_PREFIX = "Fresh-session review:"
 
 
 # ---------------------------------------------------------------------------
-# Deferral scan -- temporary duplicate of scripts/hygiene/forbid-deferral.mjs's
+# Deferral scan -- duplicates scripts/hygiene/forbid_deferral.py's
 # scanDiffForDeferral(); see module docstring above.
 # ---------------------------------------------------------------------------
 
