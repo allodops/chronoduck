@@ -1,0 +1,304 @@
+# name: test/sql/ts_rate_partition_determinism.test
+# description: L4 partition/determinism harness for ts_rate
+# group: [sql]
+
+#   f(all) versus DuckDB's own parallel combine of ts_rate's partial states, for every named
+#   partition scheme in docs/testing/determinism.md's roster, threads {1,2,4,8}, PRAGMA
+#   verify_parallelism and shuffled/reverse/adversarial row orders. ts_rate is registered
+#   RAW_WINDOW/D0 (src/kernel/registry.def), so every comparison below is bit-exact — a `nosort`
+#   label pair, never a tolerance.
+#
+#   ts_rate's AggregateFunction carries a custom bind (BindTsRate, chronoduck_extension.cpp), and
+#   DuckDB's own aggregate-state export refuses that outright: "Cannot use EXPORT_STATE on
+#   aggregate functions with custom binders" (duckdb/src/function/scalar/system/aggregate_export.cpp),
+#   confirmed against the built extension before writing this file (this PR's own Deviations
+#   section has the transcript). So there is no `ts_rate_state`/`combine`/`finalize` SQL surface to
+#   drive by hand here. Instead this file drives RateCombine the way DuckDB's own sqllogictest
+#   suite drives every other aggregate's combine under real parallelism — PRAGMA verify_parallelism
+#   (which makes DataTable::MaxThreads assign one scan task per vector instead of per row group)
+#   plus SET threads, over tables wide enough that more than one thread ends up building, and then
+#   combining, its own partial RateAggState. A drop-the-source-partial mutant in RateCombine was
+#   confirmed to turn every `rate_all`/`part*` label pair below red before this file was finalised
+#   (also transcribed in the PR).
+
+require chronoduck
+
+# ---------------------------------------------------------------------------
+# f(all): one grid point, one window wide enough to cover the whole span, 50000 samples with a
+# counter that resets every 777 ticks — comfortably more than STANDARD_VECTOR_SIZE (2048) so
+# PRAGMA verify_parallelism's one-task-per-vector scan (below) actually splits it across every
+# thread count this file tries. Four tables hold the *same* (t, v) pairs in different physical
+# orders, covering docs/testing/determinism.md's "shuffled row order", "reverse-ordered partials"
+# and "adversarial [...] latest-timestamped partial first" roster rows: a correct combine must
+# reach the identical answer no matter which physical chunk lands in which thread's partial.
+statement ok
+CREATE TABLE wide_natural AS
+    SELECT (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (i) MICROSECOND) AS ts, (i % 777)::DOUBLE AS v
+    FROM range(50000) r(i)
+    ORDER BY i;
+
+statement ok
+CREATE TABLE wide_reverse AS SELECT * FROM wide_natural ORDER BY ts DESC;
+
+statement ok
+CREATE TABLE wide_shuffled AS
+    SELECT (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (i) MICROSECOND) AS ts, (i % 777)::DOUBLE AS v
+    FROM range(50000) r(i)
+    ORDER BY (i * 104729) % 50000;
+
+# The latest-timestamped row (i=49999) physically first, everything else in its natural order —
+# docs/testing/determinism.md's adversarial scheme: "the latest-timestamped partial first".
+statement ok
+CREATE TABLE wide_adversarial AS
+    SELECT (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (i) MICROSECOND) AS ts, (i % 777)::DOUBLE AS v
+    FROM range(50000) r(i)
+    ORDER BY CASE WHEN i = 49999 THEN -1 ELSE i END;
+
+# threads=1, before PRAGMA verify_parallelism is enabled: exactly one scan task exists, so this is
+# the single-partial ground truth — RateCombine is never called to produce it — every query below
+# (any table order, any thread count, any GROUP BY partition scheme) must match bit-exact.
+statement ok
+SET threads=1
+
+query I nosort rate_all
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND, 1, 50100)[1]
+FROM wide_natural;
+----
+
+# Row order alone (still serial, still no combine) must not move the answer either.
+query I nosort rate_all
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND, 1, 50100)[1]
+FROM wide_reverse;
+----
+
+query I nosort rate_all
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND, 1, 50100)[1]
+FROM wide_shuffled;
+----
+
+query I nosort rate_all
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND, 1, 50100)[1]
+FROM wide_adversarial;
+----
+
+# ---------------------------------------------------------------------------
+# The rest of the roster, realised as real SQL `GROUP BY` over `rowid` so N ranges up to 4096
+# without hand-writing a partial per bucket: DuckDB's own parallel hash aggregate combines two
+# threads' partial RateAggStates whenever they hold the same group key, so `GROUP BY rowid % N`
+# under real parallelism exercises RateCombine exactly as a hand-driven state/merge/finalize
+# harness would, with no EXPORT_STATE involved. `rowid % N` interleaves group membership (the
+# roster's "interleaved" scheme); a block partition (`rowid / 7142`, tried once below at N=7) is
+# the same roster's "contiguous" scheme. Established here at threads=1: the serial, single-task,
+# no-combine ground truth for each N. `foreach` can't parametrise a label (DuckDB's sqllogictest
+# applies loop substitution only to the query text, never to a `nosort` label —
+# duckdb/test/sqlite/sqllogic_command.cpp's Query::ExecuteInternal calls LoopReplacement on
+# base_sql_query alone), so each N is its own explicit block with its own literal label.
+query II nosort part1
+SELECT rowid % 1 AS part,
+       ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND, 1, 50100)[1]
+FROM wide_natural GROUP BY part ORDER BY part;
+----
+
+query II nosort part2
+SELECT rowid % 2 AS part,
+       ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND, 1, 50100)[1]
+FROM wide_natural GROUP BY part ORDER BY part;
+----
+
+query II nosort part3
+SELECT rowid % 3 AS part,
+       ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND, 1, 50100)[1]
+FROM wide_natural GROUP BY part ORDER BY part;
+----
+
+query II nosort part7
+SELECT rowid % 7 AS part,
+       ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND, 1, 50100)[1]
+FROM wide_natural GROUP BY part ORDER BY part;
+----
+
+query II nosort part64
+SELECT rowid % 64 AS part,
+       ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND, 1, 50100)[1]
+FROM wide_natural GROUP BY part ORDER BY part;
+----
+
+query II nosort part4096
+SELECT rowid % 4096 AS part,
+       ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND, 1, 50100)[1]
+FROM wide_natural GROUP BY part ORDER BY part;
+----
+
+query II nosort part7_contiguous
+SELECT rowid / 7142 AS part,
+       ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND, 1, 50100)[1]
+FROM wide_natural GROUP BY part ORDER BY part;
+----
+
+# One-sample partials: 64 rows, N=64, so `rowid % 64` gives every partial exactly one raw sample —
+# the roster's own "one-sample partials" scheme. Under the default STANDARD_VECTOR_SIZE (2048) a
+# 64-row table never gets more than one scan task even under PRAGMA verify_parallelism
+# (DataTable::MaxThreads floors at total_rows / STANDARD_VECTOR_SIZE + 1 = 1 here), so this
+# scheme's real teeth are specifically in the nightly vector-size-2 build lane (this issue's own
+# second acceptance criterion): the same formula gives up to 33 scan tasks for 64 rows there.
+statement ok
+CREATE TABLE one_sample_64 AS
+    SELECT (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (i) MICROSECOND) AS ts, (i % 11)::DOUBLE AS v
+    FROM range(64) r(i);
+
+query II nosort part64_singleton
+SELECT rowid % 64 AS part,
+       ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (63) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (63) MICROSECOND, 1, 200)[1]
+FROM one_sample_64 GROUP BY part ORDER BY part;
+----
+
+# Grid-boundary-only and extrapolation-dependency partials: rate/edge-boundary.yaml's own three
+# samples (test/sql/ts_rate.test's "edge-boundary" case) — t=100 is the window's excluded
+# left-boundary decoy (docs/testing/determinism.md's "grid-boundary-only partial"), t=101 is the
+# first *admitted* sample (extrapolate's own left-edge dependency — the closest analogue this
+# EXTRAPOLATE-only function has to that roster row's ANCHOR-mode "dependency" partial), t=200 is
+# the last. Insertion order makes `rowid % 3` isolate each into its own partial.
+statement ok
+CREATE TABLE edge_boundary AS SELECT * FROM (VALUES
+    (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (100) MICROSECOND, 999.0),
+    (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (101) MICROSECOND, 10.0),
+    (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (200) MICROSECOND, 40.0)
+) AS t(ts, v);
+
+query I nosort edge_all
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (200) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (200) MICROSECOND, 1, 100)[1]
+FROM edge_boundary;
+----
+0.30303030303030304
+
+query II nosort edge_parts
+SELECT rowid % 3 AS part,
+       ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (200) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (200) MICROSECOND, 1, 100)[1]
+FROM edge_boundary GROUP BY part ORDER BY part;
+----
+
+# ---------------------------------------------------------------------------
+# Now force real parallel combine for the rest of the file: PRAGMA verify_parallelism (session-
+# scoped from here on) makes DataTable::MaxThreads assign one scan task per vector instead of per
+# row group, so every table above spanning more than one vector gets scanned by more than one
+# thread, and DuckDB's own aggregate-combine path merges their partial RateAggStates. Every query
+# re-run below must still match its baseline label exactly.
+statement ok
+PRAGMA verify_parallelism
+
+foreach threads 1 2 4 8
+
+statement ok
+SET threads=${threads}
+
+query I nosort rate_all
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND, 1, 50100)[1]
+FROM wide_natural;
+----
+
+query I nosort rate_all
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND, 1, 50100)[1]
+FROM wide_reverse;
+----
+
+query I nosort rate_all
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND, 1, 50100)[1]
+FROM wide_shuffled;
+----
+
+query I nosort rate_all
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND, 1, 50100)[1]
+FROM wide_adversarial;
+----
+
+endloop
+
+statement ok
+SET threads=8
+
+query II nosort part1
+SELECT rowid % 1 AS part,
+       ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND, 1, 50100)[1]
+FROM wide_natural GROUP BY part ORDER BY part;
+----
+
+query II nosort part2
+SELECT rowid % 2 AS part,
+       ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND, 1, 50100)[1]
+FROM wide_natural GROUP BY part ORDER BY part;
+----
+
+query II nosort part3
+SELECT rowid % 3 AS part,
+       ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND, 1, 50100)[1]
+FROM wide_natural GROUP BY part ORDER BY part;
+----
+
+query II nosort part7
+SELECT rowid % 7 AS part,
+       ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND, 1, 50100)[1]
+FROM wide_natural GROUP BY part ORDER BY part;
+----
+
+query II nosort part64
+SELECT rowid % 64 AS part,
+       ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND, 1, 50100)[1]
+FROM wide_natural GROUP BY part ORDER BY part;
+----
+
+query II nosort part4096
+SELECT rowid % 4096 AS part,
+       ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND, 1, 50100)[1]
+FROM wide_natural GROUP BY part ORDER BY part;
+----
+
+query II nosort part7_contiguous
+SELECT rowid / 7142 AS part,
+       ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (49999) MICROSECOND, 1, 50100)[1]
+FROM wide_natural GROUP BY part ORDER BY part;
+----
+
+query II nosort part64_singleton
+SELECT rowid % 64 AS part,
+       ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (63) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (63) MICROSECOND, 1, 200)[1]
+FROM one_sample_64 GROUP BY part ORDER BY part;
+----
+
+query I nosort edge_all
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (200) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (200) MICROSECOND, 1, 100)[1]
+FROM edge_boundary;
+----
+
+query II nosort edge_parts
+SELECT rowid % 3 AS part,
+       ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (200) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (200) MICROSECOND, 1, 100)[1]
+FROM edge_boundary GROUP BY part ORDER BY part;
+----

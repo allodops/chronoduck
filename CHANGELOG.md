@@ -4,6 +4,7 @@
 
 ## Unreleased
 
+- ci(hygiene): wire fixtures-validate into hygiene.mjs's TREE_SCANS (#198)
 - feat(kernel): add Tier 6 host glue and the ts_rate aggregate + ts_grid table function (#196)
 - feat(kernel): add L2 fixture loader and hand-derived rate fixtures (#195)
 - feat(kernel): add Tier 4 counter_fold and extrapolate (EXTRAPOLATE only) (#193)
