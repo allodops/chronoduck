@@ -375,9 +375,8 @@ with open(diff_file, "wb") as f:
 expect_red("forbid-deferral", ["python3", py("hygiene", "forbid_deferral.py"), "--diff-file", diff_file])
 
 # 6b: #154 regression — a static check, not a live PR fetch. Both importers
-# (pr-hygiene.py and hygiene/forbid_deferral.py) are Python now that the
-# Makefile/CI cutover (#245) points at them instead of their retired .mjs
-# siblings, so both regression assertions run against the Python lib only.
+# (pr-hygiene.py and hygiene/forbid_deferral.py) are Python, so both
+# regression assertions run against the Python lib only.
 _pr_hygiene_src = open(py("pr-hygiene.py"), "r", encoding="utf-8").read()
 if "gh-tsouza pr diff" in _pr_hygiene_src:
     print('SELFTEST FAIL: pr-hygiene.py still calls "gh-tsouza pr diff" directly instead of importing fetchPrDiff from lib.gh_diff (#166 DRY)', file=sys.stderr)

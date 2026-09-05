@@ -23,7 +23,7 @@
 # `derived/` changes that.
 #
 # Identity ratchet (Article V.4 / T7), generalised to three observed states
-# instead of kernel-fixture-loader.mjs's two (pass/fail): a (fixture, oracle)
+# rather than kernel-fixture-loader.py's two (pass/fail): a (fixture, oracle)
 # pair is either a comparator PASS, a comparator FAIL, or a declared
 # SHAPE_GAP. `test/fixtures/chdb-oracle-roster.json` records the "pass" set
 # and the "shape_gap" set the current tree is known to produce; anything

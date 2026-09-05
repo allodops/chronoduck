@@ -1,15 +1,7 @@
 """Shared Conventional Commits title pattern.
 
-Port of scripts/lib/conventional-commits.mjs (#166 DRY: previously duplicated
-identically, with no shared constant, across scripts/pr-hygiene.mjs and
-scripts/changelog.mjs -- undrifted so far, but nothing enforced it staying
-that way). Both import this one constant now, so drift is structurally
-impossible rather than merely accidental.
-
-The identifier is kept exactly as in the .mjs original (not renamed to a
-lowercase Python module attribute) so the import surface #241-#244 depend on
-stays literally unchanged during the mechanical caller port (issue #240's own
-acceptance criteria).
+One shared constant (#166 DRY), imported by both scripts/pr-hygiene.py and
+scripts/changelog.py, so the two can't drift apart.
 """
 
 import re
