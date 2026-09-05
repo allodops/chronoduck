@@ -4,6 +4,7 @@
 
 ## Unreleased
 
+- feat(kernel): add L2 fixture loader and hand-derived rate fixtures (#195)
 - feat(kernel): add Tier 4 counter_fold and extrapolate (EXTRAPOLATE only) (#193)
 - feat(kernel): add Tier 3 window_walk and edge_context (#192)
 - feat(kernel): add Tier 2 SampleBuffer with totalOrder dedup (#191)

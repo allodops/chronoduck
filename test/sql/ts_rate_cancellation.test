@@ -1,0 +1,18 @@
+# name: test/sql/ts_rate_cancellation.test
+# description: ts_rate's aggregate state destructor runs even when a query aborts mid-aggregation
+#   (Tier 6's own "destructor invoked ... including on query cancellation and on exception in
+#   finalize" unit contract). More rows than one vector fit in fit into the aggregate's Update
+#   before the error-raising row, so a live, non-empty SampleBuffer already exists on the state
+#   when the query unwinds — proving the abort path runs through RateDestroy, not just the normal
+#   completion path every other test in this file already exercises.
+# group: [sql]
+
+require chronoduck
+
+statement error
+SELECT ts_rate(TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (i) MICROSECOND,
+              CASE WHEN i = 2049 THEN error('boom') ELSE 1.0 END,
+              TIMESTAMP '2024-01-01 00:00:00', TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (3000) MICROSECOND, 1, 100)
+FROM range(0, 3000) AS t(i);
+----
+boom

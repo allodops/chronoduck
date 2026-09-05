@@ -28,8 +28,14 @@
 #define TS_FN(...)
 #endif
 
-// name                  family  state  det  edge_modes  domain       scale_kind
-TS_FN(chronoduck_version, META,  NONE,  D0,  EDGE_NONE,  DOMAIN_NONE, EXACT)
-TS_FN(ts_grid_index,      GRID,  NONE,  D0,  EDGE_NONE,  DOMAIN_NONE, EXACT)
+// name                  family  state       det  edge_modes  domain       scale_kind
+TS_FN(chronoduck_version, META,  NONE,       D0,  EDGE_NONE,  DOMAIN_NONE, EXACT)
+TS_FN(ts_grid_index,      GRID,  NONE,       D0,  EDGE_NONE,  DOMAIN_NONE, EXACT)
+TS_FN(ts_grid,            GRID,  NONE,       D0,  EDGE_NONE,  DOMAIN_NONE, EXACT)
+// `docs/design/surface.md`'s `rate` row lists `EXTRAPOLATE|ANCHOR|SMOOTH`; this
+// row claims `EXTRAPOLATE` only — the edge modes this issue's host glue
+// actually wires up and fences (#32's own scope), matching Article V.3's
+// posture of never claiming untested capability.
+TS_FN(ts_rate,            RANGE, RAW_WINDOW, D0,  EXTRAPOLATE, COUNTER,    SUM_ABS_TIMES_FACTOR)
 
 #undef TS_FN
