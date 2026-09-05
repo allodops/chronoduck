@@ -51,9 +51,9 @@
 // contract is one connection per process, and `_exit()` skips whatever
 // static-destruction order a long-running embedded native engine might not
 // have exercised for a single-shot CLI use.
-#include "kernel/chdb_divergence.hpp"
-#include "kernel/comparator.hpp"
-#include "kernel/rate_fixture_eval.hpp"
+#include "../../../src/kernel/chdb_divergence.hpp"
+#include "../../../src/kernel/comparator.hpp"
+#include "../../kernel/rate_fixture_eval.hpp"
 #include "chdb.h"
 
 #include <cstdio>

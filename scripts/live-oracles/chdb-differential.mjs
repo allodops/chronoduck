@@ -135,18 +135,14 @@ function buildWirePayload(doc, divergenceTag) {
   return lines.join("\n") + "\n";
 }
 
-// #229/#235: chdb_diff_eval.cpp reaches its own kernel headers with a bare
-// quoted include (`#include "kernel/comparator.hpp"`, ...) — the same
-// `src/chronoduck_extension.cpp` convention `kernel-primitive-tests.mjs` and
-// `kernel-fixture-loader.mjs` already resolve via `-I <root>/src` — and
-// reaches `test/kernel/rate_fixture_eval.hpp` the same way via `-I
-// <root>/test`, rather than the fragile three- and two-level `../` climbs
-// this file used before #235's correction. Both flags are required: this
-// leg was the one compile site #235 originally missed. `rate_fixture_eval.hpp`
-// itself still resolved fine (a short, in-tree relative include), but once
-// #235 rewrote its own nested includes to a clean, non-`../` form, this
-// site's g++ invocation carried no -I flag at all to resolve them with —
-// exactly the CI failure #235 shipped with.
+// #229/#235: chdb_diff_eval.cpp reaches test/kernel/rate_fixture_eval.hpp via
+// "../../kernel/rate_fixture_eval.hpp", which in turn reaches its own kernel
+// headers with the clean, non-`../` `#include "kernel/foo.hpp"` form that
+// #229 gave every test/kernel/*.cpp file. That form only resolves against
+// `<root>/src` (the same root `kernel-primitive-tests.mjs` and
+// `kernel-fixture-loader.mjs` use), so this g++ invocation needs the
+// matching `-I <root>/src` flag even though chdb_diff_eval.cpp itself lives
+// outside test/kernel/ and keeps its own original relative includes.
 async function compileEvaluator(tmpDir, chdbDir) {
   const binPath = join(tmpDir, "chdb_diff_eval");
   const compile = await run([
@@ -156,7 +152,6 @@ async function compileEvaluator(tmpDir, chdbDir) {
     "-Wall",
     "-Wextra",
     `-I${join(root, "src")}`,
-    `-I${join(root, "test")}`,
     `-I${chdbDir}`,
     EVAL_CPP,
     "-o",
