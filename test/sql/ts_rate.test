@@ -1,0 +1,144 @@
+# name: test/sql/ts_rate.test
+# description: ts_rate(...) aggregate — arithmetic ported from test/fixtures/rate/*.yaml (#33's
+# group: [sql]
+
+#   already-fenced L2 fixtures), proving the real SQL aggregate agrees with the kernel composition
+#   rather than re-deriving the numbers here.
+
+require chronoduck
+
+# rate/edge-boundary.yaml: the left-open, right-closed window rule. Window
+# (100, 200] excludes the t=100 decoy (which would spuriously reset the
+# fold if admitted); delta = 40 - 10 = 30 over the two real samples,
+# S = 200 - 101 = 99, both edge gaps under the 1.1x threshold so the fold
+# extrapolates fully: factor = 100/99, rate = 30/99 = 0.30303030303030304.
+query I
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (200) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (200) MICROSECOND, 1, 100)[1]
+FROM (VALUES
+    (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (100) MICROSECOND, 999.0),
+    (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (101) MICROSECOND, 10.0),
+    (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (200) MICROSECOND, 40.0)
+) AS t(ts, v);
+----
+0.30303030303030304
+
+# rate/reset-midwindow.yaml: one reset mid-window (20 -> 5). The
+# reset-adjusted delta adds the pre-reset value back in: 20 + (15 - 10) =
+# 25 over S = 185 - 5 = 180 (both edge gaps under threshold), rate =
+# 25/180 = 0.1388888888888889.
+query I
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (205) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (205) MICROSECOND, 1, 205)[1]
+FROM (VALUES
+    (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (5) MICROSECOND, 10.0),
+    (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (65) MICROSECOND, 20.0),
+    (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (125) MICROSECOND, 5.0),
+    (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (185) MICROSECOND, 15.0)
+) AS t(ts, v);
+----
+0.1388888888888889
+
+# rate/dup-duplicate-timestamp.yaml: the 50-vs-37.5 duplicate-timestamp bug.
+# SampleBuffer.sort_dedup resolves the duplicate t=10 pair by the declared
+# totalOrder tie-break (1000 > 700 wins), so the fold sees exactly n = 2 —
+# a naive implementation that fails to dedupe sees n = 3 and answers 37.5
+# instead of the correct 50 (test/fixtures/rate/dup-duplicate-timestamp.yaml's
+# own `wrong:` entry).
+query I
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (112) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (112) MICROSECOND, 1, 108)[1]
+FROM (VALUES
+    (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (10) MICROSECOND, 1000.0),
+    (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (10) MICROSECOND, 700.0),
+    (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (70) MICROSECOND, 4000.0)
+) AS t(ts, v);
+----
+50.0
+
+# rate/threshold-single-sample-with-st.yaml: a single sample whose start
+# timestamp lies strictly inside the left gap yields a value where a bare
+# (t, v) sample could not — the `ts_rate(ts, value, start_ts, ...)` overload.
+# eff_first_t = 80 (the synthetic zero point), eff_delta = 5, S = 20,
+# duration_to_end = 10 (under threshold), factor = 1.5, rate =
+# (5 * 1.5) / 60 = 0.125.
+query I
+SELECT ts_rate(ts, v, st, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (110) MICROSECOND,
+                        TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (110) MICROSECOND, 1, 60)[1]
+FROM (VALUES
+    (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (100) MICROSECOND, 5.0,
+     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (80) MICROSECOND)
+) AS t(ts, v, st);
+----
+0.125
+
+# rate/threshold-single-sample-without-st.yaml: the same single sample with
+# no start timestamp bound at all yields no value — "one sample -> no
+# value" is true only when no start-timestamp role is bound
+# (docs/design/architecture.md's own numeric-contracts paragraph).
+query I
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (100) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (100) MICROSECOND, 1, 100)[1]
+FROM (VALUES
+    (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (50) MICROSECOND, 10.0)
+) AS t(ts, v);
+----
+NULL
+
+# A group with no rows at all (every input filtered by a FILTER clause)
+# yields a NULL list, not a list of all-NULL entries — finalize_to_list's
+# own "no payload" posture.
+query I
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (100) MICROSECOND,
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (100) MICROSECOND, 1, 100)
+    FILTER (WHERE v > 1000)
+FROM (VALUES
+    (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (50) MICROSECOND, 10.0)
+) AS t(ts, v);
+----
+NULL
+
+# --- bind_grid_args error catalogue ---------------------------------------
+
+# grid_start referencing a column: not a constant expression.
+statement error
+SELECT ts_rate(ts, v, ts, TIMESTAMP '2024-01-01 00:00:00', 1, 100)
+FROM (VALUES (TIMESTAMP '2024-01-01 00:00:00', 1.0)) AS t(ts, v);
+----
+must be a constant expression
+
+# step <= 0.
+statement error
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00', TIMESTAMP '2024-01-01 00:00:00', 0, 100)
+FROM (VALUES (TIMESTAMP '2024-01-01 00:00:00', 1.0)) AS t(ts, v);
+----
+step must be positive
+
+# step does not evenly divide (end - start).
+statement error
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00',
+                     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (10) MICROSECOND, 3, 100)
+FROM (VALUES (TIMESTAMP '2024-01-01 00:00:00', 1.0)) AS t(ts, v);
+----
+evenly divide
+
+# grid_end before grid_start.
+statement error
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00',
+                     TIMESTAMP '2024-01-01 00:00:00' - INTERVAL (1) MICROSECOND, 1, 100)
+FROM (VALUES (TIMESTAMP '2024-01-01 00:00:00', 1.0)) AS t(ts, v);
+----
+end must be >=
+
+# window <= 0.
+statement error
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00', TIMESTAMP '2024-01-01 00:00:00', 1, 0)
+FROM (VALUES (TIMESTAMP '2024-01-01 00:00:00', 1.0)) AS t(ts, v);
+----
+window must be positive
+
+# wrong argument type: a VARCHAR does not implicitly cast to TIMESTAMP.
+statement error
+SELECT ts_rate('not a timestamp', 1.0, TIMESTAMP '2024-01-01 00:00:00', TIMESTAMP '2024-01-01 00:00:00', 1, 100);
+----
+No function matches
