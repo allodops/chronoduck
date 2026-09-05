@@ -1,3 +1,6 @@
+# name: test/partners/rawduck/smoke.test
+# group: [rawduck]
+
 -- test/partners/rawduck/smoke.test
 --
 -- L15 smoke-LOAD (docs/testing/storage-partners.md): chronoduck and rawduck
