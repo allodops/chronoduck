@@ -30,9 +30,9 @@
     },
     {
       "context": "tsan",
-      "workflow": "nightly.yml",
-      "posture": "nightly",
-      "layers": ["L4", "L9"],
+      "workflow": "ci.yml",
+      "posture": "merge",
+      "layers": ["L4"],
       "owner": "tsouza"
     },
     {

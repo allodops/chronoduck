@@ -4,6 +4,7 @@
 
 ## Unreleased
 
+- feat(test): ingest externally derived fixtures and add the manifest sync test (#201)
 - test(hygiene): add L13 meta-tests for roster closure, divergence coverage, tier floors (#200)
 - test(sql): add L4 partition/determinism harness for ts_rate (#199)
 - ci(hygiene): wire fixtures-validate into hygiene.mjs's TREE_SCANS (#198)
