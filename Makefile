@@ -30,9 +30,9 @@ export OVERRIDE_GIT_DESCRIBE ?= $(shell python3 scripts/print-duckdb-pin.py)
 # as subprocesses by scripts/hygiene.py itself rather than as their own `make
 # <target>` — so a per-target prerequisite can't guarantee PyYAML is present
 # before they run; this unconditional, parse-time bootstrap can. Needed
-# because `actions/setup-python` (replacing the prior toolchain's setup
-# action, issue #245) puts its own bare interpreter — pip/setuptools/wheel
-# only, no third-party packages — ahead of the system python3 on PATH, so the
+# because CI's `actions/setup-python` step puts its own bare interpreter —
+# pip/setuptools/wheel only, no third-party packages — ahead of the system
+# python3 on PATH, so the
 # PyYAML the CI runner image's system python3 has via cloud-init is no longer
 # what `python3` resolves to. The `import yaml` probe makes this a no-op (no
 # network) on any python3 that already has it, system or otherwise. Installs
@@ -151,7 +151,7 @@ chdb-differential: ## Run every rate fixture (test/fixtures/rate/*.yaml and test
 	python3 scripts/live-oracles/chdb-differential.py
 
 .PHONY: memory-check-grid-stream
-memory-check-grid-stream: ## Operator-level L11 self-check for issue #40 AC2: peak RSS stays flat across a 100x-1000x series-count spread on the 1s/5min-window shape (release build required; not a merge-gate lane, see #45); still runs on the prior toolchain -- #239-#244 never ported it, see #257; the sole deliberate exception to #246's cleanup, kept working rather than deleted with no replacement
+memory-check-grid-stream: ## Operator-level L11 self-check for issue #40 AC2: peak RSS stays flat across a 100x-1000x series-count spread on the 1s/5min-window shape (release build required; not a merge-gate lane, see #45); requires Bun (Python port tracked by #257)
 	bun scripts/memory-check-grid-stream.mjs
 
 .PHONY: build-relevant-changed
