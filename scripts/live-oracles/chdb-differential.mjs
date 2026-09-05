@@ -3,7 +3,8 @@
 // differential, on the merge gate (docs/testing/layers.md's L6a row: "[MERGE]
 // (chDB)"). One driver, one back-end (chDB — the Timescale leg is M3, out of
 // this issue's scope per its own "Out of scope" note), one fixture format:
-// every `test/fixtures/rate/*.yaml` fixture either runs through
+// every rate fixture (`test/fixtures/rate/*.yaml` and
+// `test/fixtures/derived/**/*.yaml`) either runs through
 // `test/live_oracles/chdb/chdb_diff_eval.cpp` (compiled once here, the same
 // "compile once, drive over stdin" shape `scripts/hygiene/kernel-fixture-loader.mjs`
 // already established for the L2 leg) or is recorded as a ✗-by-shape roster
@@ -11,6 +12,15 @@
 // argument for a bound start timestamp (`docs/testing/live-oracles.md`: "A
 // fixture an oracle cannot evaluate at all ... is not a divergence; it is a
 // roster gap").
+//
+// Scope: the same "rate fixture corpus" definition
+// `scripts/hygiene/kernel-fixture-loader.mjs` already established for the L2
+// leg — every fixture actually found under `test/fixtures/rate/*.yaml` OR
+// `test/fixtures/derived/**/*.yaml`, read alongside each other rather than
+// through a second, narrower scan. A fixture this leg cannot run through
+// chDB's own signature is still a roster gap, exactly like the flat
+// `test/fixtures/rate/` case; nothing about a fixture living under
+// `derived/` changes that.
 //
 // Identity ratchet (Article V.4 / T7), generalised to three observed states
 // instead of kernel-fixture-loader.mjs's two (pass/fail): a (fixture, oracle)
@@ -40,6 +50,7 @@ const rootIdx = args.indexOf("--root");
 const root = rootIdx === -1 ? process.cwd() : args[rootIdx + 1];
 
 const FIXTURE_DIR = join(root, "test", "fixtures", "rate");
+const DERIVED_DIR = join(root, "test", "fixtures", "derived");
 const ROSTER_PATH = join(root, "test", "fixtures", "chdb-oracle-roster.json");
 const ORACLE = "chdb";
 
@@ -81,14 +92,23 @@ async function run(cmd, { input, env } = {}) {
   return { out, err, code };
 }
 
+// Recursive, so `test/fixtures/derived/rate/*.yaml` (and any further
+// per-source subdirectory a future batch adds) is found the same way
+// `test/fixtures/rate/*.yaml`'s own flat listing already is — one walker,
+// mirroring `scripts/hygiene/kernel-fixture-loader.mjs`'s own, not a second
+// copy for the nested case.
 function listFixtureFiles(dir) {
   if (!existsSync(dir)) return [];
   const out = [];
-  for (const entry of readdirSync(dir).sort()) {
-    const full = join(dir, entry);
-    if (statSync(full).isDirectory()) continue;
-    if (entry.endsWith(".yaml") || entry.endsWith(".yml")) out.push(full);
-  }
+  const walk = (d) => {
+    for (const entry of readdirSync(d).sort()) {
+      const full = join(d, entry);
+      const st = statSync(full);
+      if (st.isDirectory()) walk(full);
+      else if (entry.endsWith(".yaml") || entry.endsWith(".yml")) out.push(full);
+    }
+  };
+  walk(dir);
   return out;
 }
 
@@ -142,7 +162,7 @@ async function main() {
   const tmp = mkdtempSync(join(tmpdir(), "chdb-differential-"));
   const binPath = await compileEvaluator(tmp, chdbDir);
 
-  const files = listFixtureFiles(FIXTURE_DIR);
+  const files = [...listFixtureFiles(FIXTURE_DIR), ...listFixtureFiles(DERIVED_DIR)];
   const current = new Map(); // "<fixture>@chdb" -> { state: "pass"|"fail"|"shape_gap", rel, diag }
 
   for (const file of files) {

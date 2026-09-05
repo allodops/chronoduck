@@ -110,7 +110,7 @@ chdb-fetch: ## Vendor libchdb at its pinned (repository, tag), checksum-verified
 	bun scripts/live-oracles/chdb-fetch.mjs
 
 .PHONY: chdb-differential
-chdb-differential: ## Run every test/fixtures/rate/*.yaml fixture against chDB's timeSeriesRateToGrid under the comparator, rostered by (fixture, oracle) (L6a, #43)
+chdb-differential: ## Run every rate fixture (test/fixtures/rate/*.yaml and test/fixtures/derived/**/*.yaml) against chDB's timeSeriesRateToGrid under the comparator, rostered by (fixture, oracle) (L6a, #43)
 	bun scripts/live-oracles/chdb-differential.mjs
 
 .PHONY: build-relevant-changed
