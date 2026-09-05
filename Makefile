@@ -10,6 +10,21 @@ EXT_CONFIG=${PROJ_DIR}extension_config.cmake
 # one export covers all of them, not just the targets we define ourselves.
 export CMAKE_BUILD_PARALLEL_LEVEL ?= $(shell nproc)
 
+# The included upstream Makefile's BUILD_FLAGS always forwards
+# OVERRIDE_GIT_DESCRIBE to cmake as -DOVERRIDE_GIT_DESCRIBE="...", but never
+# sets it itself. Left unset, duckdb/CMakeLists.txt falls back to
+# `git describe --tags --long` inside the duckdb submodule, which fails on
+# any shallow/tagless checkout (every CI checkout: `actions/checkout`'s
+# submodule handling never fetches tags, `fetch-tags` or not — issue #225) and
+# self-reports the dummy version v0.0.1, which then breaks LOADing any
+# separately-built, correctly-versioned extension (e.g. the partner-rawduck
+# lane's RawDuck build) as an ABI mismatch. Setting it here to our own pin
+# (scripts/lib/duckdb-pin.mjs's single source of truth, read via
+# scripts/print-duckdb-pin.mjs so the value isn't duplicated) makes every
+# cmake-driven target report the real version unconditionally, checkout
+# shallowness aside; overridable, like CMAKE_BUILD_PARALLEL_LEVEL above.
+export OVERRIDE_GIT_DESCRIBE ?= $(shell bun scripts/print-duckdb-pin.mjs)
+
 # Include the Makefile from extension-ci-tools — optionally: our own
 # project targets (hygiene, lint scans, ...) never touch C++/CMake and don't
 # need the submodule checked out; a build/test target does, and fails with
