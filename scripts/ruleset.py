@@ -6,15 +6,16 @@ other way (Article VII.3). Resolves the ruleset by name, refuses a context that 
 by a registered merge-posture lane or hasn't reported green on main, edits
 required_status_checks, PUTs the whole ruleset back.
 
-Run interactively by a human/Claude Code (never by a CI workflow -- Article
-VII.3), so this keeps its own gh-tsouza constant rather than importing
-scripts/lib/gh.py's plain-`gh` helpers (those are the CI-safe equivalent
-for standalone scripts like scripts/pr-label.py/scripts/issue-label-check.py);
-only the REPO constant is imported, since that's just data, not a plain-`gh`
-call.
+Run interactively, on the owner's machine (never by a CI workflow -- Article
+VII.3), so this keeps its own configurable interactive-CLI constant rather
+than importing scripts/lib/gh.py's plain-`gh` helpers (those are the CI-safe
+equivalent for standalone scripts like
+scripts/pr-label.py/scripts/issue-label-check.py); only the REPO constant is
+imported, since that's just data, not a plain-`gh` call.
 """
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -24,7 +25,10 @@ import yaml
 from lib.gh import REPO
 
 RULESET_NAME = "main"
-GH = "gh-tsouza"
+# The interactive GitHub CLI identity: configured per-operator via the
+# environment, outside tracked source, so no personal alias is ever a literal
+# in this file. Defaults to plain `gh` for anyone without one configured.
+GH_INTERACTIVE = os.environ.get("CHRONODUCK_GH_INTERACTIVE_CLI", "gh")
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -70,19 +74,19 @@ def hasReportedGreenOnMain(live_context):
     # jq treats a bare identifier as a function call, not a string, unless
     # it's threaded through --arg, which `gh api --jq` (a single filter
     # string) has no clean way to accept.
-    out = _run([GH, "api", f"repos/{REPO}/commits/main/check-runs", "--paginate", "--slurp"])
+    out = _run([GH_INTERACTIVE, "api", f"repos/{REPO}/commits/main/check-runs", "--paginate", "--slurp"])
     pages = json.loads(out)
     check_runs = [run for page in pages for run in (page.get("check_runs") or [])]
     return any(run.get("name") == live_context and run.get("conclusion") == "success" for run in check_runs)
 
 
 def getRuleset():
-    out = _run([GH, "api", f"repos/{REPO}/rulesets"])
+    out = _run([GH_INTERACTIVE, "api", f"repos/{REPO}/rulesets"])
     rulesets = json.loads(out)
     found = next((r for r in rulesets if r["name"] == RULESET_NAME), None)
     if not found:
         raise RuntimeError(f'no ruleset named "{RULESET_NAME}" found')
-    out = _run([GH, "api", f"repos/{REPO}/rulesets/{found['id']}"])
+    out = _run([GH_INTERACTIVE, "api", f"repos/{REPO}/rulesets/{found['id']}"])
     return json.loads(out)
 
 
@@ -97,7 +101,7 @@ def putRuleset(ruleset):
     tmp = ROOT / ".ruleset-put.tmp.json"
     tmp.write_text(json.dumps(body), encoding="utf8")
     try:
-        _run([GH, "api", "-X", "PUT", f"repos/{REPO}/rulesets/{ruleset['id']}", "--input", str(tmp)])
+        _run([GH_INTERACTIVE, "api", "-X", "PUT", f"repos/{REPO}/rulesets/{ruleset['id']}", "--input", str(tmp)])
     finally:
         tmp.unlink(missing_ok=True)
 

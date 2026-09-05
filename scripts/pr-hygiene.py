@@ -7,11 +7,12 @@ Conventional-Commits title, no deferral language without an issue reference
 in the diff, and Article VIII.2's fresh-session-review-postdates-last-commit
 gate.
 
-Run interactively by a human/Claude Code (never by a CI workflow), so this
-fetches via gh-tsouza directly (scripts/lib/gh_diff.py's fetchPrDiff, and
-its own gh-tsouza subprocess calls below) rather than scripts/lib/gh.py's
-plain-`gh` helpers, which are the CI-safe equivalent for standalone scripts
-run without a Claude Code session.
+Run interactively, on the owner's machine (never by a CI workflow), so this
+fetches via the configurable interactive GitHub CLI directly
+(scripts/lib/gh_diff.py's fetchPrDiff, and its own interactive-CLI
+subprocess calls below) rather than scripts/lib/gh.py's plain-`gh` helpers,
+which are the CI-safe equivalent for standalone scripts run without an
+interactively-configured GitHub CLI identity.
 
 Deferral-scan duplication note: scanDiffForDeferral below duplicates
 scripts/hygiene/forbid_deferral.py's pure function of the same name, so
@@ -21,6 +22,7 @@ single shared implementation (#166-style DRY).
 """
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -30,7 +32,10 @@ from pathlib import Path
 from lib.conventional_commits import CONVENTIONAL_COMMITS_RE
 from lib.gh_diff import fetchPrDiff
 
-GH = "gh-tsouza"
+# The interactive GitHub CLI identity: configured per-operator via the
+# environment, outside tracked source, so no personal alias is ever a literal
+# in this file. Defaults to plain `gh` for anyone without one configured.
+GH_INTERACTIVE = os.environ.get("CHRONODUCK_GH_INTERACTIVE_CLI", "gh")
 
 REQUIRED_SECTIONS = ["## How", "## Deviations", "## Risk", "## Evidence", "## Discovered"]
 
@@ -127,9 +132,9 @@ def _read_json_if_exists(path, fallback):
 
 
 def _gh_json(args):
-    result = subprocess.run([GH, *args], capture_output=True, text=True)
+    result = subprocess.run([GH_INTERACTIVE, *args], capture_output=True, text=True)
     if result.returncode != 0:
-        raise RuntimeError(f"{GH} {' '.join(args)} failed (exit {result.returncode}): {result.stderr.strip()}")
+        raise RuntimeError(f"{GH_INTERACTIVE} {' '.join(args)} failed (exit {result.returncode}): {result.stderr.strip()}")
     return json.loads(result.stdout)
 
 
