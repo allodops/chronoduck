@@ -89,6 +89,10 @@ forbid-ledger: ## Ledger-file denylist and undocumented-TODO scan
 forbid-consumer: ## Forbidden consumer-token scan (Article VI.1)
 	python3 scripts/hygiene/forbid-consumer.py
 
+.PHONY: forbid-identity-literals
+forbid-identity-literals: ## No hardcoded gh-tsouza/Claude Code literal under scripts/, src/, test/, docs/{design,testing,decisions}/ (#265)
+	python3 scripts/hygiene/forbid-identity-literals.py
+
 .PHONY: verify-citations
 verify-citations: ## file:function: citation scan (Article II.4)
 	python3 scripts/hygiene/verify-citations.py

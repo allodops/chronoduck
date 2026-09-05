@@ -1,0 +1,13 @@
+{
+  "tokens": ["gh-tsouza", "Claude Code"],
+  "scanRoots": ["scripts/", "src/", "test/", "docs/design/", "docs/testing/", "docs/decisions/"],
+  "exemptPaths": [
+    "docs/decisions/0002-language-unaware-fence.md",
+    "docs/decisions/0012-makefile-as-sole-front-end.md",
+    "docs/decisions/0013-pr-label-zero-open-prs-is-not-vacuity.md",
+    "docs/decisions/0014-changelog-check-is-release-time-not-per-pr.md",
+    "docs/decisions/0015-dependabot-author-login-is-app-dependabot.md",
+    "docs/decisions/0016-fixture-value-scanning-and-article-wording-drift.md",
+    "docs/decisions/0019-rawduck-first-storage-partner.md"
+  ]
+}
