@@ -1,0 +1,172 @@
+# name: test/sql/scan_bound_pushdown.test
+# description: T2.3 — the scan-bound optimizer-extension pushdown, both plan shapes, and the bind -> scan_bounds -> rows scanned seam test
+# group: [sql]
+
+# docs/design/architecture.md's own line: "An optimizer extension pushes the scan bound
+# [start - window - lookback - anchor_extra, end + lookahead] into the scan, scoped to
+# {Aggregate | ExtensionOperator} -> [Filter] -> Get on native and Parquet scans; on a
+# table-function source ... the bound is asserted absent and the residual filter kept."
+# ts_rate claims only EXTRAPOLATE (src/kernel/registry.def), which carries none of
+# scan_bounds's LOOKBACK/ANCHOR/SMOOTH extra terms, so every bound below is the plain
+# [grid_start - window, grid_end].
+
+require chronoduck
+
+# Single-threaded so the CTAS below appends rows to row groups in strict timestamp order:
+# the second gate below depends on each row group's own min/max ts zonemap actually being a
+# contiguous sub-range, which a parallel insert's interleaved row-group assignment would blur.
+statement ok
+SET threads=1;
+
+# 12 row groups' worth of rows on a native table (DuckDB's own default row group size is
+# 122880 -- the fixture's own row-group size G the seam test's contract names). One
+# microsecond per row lines the row count up 1:1 with a TIMESTAMP offset, and the query
+# below targets the single last row, so the pushed bound leaves exactly the last row group
+# unpruned -- 1 of 12 groups scanned versus all 12 without the bound, comfortably past the
+# seam test's own required 10x.
+statement ok
+CREATE TABLE readings AS
+    SELECT 1::UBIGINT AS series_id, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (i) MICROSECOND AS ts, i::DOUBLE AS v
+    FROM range(0, 1474560) AS t(i);
+
+# --- Plan shape 1: {Aggregate} -> Get (no other predicate in this query, so the only filter
+# that can appear on the Get at all is the one this rule pushes). EXPLAIN's default renderer
+# word-wraps a long "Filters:" value across several boxed lines with border characters spliced
+# into the middle of it, so this only asserts the label's own presence -- the exact bound text
+# is asserted below, against the profiling JSON's raw (unrendered) string instead.
+
+query II
+EXPLAIN SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:01.474559',
+                       TIMESTAMP '2024-01-01 00:00:01.474559', 1, 2000)
+FROM readings;
+----
+physical_plan	<REGEX>:.*Filters:.*
+
+# --- Plan shape 2: {ExtensionOperator} -> Get, through the same passthrough-Get chain
+# GridStreamBindOperator wires up (T2.2) -- same table, same bound.
+
+query II
+EXPLAIN SELECT "values" FROM ts_rate(
+    (SELECT series_id, ts, v AS value FROM readings),
+    TIMESTAMP '2024-01-01 00:00:01.474559', TIMESTAMP '2024-01-01 00:00:01.474559', 1, 2000);
+----
+physical_plan	<REGEX>:.*Filters:.*
+
+# --- The profiling-JSON half of the same acceptance criterion: the pushed predicate must
+# reach the profiling JSON too, never live only inside the operator's own state -- a
+# different code path over the same ParamsToString() map EXPLAIN already read from above, and
+# (unlike EXPLAIN's own boxed renderer above) not word-wrapped, so the exact bound text can be
+# asserted here -- plus the seam test's own two numeric gates (docs/testing/primitives.md's
+# "bind -> scan_bounds -> rows scanned" row): rows_scanned <= samples_in_bound + G x runs,
+# and a sentinel proving removing the bound multiplies rows scanned by >= 10x. The JSON keys
+# read here (`extra_info`, `Filters`, `operator_rows_scanned`) are pinned in
+# .github/ci-lanes.json, since DuckDB changed these key names between releases.
+
+statement ok
+PRAGMA enable_profiling='json';
+
+statement ok
+PRAGMA profiling_output='__TEST_DIR__/scan_bound_pushdown_pushed.json';
+
+statement ok
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:01.474559',
+              TIMESTAMP '2024-01-01 00:00:01.474559', 1, 2000)
+FROM readings;
+
+statement ok
+PRAGMA disable_profiling;
+
+# Gate 0: the pushed predicate is in the profiling JSON's own extra_info.Filters, not only
+# inside PhysicalGridStream's/the aggregate's own in-memory bind data.
+query I
+SELECT contains(
+    content,
+    'ts>=''2024-01-01 00:00:01.472559''::TIMESTAMP AND ts<=''2024-01-01 00:00:01.474559''::TIMESTAMP'
+)
+FROM read_text('__TEST_DIR__/scan_bound_pushdown_pushed.json');
+----
+true
+
+# Gate 1: rows_scanned <= samples_in_bound (2001 -- a 2000-microsecond window at a
+# 1-microsecond step) + G (122880) x runs (1). The last regex match in the JSON's own
+# depth-first-serialized text is always the deepest leaf -- the Get -- for this single-scan,
+# no-join plan.
+query I
+SELECT CAST(list_extract(regexp_extract_all(content, '"operator_rows_scanned":\s*(\d+)', 1), -1) AS BIGINT)
+       <= (2001 + 122880 * 1)
+FROM read_text('__TEST_DIR__/scan_bound_pushdown_pushed.json');
+----
+true
+
+# Sentinel: disable the rule and re-run the identical query. Without any pushed bound (and no
+# other predicate in this query), the scan reads every row group.
+statement ok
+SET chronoduck_scan_bound_pushdown=false;
+
+statement ok
+PRAGMA enable_profiling='json';
+
+statement ok
+PRAGMA profiling_output='__TEST_DIR__/scan_bound_pushdown_disabled.json';
+
+statement ok
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:01.474559',
+              TIMESTAMP '2024-01-01 00:00:01.474559', 1, 2000)
+FROM readings;
+
+statement ok
+PRAGMA disable_profiling;
+
+statement ok
+SET chronoduck_scan_bound_pushdown=true;
+
+# No filter at all on the Get with the rule disabled -- the sentinel's own "rule disabled"
+# half of the first acceptance criterion.
+query I
+SELECT NOT contains(content, '"Filters"')
+FROM read_text('__TEST_DIR__/scan_bound_pushdown_disabled.json');
+----
+true
+
+# Sentinel gate: rows scanned without the bound is at least 10x rows scanned with it.
+query I
+SELECT (
+    SELECT CAST(list_extract(regexp_extract_all(content, '"operator_rows_scanned":\s*(\d+)', 1), -1) AS BIGINT)
+    FROM read_text('__TEST_DIR__/scan_bound_pushdown_disabled.json')
+) >= 10 * (
+    SELECT CAST(list_extract(regexp_extract_all(content, '"operator_rows_scanned":\s*(\d+)', 1), -1) AS BIGINT)
+    FROM read_text('__TEST_DIR__/scan_bound_pushdown_pushed.json')
+);
+----
+true
+
+# --- On a table-function source that isn't native/Parquet, the rule declines: no Filters key
+# at all reaches the Get (architecture.md's own "on a table-function source ... the bound is
+# asserted absent" line). `range()`, computed into ts/v through a derived-table subquery, stands
+# in for a partner's own scan (e.g. RawDuck, test/partners/rawduck/, which needs the real
+# partner built and isn't part of this merge-gate lane) here -- neither is `{Aggregate} ->
+# [Filter] -> Get` with `ts` a plain column of the Get itself, so this rule's own conservative
+# "decline is always the safe fallback" posture leaves it alone, the same posture that also
+# separately gates on function name (IsPushableScanFunction) for a source that *is* that exact
+# shape but isn't `seq_scan` (#272 tracks adding `parquet_scan` there with its own fixture).
+
+statement ok
+PRAGMA enable_profiling='json';
+
+statement ok
+PRAGMA profiling_output='__TEST_DIR__/scan_bound_pushdown_declined.json';
+
+statement ok
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00.002000',
+              TIMESTAMP '2024-01-01 00:00:00.002000', 1, 2000)
+FROM (SELECT TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (i) MICROSECOND AS ts, i::DOUBLE AS v
+      FROM range(0, 5000) AS t(i));
+
+statement ok
+PRAGMA disable_profiling;
+
+query I
+SELECT NOT contains(content, '"Filters"')
+FROM read_text('__TEST_DIR__/scan_bound_pushdown_declined.json');
+----
+true

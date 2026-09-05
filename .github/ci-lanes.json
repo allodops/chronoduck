@@ -12,7 +12,8 @@
       "workflow": "ci.yml",
       "posture": "merge",
       "layers": ["L5"],
-      "owner": "tsouza"
+      "owner": "tsouza",
+      "pinned_json_keys": ["extra_info", "Filters", "operator_rows_scanned"]
     },
     {
       "context": "duckdb-stable-build",
