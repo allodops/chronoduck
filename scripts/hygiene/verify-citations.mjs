@@ -90,6 +90,7 @@ function commentRuns(lines) {
 
 const files = await listFiles(root);
 const violations = [];
+const skippedPartnerCitations = [];
 
 for (const f of files) {
   let content;
@@ -114,7 +115,12 @@ for (const f of files) {
     const citedPath = join(root, citedFile);
     if (!existsSync(citedPath)) {
       if (citedFile.startsWith(PARTNER_BUILD_PREFIX)) {
-        return; // not built in this environment — see PARTNER_BUILD_PREFIX comment above
+        // Reported explicitly below, not silently treated as checked — the
+        // same transparency check-pins.mjs's "pending" state already
+        // established for this same "can't check it here" situation, per
+        // the PARTNER_BUILD_PREFIX comment above.
+        skippedPartnerCitations.push(`${f}:${lineNo}: "${citedFile}" not built in this environment`);
+        return;
       }
       violations.push(`${f}:${lineNo}: citation references "${citedFile}", which does not exist`);
       return;
@@ -150,4 +156,9 @@ if (violations.length > 0) {
   for (const v of violations) console.error(`  ${v}`);
   process.exit(1);
 }
-console.log("verify-citations: PASS");
+if (skippedPartnerCitations.length > 0) {
+  console.log(`verify-citations: PASS (${skippedPartnerCitations.length} citation(s) skipped — not built in this environment)`);
+  for (const s of skippedPartnerCitations) console.log(`  SKIPPED: ${s}`);
+} else {
+  console.log("verify-citations: PASS");
+}
