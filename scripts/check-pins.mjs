@@ -4,10 +4,23 @@
 // .github/workflows/MainDistributionPipeline.yml exists (T0.4) — with the
 // duckdb_version/ci_tools_version it declares. Absent that file, the workflow
 // side is reported "pending", never a failure: this task doesn't own that file.
+//
+// Also reports (#47) the storage-partner pin declared in
+// scripts/partners/rawduck.json alongside the submodule pins above, and fails
+// when that pinned commit disagrees with what's actually checked out at
+// build/partners/rawduck/ — but only when that directory exists. It's a
+// plain `git clone` (never a submodule, never committed — see
+// scripts/partners/rawduck-build.mjs), so a hygiene-only run that never built
+// the partner has nothing to compare against; that absence is reported
+// "pending", exactly like the MainDistributionPipeline.yml case above and
+// the Makefile's own "extension-ci-tools submodule not checked out" warning
+// (never a failure — the check that does build the partner first, the
+// partner-rawduck lane, is where this comparison actually bites).
 import { $ } from "bun";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { parse } from "yaml";
+import { EXPECTED_DUCKDB_REF } from "./lib/duckdb-pin.mjs";
 
 const args = process.argv.slice(2);
 const rootIdx = args.indexOf("--root");
@@ -16,7 +29,7 @@ const root = rootIdx === -1 ? process.cwd() : args[rootIdx + 1];
 // The exact pins T0.3 fixes (CONSTITUTION.md Article IV / issue #16): duckdb at
 // the tag v1.5.4, extension-ci-tools at the branch v1.5-variegata.
 const EXPECTED = {
-  duckdb: "v1.5.4",
+  duckdb: EXPECTED_DUCKDB_REF,
   "extension-ci-tools": "v1.5-variegata",
 };
 
@@ -117,6 +130,48 @@ if (wf.error) {
     violations.push(`workflow ci_tools_version "${wf.ciTools}" does not match "${EXPECTED["extension-ci-tools"]}"`);
   } else {
     notes.push(`workflow ci_tools_version: ${wf.ciTools} — OK`);
+  }
+}
+
+// Partner pin (#47): scripts/partners/rawduck.json names the commit
+// build/partners/rawduck/ (a plain clone, never a submodule) must actually be
+// checked out at, once that clone exists.
+async function partnerPinStatus(rootDir) {
+  const configPath = join(rootDir, "scripts", "partners", "rawduck.json");
+  if (!existsSync(configPath)) {
+    return { present: false };
+  }
+  let config;
+  try {
+    config = JSON.parse(readFileSync(configPath, "utf8"));
+  } catch (e) {
+    return { present: true, error: `could not parse ${configPath} (${e.message})` };
+  }
+  const checkoutPath = join(rootDir, "build", "partners", "rawduck");
+  if (!existsSync(checkoutPath)) {
+    return { present: true, pinned: config.commit, checkedOut: false };
+  }
+  let actual;
+  try {
+    actual = (await $`git -C ${checkoutPath} rev-parse HEAD`.text()).trim();
+  } catch (e) {
+    return { present: true, pinned: config.commit, checkedOut: true, error: `could not read HEAD of ${checkoutPath}: ${e.message}` };
+  }
+  return { present: true, pinned: config.commit, checkedOut: true, actual };
+}
+
+const partnerPin = await partnerPinStatus(root);
+if (partnerPin.present) {
+  if (partnerPin.error) {
+    violations.push(`rawduck partner pin: ${partnerPin.error}`);
+  } else if (!partnerPin.checkedOut) {
+    notes.push(`rawduck partner pin: ${partnerPin.pinned} — pending (build/partners/rawduck/ not checked out; run \`make partner-rawduck-build\`)`);
+  } else if (partnerPin.actual !== partnerPin.pinned) {
+    violations.push(
+      `rawduck partner pin "${partnerPin.pinned}" (scripts/partners/rawduck.json) does not match the checkout at build/partners/rawduck/, which is at "${partnerPin.actual}"`
+    );
+  } else {
+    notes.push(`rawduck partner pin: ${partnerPin.pinned} — OK (matches build/partners/rawduck/ checkout)`);
   }
 }
 

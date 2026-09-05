@@ -76,6 +76,13 @@
       "posture": "release",
       "layers": [],
       "owner": "tsouza"
+    },
+    {
+      "context": "partner-rawduck",
+      "workflow": "release.yml",
+      "posture": "release",
+      "layers": ["L15"],
+      "owner": "tsouza"
     }
   ]
 }
