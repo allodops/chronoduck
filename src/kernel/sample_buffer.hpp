@@ -200,7 +200,8 @@ public:
 	// Visits every sample currently held, across every page, in page/append
 	// order (not necessarily sorted) — `merge`'s and `sort_dedup`'s own
 	// walk over raw storage.
-	template <typename Fn> void for_each(Fn &&fn) const {
+	template <typename Fn>
+	void for_each(Fn &&fn) const {
 		for (const Page &page : pages_) {
 			for (std::size_t i = 0; i < page.used; i++) {
 				fn(page.data[i]);
@@ -341,10 +342,8 @@ public:
 	SampleSpan slice(int64_t lo, int64_t hi) const {
 		const Sample *data = arena_.front_page_data();
 		std::size_t n = arena_.front_page_size();
-		const Sample *lo_it =
-		    std::lower_bound(data, data + n, lo, [](const Sample &s, int64_t t) { return s.t < t; });
-		const Sample *hi_it =
-		    std::upper_bound(lo_it, data + n, hi, [](int64_t t, const Sample &s) { return t < s.t; });
+		const Sample *lo_it = std::lower_bound(data, data + n, lo, [](const Sample &s, int64_t t) { return s.t < t; });
+		const Sample *hi_it = std::upper_bound(lo_it, data + n, hi, [](int64_t t, const Sample &s) { return t < s.t; });
 		return {lo_it, hi_it};
 	}
 

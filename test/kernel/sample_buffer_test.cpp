@@ -95,8 +95,8 @@ double FoldGroupBestOf(const std::vector<double> &values, bool (*policy)(double,
 // Must-die mutant: "keep the minimum instead of the maximum"
 // (`docs/testing/primitives.md:dedup-policy-row:` `Max↔min↔first↔last`).
 // Reverses the rank comparison `dedup_policy` itself makes
-// (`src/kernel/sample_buffer.hpp:dedup_policy:` `detail::RankLess(detail::RankOf(incumbent), detail::RankOf(challenger))`),
-// so the "winner" is the least-ranked candidate instead of the greatest.
+// (`src/kernel/sample_buffer.hpp:dedup_policy:` `detail::RankLess(detail::RankOf(incumbent),
+// detail::RankOf(challenger))`), so the "winner" is the least-ranked candidate instead of the greatest.
 bool MutantDedupPolicyKeepsMin(double challenger, double incumbent) {
 	return chronoduck::detail::RankLess(chronoduck::detail::RankOf(challenger), chronoduck::detail::RankOf(incumbent));
 }
@@ -109,7 +109,9 @@ bool MutantDedupPolicyKeepsMin(double challenger, double incumbent) {
 // declared value-based policy.
 std::vector<Sample> MutantKeepFirstOfGroup(std::vector<Sample> samples) {
 	std::stable_sort(samples.begin(), samples.end(), [](const Sample &a, const Sample &b) { return a.t < b.t; });
-	auto same_timestamp = [](const Sample &a, const Sample &b) { return a.t == b.t; };
+	auto same_timestamp = [](const Sample &a, const Sample &b) {
+		return a.t == b.t;
+	};
 	auto new_end = std::unique(samples.begin(), samples.end(), same_timestamp);
 	samples.erase(new_end, samples.end());
 	return samples;
@@ -176,7 +178,8 @@ void TestAppendGrowsAcrossPages() {
 	for (int i = 0; i < kFirstPageCapacity; i++) {
 		char what[128];
 		std::snprintf(what, sizeof(what), "pointer from push #%d must survive later page growth unmoved", i);
-		Check(early_pointers[static_cast<std::size_t>(i)]->t == i && early_pointers[static_cast<std::size_t>(i)]->v == i * 1.5,
+		Check(early_pointers[static_cast<std::size_t>(i)]->t == i &&
+		          early_pointers[static_cast<std::size_t>(i)]->v == i * 1.5,
 		      what);
 	}
 }
@@ -243,7 +246,8 @@ void CheckSortDedupMatchesOracle(const std::vector<Sample> &raw, const char *lab
 		Check(got.begin[i].t == expected[i].t && BitExact(got.begin[i].v, expected[i].v), what);
 	}
 	for (std::size_t i = 1; i < got.size(); i++) {
-		Check(got.begin[i].t > got.begin[i - 1].t, "invariant: timestamps must be strictly increasing after sort_dedup");
+		Check(got.begin[i].t > got.begin[i - 1].t,
+		      "invariant: timestamps must be strictly increasing after sort_dedup");
 	}
 }
 
@@ -534,7 +538,8 @@ void TestDedupPolicyCounterConsequence() {
 	double wrong_increase = ToyExtrapolatedIncrease(dup_inflated);
 
 	char what[256];
-	std::snprintf(what, sizeof(what), "the deduped sample count (4) must yield the Prometheus-correct increase 50, got %.6f",
+	std::snprintf(what, sizeof(what),
+	              "the deduped sample count (4) must yield the Prometheus-correct increase 50, got %.6f",
 	              correct_increase);
 	Check(std::fabs(correct_increase - 50.0) < 1e-9, what);
 
