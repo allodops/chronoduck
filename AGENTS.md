@@ -50,6 +50,11 @@ An M0 issue only touches the files its own scope implies (Article III.4); do not
 ## Gotchas
 
 - Use `gh-tsouza`, never plain `gh`, for every GitHub CLI call in this project.
+- `CHRONODUCK_GH_INTERACTIVE_CLI` (default `gh`) lets an operator point the 5 scripts that shell
+  out to the GitHub CLI interactively — `scripts/coverage-check.py`, `scripts/ruleset.py`,
+  `scripts/pr-hygiene.py`, `scripts/lib/gh_diff.py`, `scripts/hygiene/forbid-ledger.py` — at their
+  own configured identity (e.g. `gh-tsouza`), without that identity's name ever being hardcoded in
+  tracked source. Set it in the environment; it's read via `os.environ.get(...)`, never a literal.
 - Git pushes need the GitHub noreply identity (`122435+tsouza@users.noreply.github.com`) — GitHub's GH007 rejects a real private email as author *or* committer.
 - The `main` ruleset requires `required_status_checks` to be non-empty at creation time (a GitHub API constraint the plan didn't anticipate); it starts with no required-checks rule and gets one only via `make ruleset-add-check` once a real context has reported on `main` (T0.5).
 - The org's built-in issue types are `Task`, `Bug`, `Feature`; `Epic` was added manually since the plan calls for it and `Feature` isn't the right shape for a milestone root.
