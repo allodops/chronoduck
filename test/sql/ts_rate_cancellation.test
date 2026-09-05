@@ -1,11 +1,12 @@
 # name: test/sql/ts_rate_cancellation.test
 # description: ts_rate's aggregate state destructor runs even when a query aborts mid-aggregation
+# group: [sql]
+
 #   (Tier 6's own "destructor invoked ... including on query cancellation and on exception in
 #   finalize" unit contract). More rows than one vector fit in fit into the aggregate's Update
 #   before the error-raising row, so a live, non-empty SampleBuffer already exists on the state
 #   when the query unwinds — proving the abort path runs through RateDestroy, not just the normal
 #   completion path every other test in this file already exercises.
-# group: [sql]
 
 require chronoduck
 

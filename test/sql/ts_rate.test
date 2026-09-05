@@ -1,8 +1,9 @@
 # name: test/sql/ts_rate.test
 # description: ts_rate(...) aggregate — arithmetic ported from test/fixtures/rate/*.yaml (#33's
+# group: [sql]
+
 #   already-fenced L2 fixtures), proving the real SQL aggregate agrees with the kernel composition
 #   rather than re-deriving the numbers here.
-# group: [sql]
 
 require chronoduck
 
