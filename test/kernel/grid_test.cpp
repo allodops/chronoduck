@@ -204,7 +204,8 @@ void TestExtremeSpanOverflow() {
 	}
 	Check(!threw, "a legal extreme-span grid (end - start > INT64_MAX) must not throw a spurious construction error");
 	if (g != nullptr) {
-		Check(g->count() == n, "count() on an extreme-span grid must report the correct value, not a wrapped-around one");
+		Check(g->count() == n,
+		      "count() on an extreme-span grid must report the correct value, not a wrapped-around one");
 		Check(g->at(0) == start, "at(0) on an extreme-span grid must be start");
 		Check(g->index_of(end) == n - 1, "index_of(end) on an extreme-span grid must be count() - 1");
 		delete g;
@@ -227,10 +228,38 @@ void TestUnwidenedSpanMutant() {
 	const int64_t n = 18000000001LL;
 	const int64_t end = static_cast<int64_t>(static_cast<__int128_t>(start) + static_cast<__int128_t>(n - 1) * step);
 
+	// Diffs against the REAL, live `Grid` instance's own `count()` — not
+	// against a hand-computed constant — the same pattern every other
+	// mutant test in this file follows (e.g. `TestCountOffByOneMutant`
+	// diffs against `g.end`). If `Grid::count()` ever regresses back to
+	// plain `int64_t` arithmetic, it would compute the identical wrapped
+	// value this mutant computes, and this assertion — not just a
+	// stand-alone constant comparison — is what catches that.
+	//
+	// Construction is wrapped in try/catch (unlike the file's other three
+	// mutant tests, which construct a small, always-valid `Grid`): a
+	// regression to unwidened arithmetic can corrupt the constructor's own
+	// `span % step` divisibility check on this extreme-span input, throwing
+	// instead of just miscounting — a broken build must still report a
+	// clean `FAIL`, not crash the whole test binary via an uncaught
+	// exception (confirmed live: reverting the fix crashes this test
+	// uncaught before this try/catch was added).
+	bool threw = false;
+	int64_t real_count = 0;
+	try {
+		Grid g(start, end, step);
+		real_count = g.count();
+	} catch (const std::invalid_argument &) {
+		threw = true;
+	}
+	Check(!threw, "sanity: the real, fixed Grid must construct without throwing on this extreme-span input");
+	Check(real_count == n,
+	      "sanity: the real, fixed Grid's count() on an extreme-span grid must equal the correct value");
 	int64_t mutant_count = MutantUnwidenedCount(start, end, step);
-	Check(mutant_count != n,
-	      "must-die: the unwidened-arithmetic mutant's count() on an extreme-span grid must differ from the correct "
-	      "(widened) value — if it doesn't, the widening fix has regressed back to plain int64_t");
+	Check(mutant_count != real_count,
+	      "must-die: the unwidened-arithmetic mutant's count() on an extreme-span grid must differ from the real "
+	      "Grid's own count() — if they match (or the real Grid threw above), Grid has regressed back to plain "
+	      "int64_t arithmetic");
 }
 
 // Must-die mutant #1: "Floor<->ceil"
@@ -308,6 +337,8 @@ int main() {
 	TestMicrosecondVsSecondScale();
 	TestAtIndexOfInvariantForRandomT();
 	TestIndexOfAtInvariant();
+	TestExtremeSpanOverflow();
+	TestUnwidenedSpanMutant();
 	TestFloorCeilMutant();
 	TestCountOffByOneMutant();
 	TestInclusiveExclusiveEndMutant();
