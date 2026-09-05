@@ -94,7 +94,7 @@ partner-rawduck-build: ## Build the RawDuck storage partner (L15) at its pinned 
 	bun scripts/partners/rawduck-build.mjs
 
 .PHONY: partner-rawduck-test
-partner-rawduck-test: ## LOAD chronoduck + the built rawduck extension together and run test/partners/rawduck/*.test (smoke-LOAD only)
+partner-rawduck-test: ## LOAD chronoduck + the built rawduck extension together and run test/partners/rawduck/*.sql (smoke-LOAD only)
 	bun scripts/partners/rawduck-test.mjs
 
 .PHONY: build-relevant-changed
