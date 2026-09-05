@@ -21,7 +21,7 @@
 // such enum, so this scan is vacuously green on the real tree; its fixture
 // branch proves the mechanism on a synthetic one (Article V.5 still needs a
 // real, provably-executed lane — `scripts/hygiene.mjs`'s TREE_SCANS — not a
-// hope that a later issue remembers this file exists).
+// hope that a future issue remembers this file exists).
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
@@ -89,7 +89,7 @@ function findDeclaredDivergences(root) {
 // fixture format (`test/fixtures/schema.json`) has no `divergence:` field of
 // its own to add — doing so is a fixture-format change no future L6a issue
 // has asked for yet, and Article III.4 rules out pre-building tooling a
-// later issue owns. A fixture "exercises" a declared divergence by naming
+// future issue owns. A fixture "exercises" a declared divergence by naming
 // it — in its `fixture:` id, a `wrong:` key, a comment, or any other text —
 // anywhere in the fixture file itself, or in the sqllogictest that drives
 // the row the enum concerns.
