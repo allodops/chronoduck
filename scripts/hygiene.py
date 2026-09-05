@@ -9,10 +9,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # (#194) lives at scripts/fixtures-validate.mjs, schema.json's sibling per
 # #146, so it's named without the "hygiene/" prefix like every other entry.
 #
-# Each entry is (interpreter, relative path). Every hygiene/*.py scan below
-# is a Python port (issue #241); fixtures-validate.mjs is out of that port's
-# scope (it lives outside scripts/hygiene/, per issue #241's own text) and
-# still runs under bun until whichever later issue in this milestone ports it.
+# Each entry is (interpreter, relative path). Every scan below is a Python
+# port; fixtures-validate.py lives outside scripts/hygiene/ (per issue #241's
+# own text, it was out of that port's scope) but was itself ported to Python
+# by a later issue in this milestone (#242) -- run under python3 like every
+# other entry now that the Makefile/CI cutover (#245) means nothing in this
+# list can fall back on a Bun toolchain being present.
 TREE_SCANS = [
     ("python3", "hygiene/forbid-ledger.py"),
     ("python3", "hygiene/forbid-consumer.py"),
@@ -30,7 +32,7 @@ TREE_SCANS = [
     ("python3", "hygiene/registry-roster-closure.py"),
     ("python3", "hygiene/divergence-enum-coverage.py"),
     ("python3", "hygiene/tier-coverage-floor.py"),
-    ("bun", "fixtures-validate.mjs"),
+    ("python3", "fixtures-validate.py"),
 ]
 
 failed = False

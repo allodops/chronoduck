@@ -1,7 +1,7 @@
 name: issue-label-check
 
 # Flags any OPEN issue missing a size: or area: label — see
-# scripts/issue-label-check.mjs's header for the rationale (issue #124).
+# scripts/issue-label-check.py's header for the rationale (issue #124).
 #
 # NOT A GATE: not a required status check, not part of `make hygiene`. Runs
 # on a schedule + manual dispatch and is deliberately red-until-fixed rather
@@ -27,9 +27,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          bun-version-file: .bun-version
+          python-version: '3.12'
       - run: make issue-label-check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

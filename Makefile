@@ -19,11 +19,11 @@ export CMAKE_BUILD_PARALLEL_LEVEL ?= $(shell nproc)
 # self-reports the dummy version v0.0.1, which then breaks LOADing any
 # separately-built, correctly-versioned extension (e.g. the partner-rawduck
 # lane's RawDuck build) as an ABI mismatch. Setting it here to our own pin
-# (scripts/lib/duckdb-pin.mjs's single source of truth, read via
-# scripts/print-duckdb-pin.mjs so the value isn't duplicated) makes every
+# (scripts/lib/duckdb_pin.py's single source of truth, read via
+# scripts/print-duckdb-pin.py so the value isn't duplicated) makes every
 # cmake-driven target report the real version unconditionally, checkout
 # shallowness aside; overridable, like CMAKE_BUILD_PARALLEL_LEVEL above.
-export OVERRIDE_GIT_DESCRIBE ?= $(shell bun scripts/print-duckdb-pin.mjs)
+export OVERRIDE_GIT_DESCRIBE ?= $(shell python3 scripts/print-duckdb-pin.py)
 
 # Include the Makefile from extension-ci-tools — optionally: our own
 # project targets (hygiene, lint scans, ...) never touch C++/CMake and don't
@@ -44,7 +44,7 @@ help: ## Show this help
 
 .PHONY: smoke
 smoke: ## LOAD the built extension into a stock DuckDB shell and assert chronoduck_version()
-	bun scripts/smoke.mjs
+	python3 scripts/smoke.py
 
 .PHONY: test-relassert
 test-relassert: ## Run the sqllogictest suite against the relassert build (UBSan + forced asserts; run `make relassert` first)
@@ -52,164 +52,164 @@ test-relassert: ## Run the sqllogictest suite against the relassert build (UBSan
 
 .PHONY: hygiene
 hygiene: ## Run every tree hygiene scan
-	bun scripts/hygiene.mjs
+	python3 scripts/hygiene.py
 
 .PHONY: hygiene-selftest
 hygiene-selftest: ## Prove each scan fails on its fixture, then that the tree is green
-	bun scripts/hygiene-selftest.mjs
+	python3 scripts/hygiene-selftest.py
 
 .PHONY: pr-hygiene
 pr-hygiene: ## Scan an open PR against Article III/VIII's rules: make pr-hygiene PR=<n>
 	$(if $(PR),,$(error usage: make pr-hygiene PR=<n>))
-	bun scripts/pr-hygiene.mjs $(PR)
+	python3 scripts/pr-hygiene.py $(PR)
 
 .PHONY: forbid-ledger
 forbid-ledger: ## Ledger-file denylist and undocumented-TODO scan
-	bun scripts/hygiene/forbid-ledger.mjs
+	python3 scripts/hygiene/forbid-ledger.py
 
 .PHONY: forbid-consumer
 forbid-consumer: ## Forbidden consumer-token scan (Article VI.1)
-	bun scripts/hygiene/forbid-consumer.mjs
+	python3 scripts/hygiene/forbid-consumer.py
 
 .PHONY: verify-citations
 verify-citations: ## file:function: citation scan (Article II.4)
-	bun scripts/hygiene/verify-citations.mjs
+	python3 scripts/hygiene/verify-citations.py
 
 .PHONY: workflow-shape
 workflow-shape: ## Every workflow step is `make <target>` or a pinned reusable uses: (Article IV.3)
-	bun scripts/hygiene/workflow-shape.mjs
+	python3 scripts/hygiene/workflow-shape.py
 
 .PHONY: constitution-check
 constitution-check: ## A changed CONSTITUTION.md needs a version bump, new date and ADR (Article IX.2)
-	bun scripts/hygiene/constitution-check.mjs
+	python3 scripts/hygiene/constitution-check.py
 
 .PHONY: registry-closure
 registry-closure: ## Every registry.def row has a test file and no kernel function registers outside the registry (Article V.1)
-	bun scripts/hygiene/registry-closure.mjs
+	python3 scripts/hygiene/registry-closure.py
 
 .PHONY: forbid-test-tolerance
 forbid-test-tolerance: ## No tolerance under test/ other than the comparator (Article V.3)
-	bun scripts/hygiene/forbid-test-tolerance.mjs
+	python3 scripts/hygiene/forbid-test-tolerance.py
 
 .PHONY: forbid-relative-kernel-include
 forbid-relative-kernel-include: ## No parent-relative includes under test/kernel/ — the fragile pre-#229 form
-	bun scripts/hygiene/forbid-relative-kernel-include.mjs
+	python3 scripts/hygiene/forbid-relative-kernel-include.py
 
 .PHONY: kernel-primitive-tests
 kernel-primitive-tests: ## Compile and run every test/kernel/*_test.cpp, each primitive's L1a direct test
-	bun scripts/hygiene/kernel-primitive-tests.mjs
+	python3 scripts/hygiene/kernel-primitive-tests.py
 
 .PHONY: oracle-fence
 oracle-fence: ## Walk every #include reachable from test/oracle/ and fail if any edge reaches src/ (Article V.2, T5)
-	bun scripts/hygiene/oracle-fence.mjs
+	python3 scripts/hygiene/oracle-fence.py
 
 .PHONY: shape-roster
 shape-roster: ## L3's ShapeID property roster, identity-ratcheted against test/oracle/shape-roster.json (Article V.4, T7)
-	bun scripts/hygiene/shape-roster.mjs
+	python3 scripts/hygiene/shape-roster.py
 
 .PHONY: forbid-deferral
 forbid-deferral: ## PR-diff deferral-language scan: make forbid-deferral PR=<n>
 	$(if $(PR),,$(error usage: make forbid-deferral PR=<n>))
-	bun scripts/hygiene/forbid-deferral.mjs --pr $(PR)
+	python3 scripts/hygiene/forbid_deferral.py --pr $(PR)
 
 .PHONY: check-pins
 check-pins: ## Verify duckdb / extension-ci-tools submodule pins agree with each other and the workflow file
-	bun scripts/check-pins.mjs
+	python3 scripts/check-pins.py
 
 .PHONY: partner-rawduck-build
 partner-rawduck-build: ## Build the RawDuck storage partner (L15) at its pinned commit against our own duckdb pin, cached by (commit, pin); RAWDUCK_REF=head builds at RawDuck's own default-branch HEAD instead (partner-rawduck-head, issue #49)
-	bun scripts/partners/rawduck-build.mjs
+	python3 scripts/partners/rawduck-build.py
 
 .PHONY: partner-rawduck-test
 partner-rawduck-test: ## LOAD chronoduck + the built rawduck extension together and run test/partners/rawduck/*.sql (smoke-LOAD only); RAWDUCK_REF=head targets the HEAD build instead of the pinned one
-	bun scripts/partners/rawduck-test.mjs
+	python3 scripts/partners/rawduck-test.py
 
 .PHONY: chdb-fetch
 chdb-fetch: ## Vendor libchdb at its pinned (repository, tag), checksum-verified, into build/ (L6a, #43)
-	bun scripts/live-oracles/chdb-fetch.mjs
+	python3 scripts/live-oracles/chdb-fetch.py
 
 .PHONY: chdb-differential
 chdb-differential: ## Run every rate fixture (test/fixtures/rate/*.yaml and test/fixtures/derived/**/*.yaml) against chDB's timeSeriesRateToGrid under the comparator, rostered by (fixture, oracle) (L6a, #43)
-	bun scripts/live-oracles/chdb-differential.mjs
+	python3 scripts/live-oracles/chdb-differential.py
 
 .PHONY: memory-check-grid-stream
-memory-check-grid-stream: ## Operator-level L11 self-check for issue #40 AC2: peak RSS stays flat across a 100x-1000x series-count spread on the 1s/5min-window shape (release build required; not a merge-gate lane, see #45)
+memory-check-grid-stream: ## Operator-level L11 self-check for issue #40 AC2: peak RSS stays flat across a 100x-1000x series-count spread on the 1s/5min-window shape (release build required; not a merge-gate lane, see #45); still bun -- #239-#244 never ported it, see #257
 	bun scripts/memory-check-grid-stream.mjs
 
 .PHONY: build-relevant-changed
 build-relevant-changed: ## Print/write BUILD_RELEVANT=true|false for whether the diff against origin/main could affect the compiled extension
-	bun scripts/build-relevant-changed.mjs
+	python3 scripts/build-relevant-changed.py
 
 .PHONY: lanes-check
 lanes-check: ## Verify .github/ci-lanes.json against the actual workflow files
-	bun scripts/lanes-check.mjs
+	python3 scripts/lanes-check.py
 
 .PHONY: ruleset-add-check
 ruleset-add-check: ## Add a required status check to the main ruleset: make ruleset-add-check CONTEXT=<name>
 	$(if $(CONTEXT),,$(error usage: make ruleset-add-check CONTEXT=<name>))
-	bun scripts/ruleset.mjs add "$(CONTEXT)"
+	python3 scripts/ruleset.py add "$(CONTEXT)"
 
 .PHONY: ruleset-remove-check
 ruleset-remove-check: ## Remove a required status check from the main ruleset: make ruleset-remove-check CONTEXT=<name>
 	$(if $(CONTEXT),,$(error usage: make ruleset-remove-check CONTEXT=<name>))
-	bun scripts/ruleset.mjs remove "$(CONTEXT)"
+	python3 scripts/ruleset.py remove "$(CONTEXT)"
 
 .PHONY: pr-label
 pr-label: ## Mirror a linked issue's size:/area: labels onto its PR: make pr-label [PR=<n>] (omit PR to backfill every open PR)
-	bun scripts/pr-label.mjs $(if $(PR),PR=$(PR))
+	python3 scripts/pr-label.py $(if $(PR),PR=$(PR))
 
 .PHONY: issue-label-check
 issue-label-check: ## Flag any open issue missing both a size: and an area: label
-	bun scripts/issue-label-check.mjs
+	python3 scripts/issue-label-check.py
 
 .PHONY: docs-links
 docs-links: ## Resolve every relative link and #anchor under docs/ and README.md
-	bun scripts/docs-links.mjs
+	python3 scripts/docs-links.py
 
 .PHONY: adr-lint
 adr-lint: ## Verify docs/decisions/*.md's filename, numbering and front matter (Article IX.1/IX.2)
-	bun scripts/adr-lint.mjs
+	python3 scripts/adr-lint.py
 
 .PHONY: fixtures-validate
 fixtures-validate: ## Validate every test/fixtures/*.yaml against the language-neutral fixture format
-	bun scripts/fixtures-validate.mjs
+	python3 scripts/fixtures-validate.py
 
 .PHONY: kernel-fixture-loader
 kernel-fixture-loader: ## Replay every test/fixtures/{rate,derived}/**/*.yaml through the comparator and the fixture-identity roster (L2, Article V.4)
-	bun scripts/hygiene/kernel-fixture-loader.mjs
+	python3 scripts/hygiene/kernel-fixture-loader.py
 
 .PHONY: derivation-sync
 derivation-sync: ## Check test/fixtures/derived/manifest.json against the actual files and the roster (L2/L12, Article V.4)
-	bun scripts/hygiene/derivation-sync.mjs
+	python3 scripts/hygiene/derivation-sync.py
 
 .PHONY: registry-roster-closure
 registry-roster-closure: ## Every fixture-representable registry.def row has a test/fixtures/**/*.yaml fixture (L13)
-	bun scripts/hygiene/registry-roster-closure.mjs
+	python3 scripts/hygiene/registry-roster-closure.py
 
 .PHONY: divergence-enum-coverage
 divergence-enum-coverage: ## Every declared-divergence enum value in src/ is exercised by a fixture or sqllogictest (Article V.3)
-	bun scripts/hygiene/divergence-enum-coverage.mjs
+	python3 scripts/hygiene/divergence-enum-coverage.py
 
 .PHONY: tier-coverage-floor
 tier-coverage-floor: ## Per-Tier primitive test coverage never regresses and never sits at a zero floor (L13)
-	bun scripts/hygiene/tier-coverage-floor.mjs
+	python3 scripts/hygiene/tier-coverage-floor.py
 
 .PHONY: coverage-check
 coverage-check: ## Verify docs/design/coverage.md's K/K+/P rows and milestone tokens against the design docs and the issue tracker
-	bun scripts/coverage-check.mjs
+	python3 scripts/coverage-check.py
 
 .PHONY: description-validate
 description-validate: ## Validate docs/community/description.yml with hand-rolled checks documented by (not read from) scripts/vendor/description.schema.json
-	bun scripts/description-validate.mjs
+	python3 scripts/description-validate.py
 
 .PHONY: changelog
 changelog: ## Write CHANGELOG.md from Conventional-Commit titles since the last tag
-	bun scripts/changelog.mjs
+	python3 scripts/changelog.py
 
 .PHONY: changelog-check
 changelog-check: ## Fail if CHANGELOG.md differs from what `make changelog` would write
-	bun scripts/changelog.mjs --check
+	python3 scripts/changelog.py --check
 
 .PHONY: release-checklist
 release-checklist: ## Print the steps for cutting a chronoduck release
-	bun scripts/release-checklist.mjs
+	python3 scripts/release-checklist.py
