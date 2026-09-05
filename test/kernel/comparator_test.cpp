@@ -9,7 +9,7 @@
 // epsilon (see docs/testing/comparator.md). `scripts/hygiene/forbid-test-tolerance.mjs`
 // enforces that no other file under test/ defines one of its own; this
 // comment is the one legitimate mention the scan's own fixture whitelists.
-#include "../../src/kernel/comparator.hpp"
+#include "src/kernel/comparator.hpp"
 
 #include <cmath>
 #include <cstdio>

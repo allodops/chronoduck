@@ -76,6 +76,10 @@ registry-closure: ## Every registry.def row has a test file and no kernel functi
 forbid-test-tolerance: ## No tolerance under test/ other than the comparator (Article V.3)
 	bun scripts/hygiene/forbid-test-tolerance.mjs
 
+.PHONY: forbid-relative-kernel-include
+forbid-relative-kernel-include: ## No parent-relative includes under test/kernel/ — the fragile pre-#229 form
+	bun scripts/hygiene/forbid-relative-kernel-include.mjs
+
 .PHONY: kernel-primitive-tests
 kernel-primitive-tests: ## Compile and run every test/kernel/*_test.cpp, each primitive's L1a direct test
 	bun scripts/hygiene/kernel-primitive-tests.mjs

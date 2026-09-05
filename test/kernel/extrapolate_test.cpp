@@ -13,9 +13,9 @@
 // "not enough samples" → no value, plus this issue's own single-sample
 // with a bound start timestamp), the `factor >= 1` invariant, and the five
 // named must-die mutants.
-#include "../../src/kernel/comparator.hpp"
-#include "../../src/kernel/counter_fold.hpp"
-#include "../../src/kernel/extrapolate.hpp"
+#include "src/kernel/comparator.hpp"
+#include "src/kernel/counter_fold.hpp"
+#include "src/kernel/extrapolate.hpp"
 
 #include <cmath>
 #include <cstdio>

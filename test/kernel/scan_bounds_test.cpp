@@ -29,10 +29,10 @@
 // asserting which rows fall inside the bound, not by comparing fold output
 // values (a fixture where the dropped term happens not to change the
 // answer would let a naive, value-only test miss it).
-#include "../../src/kernel/grid.hpp"
-#include "../../src/kernel/lookback.hpp"
-#include "../../src/kernel/scan_bounds.hpp"
-#include "../../src/kernel/window.hpp"
+#include "src/kernel/grid.hpp"
+#include "src/kernel/lookback.hpp"
+#include "src/kernel/scan_bounds.hpp"
+#include "src/kernel/window.hpp"
 
 #include <cstdint>
 #include <cstdio>

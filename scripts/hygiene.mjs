@@ -16,6 +16,7 @@ const TREE_SCANS = [
   "hygiene/constitution-check",
   "hygiene/registry-closure",
   "hygiene/forbid-test-tolerance",
+  "hygiene/forbid-relative-kernel-include",
   "hygiene/kernel-primitive-tests",
   "hygiene/oracle-fence",
   "hygiene/shape-roster",

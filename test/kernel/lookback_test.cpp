@@ -10,8 +10,8 @@
 // exactly at the bound, one microsecond older, a stale marker within
 // lookback), the monotone-carry invariant, and the two named must-die
 // mutants (boundary inclusivity, stale check removal).
-#include "../../src/kernel/lookback.hpp"
-#include "../../src/kernel/stale.hpp"
+#include "src/kernel/lookback.hpp"
+#include "src/kernel/stale.hpp"
 
 #include <cstdint>
 #include <cstdio>

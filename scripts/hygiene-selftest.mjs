@@ -160,6 +160,23 @@ await expectRed("forbid-test-tolerance", [
   materialize("forbid-test-tolerance"),
 ]);
 
+// 4d-2: forbid-relative-kernel-include (#229) — a reintroduced parent-relative
+// include under test/kernel/ is red; the clean, root-relative quoted form is
+// green, proving the scan doesn't false-positive on the fix it's meant to
+// permanently enforce.
+await expectRed("forbid-relative-kernel-include", [
+  "bun",
+  join(HERE, "hygiene", "forbid-relative-kernel-include.mjs"),
+  "--root",
+  materialize("forbid-relative-kernel-include-red"),
+]);
+await expectGreen("forbid-relative-kernel-include (clean root-relative include)", [
+  "bun",
+  join(HERE, "hygiene", "forbid-relative-kernel-include.mjs"),
+  "--root",
+  materialize("forbid-relative-kernel-include-green"),
+]);
+
 // 4e: kernel-primitive-tests (#27, generalized by #28/T1.4 to every
 // test/kernel/*_test.cpp) — a broken test/kernel/comparator_test.cpp
 // (compiles, but exits nonzero with no "PASS" sentinel) is red when it's the

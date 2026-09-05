@@ -13,7 +13,7 @@
 // integer-arithmetic oracle, and the three named must-die mutants
 // (floor<->ceil, +/-1 on count, inclusive<->exclusive end), each reproduced
 // as a small shadow implementation carrying exactly that mutation.
-#include "../../src/kernel/grid.hpp"
+#include "src/kernel/grid.hpp"
 
 #include <cmath>
 #include <cstdint>

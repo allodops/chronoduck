@@ -9,8 +9,8 @@
 // the table (two points, collinear, constant series), the three invariants,
 // the extended-precision oracle, and both must-die mutants, each
 // demonstrated by a shadow implementation carrying the mutation.
-#include "../../src/kernel/comparator.hpp"
-#include "../../src/kernel/linear_regression.hpp"
+#include "src/kernel/comparator.hpp"
+#include "src/kernel/linear_regression.hpp"
 
 #include <cmath>
 #include <cstdio>

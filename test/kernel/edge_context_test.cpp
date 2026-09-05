@@ -13,9 +13,9 @@
 // `after.t > anchor`) checked against a brute-force oracle over many
 // randomized trials, and the named must-die mutant ("Off-by-one selecting
 // the sample *in* the window as 'before'").
-#include "../../src/kernel/edge_context.hpp"
-#include "../../src/kernel/sample_buffer.hpp"
-#include "../../src/kernel/window.hpp"
+#include "src/kernel/edge_context.hpp"
+#include "src/kernel/sample_buffer.hpp"
+#include "src/kernel/window.hpp"
 
 #include <algorithm>
 #include <cstdint>

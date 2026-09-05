@@ -21,12 +21,12 @@
 // cumulative-native or unknown temporality, never delta.
 #pragma once
 
-#include "../../src/kernel/comparator.hpp"
-#include "../../src/kernel/counter_fold.hpp"
-#include "../../src/kernel/extrapolate.hpp"
-#include "../../src/kernel/grid.hpp"
-#include "../../src/kernel/sample_buffer.hpp"
-#include "../../src/kernel/window_walk.hpp"
+#include "src/kernel/comparator.hpp"
+#include "src/kernel/counter_fold.hpp"
+#include "src/kernel/extrapolate.hpp"
+#include "src/kernel/grid.hpp"
+#include "src/kernel/sample_buffer.hpp"
+#include "src/kernel/window_walk.hpp"
 
 #include <cmath>
 #include <cstdint>
