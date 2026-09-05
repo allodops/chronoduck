@@ -89,6 +89,14 @@ forbid-deferral: ## PR-diff deferral-language scan: make forbid-deferral PR=<n>
 check-pins: ## Verify duckdb / extension-ci-tools submodule pins agree with each other and the workflow file
 	bun scripts/check-pins.mjs
 
+.PHONY: partner-rawduck-build
+partner-rawduck-build: ## Build the RawDuck storage partner (L15) at its pinned commit against our own duckdb pin, cached by (commit, pin)
+	bun scripts/partners/rawduck-build.mjs
+
+.PHONY: partner-rawduck-test
+partner-rawduck-test: ## LOAD chronoduck + the built rawduck extension together and run test/partners/rawduck/*.sql (smoke-LOAD only)
+	bun scripts/partners/rawduck-test.mjs
+
 .PHONY: build-relevant-changed
 build-relevant-changed: ## Print/write BUILD_RELEVANT=true|false for whether the diff against origin/main could affect the compiled extension
 	bun scripts/build-relevant-changed.mjs

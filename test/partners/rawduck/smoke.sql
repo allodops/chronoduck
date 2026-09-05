@@ -1,0 +1,34 @@
+-- test/partners/rawduck/smoke.sql
+--
+-- L15 smoke-LOAD (docs/testing/storage-partners.md): chronoduck and rawduck
+-- both LOAD into the same DuckDB shell without conflict, and a minimal
+-- RawDuck-backed table answers a ts_rate query. Real layout-parity fixtures
+-- against RawDuck's actual on-disk layout are issue #48's scope, not this
+-- one — this file only proves the two extensions coexist and interoperate at
+-- all. Run by scripts/partners/rawduck-test.mjs, which LOADs both
+-- .duckdb_extension files (plus RawDuck's own json sibling artifact) before
+-- this script runs. Deliberately NOT named `*.test`: DuckDB's own sqllogic
+-- test runner (`./build/release/test/unittest "test/*"`, what `make test`
+-- invokes) auto-discovers every `.test` file under `test/` and tries to
+-- parse it as sqllogictest syntax regardless of directory — this file's `--`
+-- SQL-comment header lines aren't valid sqllogictest directives, so a
+-- `.test` extension here breaks the ordinary test lane, not just the
+-- partner-specific one.
+
+-- A minimal RawMergeTree store (README "Usage"): no CREATE TABLE, no schema
+-- declaration — the `metrics` table and its typed columns emerge from the
+-- raw JSON rows inserted through the virtual `ingest` schema.
+ATTACH 'rawduck:rawduck_smoke.db' AS raw;
+
+INSERT INTO raw.ingest.metrics VALUES
+    ('{"ts": "2024-01-01T00:00:00", "v": 10.0}'),
+    ('{"ts": "2024-01-01T00:00:01", "v": 20.0}'),
+    ('{"ts": "2024-01-01T00:00:02", "v": 40.0}');
+
+-- chronoduck's ts_rate aggregate, evaluated at one grid point (t=2s) over a
+-- 2-second lookback, against the table RawDuck just materialized — the
+-- cross-extension interop this lane exists to catch. The numeric result
+-- isn't asserted (that's L2/L4's job on chronoduck's own fixtures); this
+-- lane only needs the query to run to completion without erroring.
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:02', TIMESTAMP '2024-01-01 00:00:02', 1000000, 2000000)[1]
+FROM raw.metrics;

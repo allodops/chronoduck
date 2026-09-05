@@ -1,0 +1,41 @@
+name: release
+
+# Release-posture lanes (docs/testing/lanes.md): push to main only, no-op on
+# ordinary pull requests, not a required status check. First tenant:
+# partner-rawduck (L15, issue #47) — building a storage partner's own
+# extension at chronoduck's DuckDB pin is comparable cost to chronoduck's own
+# build, not something every PR should pay.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  partner-rawduck:
+    name: partner-rawduck
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: ccache-partner-rawduck-v1.5.4
+          max-size: 5GB
+          evict-old-files: job
+      - run: make release
+      - run: make partner-rawduck-build
+      - run: make partner-rawduck-test
+      # Article II.4 citation check, run strictly here (build/partners/rawduck/
+      # exists in this job — see scripts/hygiene/verify-citations.mjs's
+      # PARTNER_BUILD_PREFIX comment): `make hygiene`'s own run of this same
+      # target, on the plain merge gate where the partner is never built,
+      # skips a build/partners/ citation rather than failing on its absence.
+      - run: make verify-citations

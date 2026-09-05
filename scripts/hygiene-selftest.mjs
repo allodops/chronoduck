@@ -65,6 +65,32 @@ function materialize(manifestName) {
 await expectRed("forbid-ledger", ["bun", join(HERE, "hygiene", "forbid-ledger.mjs"), "--root", materialize("forbid-ledger")]);
 await expectRed("forbid-consumer", ["bun", join(HERE, "hygiene", "forbid-consumer.mjs"), "--root", materialize("forbid-consumer")]);
 await expectRed("verify-citations", ["bun", join(HERE, "hygiene", "verify-citations.mjs"), "--root", materialize("verify-citations")]);
+
+// verify-citations: #47 — a citation into build/partners/ (a build artifact
+// scripts/partners/rawduck-build.mjs makes at build time, never committed) is
+// SKIPPED, not a violation, when that path doesn't exist in the materialized
+// root; checked STRICTLY, exactly like any other citation, when it does —
+// isolated across three fixtures so neither half of that rule can hide a
+// false pass/fail in the other.
+await expectGreen("verify-citations (build/partners/ citation skipped when the path doesn't exist)", [
+  "bun",
+  join(HERE, "hygiene", "verify-citations.mjs"),
+  "--root",
+  materialize("verify-citations-partner-absent-green"),
+]);
+await expectRed("verify-citations (build/partners/ citation checked strictly when the path exists and mismatches)", [
+  "bun",
+  join(HERE, "hygiene", "verify-citations.mjs"),
+  "--root",
+  materialize("verify-citations-partner-present-mismatch-red"),
+]);
+await expectGreen("verify-citations (build/partners/ citation checked strictly when the path exists and matches)", [
+  "bun",
+  join(HERE, "hygiene", "verify-citations.mjs"),
+  "--root",
+  materialize("verify-citations-partner-present-match-green"),
+]);
+
 await expectRed("workflow-shape", ["bun", join(HERE, "hygiene", "workflow-shape.mjs"), "--root", materialize("workflow-shape")]);
 
 // 4b: registry-closure (Article V.1) — three fixtures materialized from JSON
@@ -1037,6 +1063,97 @@ assertEqual("headingSlugs: collects every heading", [...headingSlugs("# Title\n\
   }
 
   await expectGreen("check-pins (local heads/<branch> describe)", ["bun", join(HERE, "check-pins.mjs"), "--root", superDir]);
+}
+
+// check-pins: #47 — the storage-partner pin (scripts/partners/rawduck.json's
+// "commit" vs. what's actually checked out at build/partners/rawduck/).
+// Reuses the same fake-duckdb/fake-citools submodule setup as the two
+// fixtures above (so those two checks stay green throughout, isolating the
+// partner check as the only thing under test), plus a third fake upstream
+// ("fake-rawduck") standing in for the partner repository — cloned directly
+// into build/partners/rawduck/ as a plain checkout, never a submodule,
+// exactly how scripts/partners/rawduck-build.mjs actually gets it there.
+{
+  const tmp = mkdtempSync(join(tmpdir(), "cp-partner-selftest-"));
+  const sh = async (cwd, cmd) => $`git -c protocol.file.allow=always -C ${cwd} ${{ raw: cmd }}`.quiet();
+  const gitInit = async (dir, branch) => {
+    mkdirSync(dir, { recursive: true });
+    await sh(dir, `init -q -b ${branch}`);
+    await sh(dir, `config user.email test@example.com`);
+    await sh(dir, `config user.name test`);
+  };
+
+  const fakeDuckdb = join(tmp, "fake-duckdb");
+  await gitInit(fakeDuckdb, "trunk");
+  writeFileSync(join(fakeDuckdb, "f"), "x");
+  await sh(fakeDuckdb, "add f");
+  await sh(fakeDuckdb, "commit -q -m c");
+  await sh(fakeDuckdb, "tag v1.5.4");
+
+  const fakeCiTools = join(tmp, "fake-citools");
+  await gitInit(fakeCiTools, "main");
+  writeFileSync(join(fakeCiTools, "f"), "main-content");
+  await sh(fakeCiTools, "add f");
+  await sh(fakeCiTools, "commit -q -m main-commit");
+  await sh(fakeCiTools, "checkout -q -b v1.5-variegata");
+  writeFileSync(join(fakeCiTools, "f"), "branch-content");
+  await sh(fakeCiTools, "add f");
+  await sh(fakeCiTools, "commit -q -m variegata-commit");
+  await sh(fakeCiTools, "checkout -q main");
+
+  const fakeRawduck = join(tmp, "fake-rawduck");
+  await gitInit(fakeRawduck, "main");
+  writeFileSync(join(fakeRawduck, "f"), "rawduck-content");
+  await sh(fakeRawduck, "add f");
+  await sh(fakeRawduck, "commit -q -m rawduck-commit");
+  const pinnedCommit = (await $`git -C ${fakeRawduck} rev-parse HEAD`.text()).trim();
+
+  const superDir = join(tmp, "super");
+  await gitInit(superDir, "main");
+  await sh(superDir, `submodule add -q -b trunk ${fakeDuckdb} duckdb`);
+  await sh(join(superDir, "duckdb"), "checkout -q v1.5.4");
+  await sh(superDir, `submodule add -q -b v1.5-variegata ${fakeCiTools} extension-ci-tools`);
+  mkdirSync(join(superDir, "scripts", "partners"), { recursive: true });
+  writeFileSync(
+    join(superDir, "scripts", "partners", "rawduck.json"),
+    JSON.stringify({ repository: "example/fake-rawduck", commit: pinnedCommit, duckdb_ref: "v1.5.4" })
+  );
+  await sh(superDir, "add -A");
+  await sh(superDir, "commit -q -m add-submodules-and-partner-pin");
+
+  // Pending, not fatal: scripts/partners/rawduck.json exists but
+  // build/partners/rawduck/ was never built in this environment.
+  await expectGreen("check-pins (partner pin present, build/partners/rawduck/ not built yet — pending, not fatal)", [
+    "bun",
+    join(HERE, "check-pins.mjs"),
+    "--root",
+    superDir,
+  ]);
+
+  // Green: build/partners/rawduck/ is checked out at exactly the pinned commit.
+  const partnerCheckout = join(superDir, "build", "partners", "rawduck");
+  await sh(tmp, `-c protocol.file.allow=always clone -q ${fakeRawduck} ${partnerCheckout}`);
+  await expectGreen("check-pins (partner pin matches build/partners/rawduck/ checkout)", [
+    "bun",
+    join(HERE, "check-pins.mjs"),
+    "--root",
+    superDir,
+  ]);
+
+  // Red: fake-rawduck moves on, the checkout follows it, but
+  // scripts/partners/rawduck.json still names the now-stale pinned commit —
+  // reproducing exactly the "rawduck.json and the actual checkout disagree"
+  // case the issue's own acceptance criteria call out.
+  writeFileSync(join(fakeRawduck, "f"), "rawduck-content-2");
+  await sh(fakeRawduck, "add f");
+  await sh(fakeRawduck, "commit -q -m rawduck-commit-2");
+  await sh(partnerCheckout, "pull -q origin main");
+  await expectRed("check-pins (partner pin disagrees with build/partners/rawduck/ checkout)", [
+    "bun",
+    join(HERE, "check-pins.mjs"),
+    "--root",
+    superDir,
+  ]);
 }
 
 if (failures > 0) {

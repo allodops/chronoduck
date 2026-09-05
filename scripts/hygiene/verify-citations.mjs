@@ -32,6 +32,27 @@ async function listFiles(dir) {
 // A line-number-style citation (the construct name is all digits) is always forbidden.
 const CITATION_RE = /`([^`\s:]+\.[A-Za-z0-9_]+):([^`:]+):`\s*`([^`]+)`/g;
 
+// #47: a citation into build/partners/ — a plain git clone the storage-partner
+// harness makes at build time (scripts/partners/rawduck-build.mjs), never a
+// submodule, never committed (build/ is gitignored) — is checked STRICTLY
+// (existence + exact-one-occurrence, exactly like any other citation) when
+// that path exists on disk, but SKIPPED (not a violation) when it doesn't.
+// Its absence means only that the partner hasn't been built in this
+// environment yet, not that the citation is wrong — a plain `make hygiene`
+// run (the fast, submodule-independent merge gate every PR runs) never
+// builds the partner, so treating a build/partners/ citation the same as any
+// other missing-file citation would fail every PR for a real ADR pointing at
+// real source neither this PR nor most PRs will ever check out. The
+// `partner-rawduck` lane (docs/testing/lanes.md), which DOES build the
+// partner before it runs, calls this same script as one of its own steps —
+// that's where these citations get their real, strict check, without
+// breaking the merge gate for everyone else. Mirrors this repo's other
+// "check needs a thing that isn't always checked out" resolutions: the root
+// Makefile's own extension-ci-tools-submodule-absent warning, and
+// check-pins.mjs's "pending" (never a failure) report when
+// build/partners/rawduck/ hasn't been built yet.
+const PARTNER_BUILD_PREFIX = "build/partners/";
+
 // A clang-format/prettier comment reflow can wrap a citation's backtick-fenced
 // expression across two `//` lines — per-line-only matching then never sees
 // it at all (neither flags it as invalid nor confirms it resolves), silently
@@ -69,6 +90,7 @@ function commentRuns(lines) {
 
 const files = await listFiles(root);
 const violations = [];
+const skippedPartnerCitations = [];
 
 for (const f of files) {
   let content;
@@ -92,6 +114,14 @@ for (const f of files) {
     }
     const citedPath = join(root, citedFile);
     if (!existsSync(citedPath)) {
+      if (citedFile.startsWith(PARTNER_BUILD_PREFIX)) {
+        // Reported explicitly below, not silently treated as checked — the
+        // same transparency check-pins.mjs's "pending" state already
+        // established for this same "can't check it here" situation, per
+        // the PARTNER_BUILD_PREFIX comment above.
+        skippedPartnerCitations.push(`${f}:${lineNo}: "${citedFile}" not built in this environment`);
+        return;
+      }
       violations.push(`${f}:${lineNo}: citation references "${citedFile}", which does not exist`);
       return;
     }
@@ -126,4 +156,9 @@ if (violations.length > 0) {
   for (const v of violations) console.error(`  ${v}`);
   process.exit(1);
 }
-console.log("verify-citations: PASS");
+if (skippedPartnerCitations.length > 0) {
+  console.log(`verify-citations: PASS (${skippedPartnerCitations.length} citation(s) skipped — not built in this environment)`);
+  for (const s of skippedPartnerCitations) console.log(`  SKIPPED: ${s}`);
+} else {
+  console.log("verify-citations: PASS");
+}
