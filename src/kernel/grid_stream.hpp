@@ -18,8 +18,8 @@
 // the whole walk, so a pointer that never resets still finds the right
 // answer at every step), computed incrementally against a stream of samples
 // fed one at a time instead of an array — holding only the samples currently
-// inside `(anchor - width, anchor]` or not yet ruled out of a future window,
-// dropping everything the walk has permanently passed. That resident set is
+// inside `(anchor - width, anchor]` or still possibly relevant to a future
+// window, dropping everything the walk has permanently passed. That resident set is
 // bounded by the number of samples in one window (`docs/testing/memory.md`'s
 // own "one window per thread is resident" law), not by the partition's whole
 // range.
@@ -140,7 +140,7 @@ private:
 				hi_++;
 			}
 			if (hi_ == buf_.size() && !eos) {
-				return; // hi not yet confirmed stopped; need more samples
+				return; // hi is unconfirmed without more samples
 			}
 
 			Window w {anchor, width_};
@@ -167,9 +167,9 @@ private:
 	Grid grid_;
 	int64_t width_;
 
-	// The dedup lookahead: the most recently fed sample not yet known to be
-	// the final winner for its timestamp (one more sample at the same `t`
-	// could still beat it).
+	// The dedup lookahead: the most recently fed sample, whose status as the
+	// final winner for its timestamp is still undecided (one more sample at
+	// the same `t` could still beat it).
 	bool has_pending_ = false;
 	CounterSample pending_ {};
 

@@ -739,8 +739,8 @@ unique_ptr<GlobalSourceState> PhysicalGridStream::GetGlobalSourceState(ClientCon
 	return make_uniq<GlobalSourceStateImpl>(context, gsink);
 }
 
-// Ready-to-emit output rows this thread has already computed but not yet
-// written into a DuckDB-supplied output chunk: `ProcessOneBin` fully drains
+// Ready-to-emit output rows this thread has already computed, queued for
+// writing into a DuckDB-supplied output chunk: `ProcessOneBin` fully drains
 // one hash bin (which may hold several distinct series, see the Source
 // interface comment above) into this queue in one call, and `GetDataInternal`
 // pulls from it across as many calls as it takes to drain — never more than
