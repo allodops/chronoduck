@@ -20,6 +20,7 @@ script does not duplicate that scan).
 import json
 import re
 import sys
+from decimal import Decimal
 from pathlib import Path
 
 import yaml
@@ -51,42 +52,99 @@ _ScientificNotationLoader.add_implicit_resolver(
     list("-+0123456789."),
 )
 
-# YAML doesn't distinguish "5" from "5.0" the way a violation message
-# should: whether a value parses as float or int depends only on how it
-# happens to be spelled in the fixture file, not on anything meaningful to
-# the person reading the message. These two helpers collapse an integral
-# float like -1.0 to -1 before rendering it, so a violation message names
-# the same value the same way regardless of which YAML spelling produced
-# it.
+# A violation message embeds fixture values the same way the original
+# fixtures-validate.mjs did: `${value}` template-literal coercion for
+# format_value, JSON.stringify for format_json. Both ultimately go through
+# JS's Number::toString algorithm (ECMA-262) for any numeric value, which
+# neither YAML's int/float distinction nor Python's own float repr
+# reproduces on its own:
+#   - YAML doesn't distinguish "5" from "5.0" the way a message should:
+#     whether a value parses as float or int depends only on how it
+#     happens to be spelled in the fixture file. JS has one number type,
+#     so -1.0 and -1 must render identically ("-1").
+#   - Python's `str()`/`repr()` never switches to exponential notation
+#     below 1e16, and switches at a different threshold above it, so
+#     naive str(value) diverges from JS for any value >= 1e21 or
+#     (nonzero and) < 1e-6 in magnitude — see #254.
+# _js_number_to_string reproduces ECMA-262's Number::toString exactly:
+# fixed notation for magnitudes in [1e-6, 1e21) (9.99e20 fixed, 1e-6
+# fixed, 1e21 and 1e-7 exponential — the spec's own boundary cases), an
+# always-signed exponent (`e+21`, `e-7`) outside that range.
 
 
-def _collapse_floats(value):
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, float) and value.is_integer():
-        return int(value)
-    if isinstance(value, dict):
-        return {k: _collapse_floats(v) for k, v in value.items()}
-    if isinstance(value, list):
-        return [_collapse_floats(v) for v in value]
-    return value
+def _js_number_to_string(x):
+    """Render float x the way JS's Number.prototype.toString() (and, by
+    extension, `${x}` and JSON.stringify(x)) would, per ECMA-262's
+    Number::toString algorithm."""
+    if x != x:  # NaN
+        return "NaN"
+    if x == 0:
+        return "0"  # covers -0.0 too: String(-0) === "0" in JS
+    if x < 0:
+        return "-" + _js_number_to_string(-x)
+    if x == float("inf"):
+        return "Infinity"
+
+    # repr(x) is Python's own shortest-round-trip decimal string for x.
+    # ECMA-262 requires that same "fewest digits that still round-trip"
+    # digit sequence (its s/k), so parsing repr(x) through Decimal —
+    # exact, no further rounding — recovers the spec's s/k/n without
+    # re-deriving shortest-round-trip digit selection by hand.
+    _sign, digits, exponent = Decimal(repr(x)).as_tuple()
+    digits = list(digits)
+    while len(digits) > 1 and digits[-1] == 0:
+        digits.pop()
+        exponent += 1
+    k = len(digits)
+    n = exponent + k
+    s = "".join(str(d) for d in digits)
+
+    if k <= n <= 21:
+        return s + "0" * (n - k)
+    if 0 < n <= 21:
+        return s[:n] + "." + s[n:]
+    if -6 < n <= 0:
+        return "0." + "0" * (-n) + s
+    mantissa = s[0] + ("." + s[1:] if k > 1 else "")
+    exp = n - 1
+    return f"{mantissa}e{'+' if exp >= 0 else '-'}{abs(exp)}"
 
 
-def format_json(value):
-    """JSON-render value with integral floats collapsed to ints."""
-    return json.dumps(_collapse_floats(value), separators=(",", ":"))
-
-
-def format_value(value):
-    """Render value as it would appear inline in a violation message."""
+def _js_json_value(value):
+    """Render value the way JSON.stringify would: same structure as
+    json.dumps, but numeric leaves go through _js_number_to_string
+    instead of Python's own float formatting."""
     if value is None:
         return "null"
     if value is True:
         return "true"
     if value is False:
         return "false"
-    if isinstance(value, float) and value.is_integer():
-        return str(int(value))
+    if _is_number(value):
+        return _js_number_to_string(float(value))
+    if isinstance(value, dict):
+        return "{" + ",".join(f"{json.dumps(k)}:{_js_json_value(v)}" for k, v in value.items()) + "}"
+    if isinstance(value, list):
+        return "[" + ",".join(_js_json_value(v) for v in value) + "]"
+    return json.dumps(value)
+
+
+def format_json(value):
+    """JSON-render value the way JSON.stringify(value) would."""
+    return _js_json_value(value)
+
+
+def format_value(value):
+    """Render value as it would appear inline in a violation message,
+    i.e. the way JS's `${value}` template-literal coercion would."""
+    if value is None:
+        return "null"
+    if value is True:
+        return "true"
+    if value is False:
+        return "false"
+    if _is_number(value):
+        return _js_number_to_string(float(value))
     return str(value)
 
 
