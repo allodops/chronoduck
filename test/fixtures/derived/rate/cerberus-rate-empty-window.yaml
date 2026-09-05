@@ -1,0 +1,31 @@
+# Externally derived (see this directory's own manifest.json): sourced from
+# cerberus's rate_empty_window.txtar — a counter with two real samples, both
+# older than the query window, so the [5m] window this fixture's grid point
+# names brackets none of them at all. cerberus's own `expected_rows` for
+# this case is the empty set (no series at all, not a series with a null
+# value); this fixture's own single grid point (one series, no groupBy) is
+# the same "nothing in the window" outcome expressed as this repo's own
+# per-point null, the shape `test/fixtures/rate/cadence-window-smaller-than-scrape.yaml`
+# already uses for the same not-enough-samples path.
+#
+# Samples at t=0 (v=0) and t=300 (v=300); grid point (eval anchor) at
+# t=1800 with a 300s window, i.e. (1500, 1800] — both samples fall well
+# before the window's own left edge, so zero samples are ever handed to the
+# fold and it returns no value.
+fixture: rate/derived/cerberus-rate-empty-window
+function: rate
+edge_mode: EXTRAPOLATE
+domain: COUNTER
+grid: {start: 1800, end: 1800, step: 1}
+window: 300
+lookback: 300
+samples:
+  - [0, 0]
+  - [300, 300]
+expected:
+  [null]
+provenance:
+  source: cerberus@64663c2711ad9d8c6ee6fa9f2f5026febbbf9f74
+  derived_by: chronoduck-manual-ingest@0.1.0
+  ref: test/spec/promql/rate_empty_window.txtar
+  derived_at: 2026-09-05

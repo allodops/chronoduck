@@ -1,0 +1,39 @@
+# Externally derived (see this directory's own manifest.json): sourced from
+# cerberus's rate_http_count.txtar, a two-point classic-counter rate() case
+# whose expected value the txtar's own `expected_rows` records as an
+# independently reference-checked number, not one this file invents.
+#
+# Absolute-time inputs (all UTC): eval anchor 2026-01-01T00:00:01, a [1m]
+# window (2025-12-31T23:59:01, 2026-01-01T00:00:01], two OTel counter
+# readings at 2025-12-31T23:59:31 (v=10) and 2026-01-01T00:00:00 (v=40).
+# Shifted so t=0 is the window's own left edge (MR-SHIFT: any absolute
+# anchor is free), the two readings land at t=30 and t=59, the window
+# closes at t=60.
+#
+# n=2, delta=30 (40-10, no reset). sampled_interval=59-30=29,
+# avg_interval=29/(2-1)=29, threshold=31.9. Raw duration_to_start=30-0=30,
+# under threshold so it stays 30 — except the zero clamp computes
+# duration_to_zero = sampled_interval*(first/delta) = 29*(10/30) =
+# 9.666666666666666, smaller than 30, so it wins: duration_to_start =
+# 9.666666666666666. duration_to_end = 60-59 = 1, under threshold, stays 1.
+# factor = (29 + 9.666666666666666 + 1) / 29 = 1.367816091954023,
+# value = 30 * 1.367816091954023 = 41.03448275862069,
+# rate = 41.03448275862069 / window(60) = 0.6839080459770115 — the exact
+# number cerberus's own txtar records.
+fixture: rate/derived/cerberus-rate-http-count
+function: rate
+edge_mode: EXTRAPOLATE
+domain: COUNTER
+grid: {start: 60, end: 60, step: 1}
+window: 60
+lookback: 60
+samples:
+  - [30, 10]
+  - [59, 40]
+expected:
+  [0.6839080459770115]
+provenance:
+  source: cerberus@64663c2711ad9d8c6ee6fa9f2f5026febbbf9f74
+  derived_by: chronoduck-manual-ingest@0.1.0
+  ref: test/spec/promql/rate_http_count.txtar
+  derived_at: 2026-09-05

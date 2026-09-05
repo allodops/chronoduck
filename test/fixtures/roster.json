@@ -7,5 +7,8 @@
   "rate/clamp-zero-crossing",
   "rate/start-ts-reset-no-value-drop",
   "rate/cadence-window-smaller-than-scrape",
-  "rate/sweep-eval-instant-offsets"
+  "rate/sweep-eval-instant-offsets",
+  "rate/derived/cerberus-rate-http-count",
+  "rate/derived/cerberus-rate-empty-window",
+  "rate/derived/cerberus-fixed-accumulator-rate-range-step-web"
 ]

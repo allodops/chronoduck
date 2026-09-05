@@ -1,0 +1,5 @@
+{
+  "test/fixtures/derived/manifest.json": "eyJ0b29sIjoic3R1Yi10b29sIiwidG9vbF92ZXJzaW9uIjoiMS4wLjAiLCJmaXh0dXJlcyI6WyJyYXRlL2Rlcml2ZWQvc3R1YiJdfQ==",
+  "test/fixtures/derived/rate/stub.yaml": "Zml4dHVyZTogcmF0ZS9kZXJpdmVkL3N0dWIKZnVuY3Rpb246IHJhdGUKZWRnZV9tb2RlOiBFWFRSQVBPTEFURQpkb21haW46IENPVU5URVIKZ3JpZDoge3N0YXJ0OiAxMDAsIGVuZDogMTAwLCBzdGVwOiAxfQp3aW5kb3c6IDEwMApsb29rYmFjazogMTAwCnNhbXBsZXM6CiAgLSBbNTAsIDEwXQpleHBlY3RlZDoKICBbbnVsbF0KcHJvdmVuYW5jZToKICBzb3VyY2U6IHN0dWItc291cmNlCiAgZGVyaXZlZF9ieTogc3R1Yi10b29sQDEuMC4wCg==",
+  "test/fixtures/roster.json": "WyJyYXRlL2Rlcml2ZWQvc3R1YiJd"
+}
