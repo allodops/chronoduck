@@ -1151,8 +1151,8 @@ const char *const kOperatorPassthroughFunctionName = "__ts_rate_operator_input";
 // Parquet scans in scope (`docs/design/architecture.md:where-it-plugs-in:`
 // `on native and Parquet scans`), but this build has no Parquet extension
 // available to test that leg against (`extension_config.cmake` loads only
-// `chronoduck`), so it stays out of this rule's allow-list until a follow-up
-// issue adds it with a real fixture — Article II.1's own "never claiming
+// `chronoduck`), so it stays out of this rule's allow-list until #272 adds
+// it with a real fixture — Article II.1's own "never claiming
 // untested capability" posture, applied to an allow-list entry the same way
 // it already applies to a registry.def row's edge modes. Every other table
 // function — including a storage partner's own scan (e.g. RawDuck,
