@@ -13,10 +13,10 @@
 // "Brute-force equivalence and monotone-pointer properties") — checked over
 // many randomized trials, and the two named must-die mutants ("Pointer
 // advance conditions" and "monotonicity shortcuts that skip a sample").
-#include "src/kernel/grid.hpp"
-#include "src/kernel/sample_buffer.hpp"
-#include "src/kernel/window.hpp"
-#include "src/kernel/window_walk.hpp"
+#include "kernel/grid.hpp"
+#include "kernel/sample_buffer.hpp"
+#include "kernel/window.hpp"
+#include "kernel/window_walk.hpp"
 
 #include <algorithm>
 #include <cstdint>

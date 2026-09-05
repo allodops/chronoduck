@@ -129,7 +129,17 @@ function buildWirePayload(doc, rel) {
 
 async function compileLoader(tmpDir) {
   const binPath = join(tmpDir, "rate_fixture_loader");
-  const compile = await run(["g++", "-std=c++17", "-Wall", "-Wextra", "-I", REAL_ROOT, LOADER_CPP, "-o", binPath]);
+  const compile = await run([
+    "g++",
+    "-std=c++17",
+    "-Wall",
+    "-Wextra",
+    "-I",
+    join(REAL_ROOT, "src"),
+    LOADER_CPP,
+    "-o",
+    binPath,
+  ]);
   if (compile.code !== 0) {
     throw new Error(`failed to compile ${relative(root, LOADER_CPP)}:\n${compile.out}${compile.err}`);
   }

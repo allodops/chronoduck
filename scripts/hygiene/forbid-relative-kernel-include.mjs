@@ -4,13 +4,18 @@
 // the only reason that ever compiled is that kernel-primitive-tests.mjs's
 // g++ invocation passed no -I flag at all, so a header could only resolve
 // relative to the including file itself. Now that invocation passes
-// `-I <root>`, every test/kernel/*.cpp reaches its headers with a clean,
-// root-relative quoted include (`#include "src/kernel/foo.hpp"`,
-// `#include "test/oracle/foo.hpp"`, ...), so a parent-relative include
-// anywhere under test/kernel/ is always a regression back to the fragile
-// pre-#229 form. This scan fails the moment one reappears, naming the
-// offending file and line — the mechanical, permanent half of #229's fix,
-// mirroring forbid-test-tolerance.mjs's shape for the same directory.
+// `-I <root>/src`, every test/kernel/*.cpp reaches its own kernel headers
+// with a clean, bare quoted include (`#include "kernel/foo.hpp"`) — the same
+// form `src/chronoduck_extension.cpp` already used before #229 ever touched
+// this tree, since src/ (not the repo root) is this codebase's established
+// header root. `-I <root>` stays alongside it purely for
+// `oracle_sweep_test.cpp`'s `#include "test/oracle/foo.hpp"`, a
+// cross-top-level-directory reference with no `src/` precedent to follow.
+// Either way, a parent-relative include anywhere under test/kernel/ is
+// always a regression back to the fragile pre-#229 form. This scan fails
+// the moment one reappears, naming the offending file and line — the
+// mechanical, permanent half of #229's fix, mirroring
+// forbid-test-tolerance.mjs's shape for the same directory.
 import { $ } from "bun";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";

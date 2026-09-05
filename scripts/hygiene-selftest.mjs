@@ -161,16 +161,17 @@ await expectRed("forbid-test-tolerance", [
 ]);
 
 // 4d-2: forbid-relative-kernel-include (#229) — a reintroduced parent-relative
-// include under test/kernel/ is red; the clean, root-relative quoted form is
-// green, proving the scan doesn't false-positive on the fix it's meant to
-// permanently enforce.
+// include under test/kernel/ is red; the clean, bare quoted form
+// (`#include "kernel/foo.hpp"`, matching src/chronoduck_extension.cpp's own
+// convention) is green, proving the scan doesn't false-positive on the fix
+// it's meant to permanently enforce.
 await expectRed("forbid-relative-kernel-include", [
   "bun",
   join(HERE, "hygiene", "forbid-relative-kernel-include.mjs"),
   "--root",
   materialize("forbid-relative-kernel-include-red"),
 ]);
-await expectGreen("forbid-relative-kernel-include (clean root-relative include)", [
+await expectGreen("forbid-relative-kernel-include (clean bare-quoted include)", [
   "bun",
   join(HERE, "hygiene", "forbid-relative-kernel-include.mjs"),
   "--root",

@@ -38,7 +38,7 @@
 // `make kernel-primitive-tests`'s pass/fail sentinel below.
 #include "rate_fixture_eval.hpp"
 
-#include "src/kernel/comparator.hpp"
+#include "kernel/comparator.hpp"
 #include "test/oracle/metamorphic.hpp"
 #include "test/oracle/rate_oracle.hpp"
 #include "test/oracle/series.hpp"

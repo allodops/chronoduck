@@ -19,7 +19,7 @@
 // of the maximum", and "a missed page free" — each demonstrated by a
 // shadow implementation carrying the mutation, the same standard
 // `kahan_test.cpp` set for this repo.
-#include "src/kernel/sample_buffer.hpp"
+#include "kernel/sample_buffer.hpp"
 
 #include <cmath>
 #include <cstdio>

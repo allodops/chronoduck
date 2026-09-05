@@ -11,7 +11,7 @@
 // feeds this program a flat, line-oriented wire format over stdin; every
 // number this program then touches — the fold, the extrapolation, the
 // `equal_values` check — runs through the real kernel headers
-// (`rate_fixture_eval.hpp`, `src/kernel/comparator.hpp`), so a fixture
+// (`rate_fixture_eval.hpp`, `kernel/comparator.hpp`), so a fixture
 // is genuinely "run through the comparator", not merely re-typed in two
 // languages.
 //
@@ -38,7 +38,7 @@
 // line, `RESULT PASS` or `RESULT FAIL` — the sentinel
 // `scripts/kernel-fixture-loader.mjs` greps for. Exit code mirrors it: 0 for
 // PASS, 1 for FAIL or a malformed wire payload.
-#include "src/kernel/comparator.hpp"
+#include "kernel/comparator.hpp"
 #include "rate_fixture_eval.hpp"
 
 #include <cstdio>
