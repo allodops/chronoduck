@@ -33,9 +33,10 @@
 // single thread makes the whole run's worth of series-boundary transitions
 // accumulate in one place instead of splitting across threads.
 //
-// Self-check calibration (docs/testing/memory.md's "asserts the
-// corresponding sentinel goes red" — run by hand against a temporary mutant,
-// not part of this script, since it edits src/chronoduck_extension.cpp):
+// Self-check calibration (docs/testing/memory.md's "asserts the corresponding
+// sentinel goes red" — run by hand against a temporary mutant (#45 owns
+// wiring this self-check into a real CI lane), not part of this script,
+// since it edits src/chronoduck_extension.cpp):
 // commenting out `active_stream`'s reassignment in `ProcessOneBin`'s
 // `start_series` (i.e. leaking the old `GridStream` instead of releasing it
 // at the series boundary — the exact regression this document names) moved
