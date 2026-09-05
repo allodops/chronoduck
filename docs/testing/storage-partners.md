@@ -131,7 +131,7 @@ loop opens against the failing run.
 ### Citations into a build artifact
 
 The ADR below cites RawDuck's real source under `build/partners/rawduck/`, which is a build
-artifact, not part of this tree in a plain checkout. `scripts/hygiene/verify-citations.mjs` checks
+artifact, not part of this tree in a plain checkout. `scripts/hygiene/verify-citations.py` checks
 a citation whose path starts with `build/partners/` strictly (existence and exact-one-occurrence,
 exactly like any other citation) when that path exists on disk, and skips it — not a violation —
 when it doesn't, since the partner simply hasn't been built in that environment. The
