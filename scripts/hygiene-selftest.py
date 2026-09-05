@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import base64
+import importlib
 import json
 import os
 import re
@@ -96,15 +97,7 @@ def materialize(manifest_name):
     return tmp
 
 
-# py()/mjs() are deliberately identical (both just join onto this script's own
-# directory) — two names for the same join, used purely so each call site
-# below documents which language the file it names is currently written in,
-# during this issue's part-ported, part-not-yet-ported tree.
 def py(*rel_parts):
-    return os.path.join(HERE, *rel_parts)
-
-
-def mjs(*rel_parts):
     return os.path.join(HERE, *rel_parts)
 
 
@@ -114,7 +107,7 @@ expect_red("forbid-consumer", ["python3", py("hygiene", "forbid-consumer.py"), "
 expect_red("verify-citations", ["python3", py("hygiene", "verify-citations.py"), "--root", materialize("verify-citations")])
 
 # verify-citations: #47 — a citation into build/partners/ (a build artifact
-# scripts/partners/rawduck-build.mjs makes at build time, never committed) is
+# scripts/partners/rawduck-build.py makes at build time, never committed) is
 # SKIPPED, not a violation, when that path doesn't exist in the materialized
 # root; checked STRICTLY, exactly like any other citation, when it does —
 # isolated across three fixtures so neither half of that rule can hide a
@@ -338,9 +331,8 @@ expect_green(
 )
 
 # 5c: #181 — build-relevant-changed correctly classifies a src/ change as
-# relevant and a docs-only change as not. build-relevant-changed.mjs is out
-# of this issue's scope (it lives outside scripts/hygiene/ and is not one of
-# the 19 files #241 ports), so it's still invoked via bun here.
+# relevant and a docs-only change as not. build-relevant-changed.py is a
+# Python port; invoked via python3 like every other real-tree check here.
 tmp = tempfile.mkdtemp(prefix="brc-selftest-")
 git_init(tmp, "main")
 write_file(os.path.join(tmp, "docs", "readme.md"), "base\n")
@@ -351,7 +343,7 @@ sh(tmp, "checkout -q -b docs-only")
 write_file(os.path.join(tmp, "docs", "readme.md"), "docs-only change\n")
 sh(tmp, "add docs/readme.md")
 sh(tmp, 'commit -q -m "docs-only change"')
-out, _, code = run(["bun", mjs("build-relevant-changed.mjs"), "--root", tmp, "--base", "main"])
+out, _, code = run(["python3", py("build-relevant-changed.py"), "--root", tmp, "--base", "main"])
 if code != 0 or "BUILD_RELEVANT=false" not in out:
     print(f"SELFTEST FAIL: build-relevant-changed (docs-only) expected BUILD_RELEVANT=false, got: {out}", file=sys.stderr)
     failures += 1
@@ -363,7 +355,7 @@ sh(tmp, "checkout -q -b src-change")
 write_file(os.path.join(tmp, "src", "thing.cpp"), "// changed\n")
 sh(tmp, "add src/thing.cpp")
 sh(tmp, 'commit -q -m "src change"')
-out, _, code = run(["bun", mjs("build-relevant-changed.mjs"), "--root", tmp, "--base", "main"])
+out, _, code = run(["python3", py("build-relevant-changed.py"), "--root", tmp, "--base", "main"])
 if code != 0 or "BUILD_RELEVANT=true" not in out:
     print(f"SELFTEST FAIL: build-relevant-changed (src/ change) expected BUILD_RELEVANT=true, got: {out}", file=sys.stderr)
     failures += 1
@@ -382,32 +374,19 @@ with open(diff_file, "wb") as f:
     f.write(base64.b64decode(_fd_diff))
 expect_red("forbid-deferral", ["python3", py("hygiene", "forbid_deferral.py"), "--diff-file", diff_file])
 
-# 6b: #154 regression — a static check, not a live PR fetch. Checks the net
-# (not --patch) PR-diff fetch in BOTH the unported .mjs lib (still used by
-# pr-hygiene.mjs, out of this issue's scope) and the ported Python lib (now
-# used by hygiene/forbid_deferral.py) so the regression stays caught on
-# whichever side of the migration a given importer currently sits on.
-_gh_diff_mjs_src = open(py("lib", "gh-diff.mjs"), "r", encoding="utf-8").read()
-_calls = re.findall(r"gh-tsouza pr diff[^`]*", _gh_diff_mjs_src)
-_still_patched = [c for c in _calls if "--patch" in c]
-if not _calls:
-    print('SELFTEST FAIL: lib/gh-diff.mjs — no "gh-tsouza pr diff" invocation found; expected one (#154 regression check needs updating)', file=sys.stderr)
-    failures += 1
-elif _still_patched:
-    print(f"SELFTEST FAIL: lib/gh-diff.mjs still fetches the --patch (per-commit) diff: {', '.join(_still_patched)}", file=sys.stderr)
-    failures += 1
-else:
-    print("SELFTEST ok: lib/gh-diff.mjs fetches the net PR diff, not --patch (#154 regression)")
-
-_pr_hygiene_src = open(py("pr-hygiene.mjs"), "r", encoding="utf-8").read()
+# 6b: #154 regression — a static check, not a live PR fetch. Both importers
+# (pr-hygiene.py and hygiene/forbid_deferral.py) are Python now that the
+# Makefile/CI cutover (#245) points at them instead of their retired .mjs
+# siblings, so both regression assertions run against the Python lib only.
+_pr_hygiene_src = open(py("pr-hygiene.py"), "r", encoding="utf-8").read()
 if "gh-tsouza pr diff" in _pr_hygiene_src:
-    print('SELFTEST FAIL: pr-hygiene.mjs still calls "gh-tsouza pr diff" directly instead of importing fetchPrDiff from lib/gh-diff.mjs (#166 DRY)', file=sys.stderr)
+    print('SELFTEST FAIL: pr-hygiene.py still calls "gh-tsouza pr diff" directly instead of importing fetchPrDiff from lib.gh_diff (#166 DRY)', file=sys.stderr)
     failures += 1
-elif not re.search(r"from\s+[\"'].*lib/gh-diff\.mjs[\"']", _pr_hygiene_src):
-    print("SELFTEST FAIL: pr-hygiene.mjs does not import fetchPrDiff from lib/gh-diff.mjs (#166 DRY)", file=sys.stderr)
+elif not re.search(r"from\s+lib\.gh_diff\s+import\s+fetchPrDiff", _pr_hygiene_src):
+    print("SELFTEST FAIL: pr-hygiene.py does not import fetchPrDiff from lib.gh_diff (#166 DRY)", file=sys.stderr)
     failures += 1
 else:
-    print("SELFTEST ok: pr-hygiene.mjs imports the shared fetchPrDiff() instead of duplicating the gh-tsouza call (#166 DRY)")
+    print("SELFTEST ok: pr-hygiene.py imports the shared fetchPrDiff() instead of duplicating the gh-tsouza call (#166 DRY)")
 
 _gh_diff_py_src = open(py("lib", "gh_diff.py"), "r", encoding="utf-8").read()
 if '"--patch"' in _gh_diff_py_src or "'--patch'" in _gh_diff_py_src:
@@ -429,30 +408,30 @@ elif "fetchPrDiff" not in _forbid_deferral_py_src:
 else:
     print("SELFTEST ok: hygiene/forbid_deferral.py imports the shared fetchPrDiff() instead of duplicating the gh-tsouza call (#166 DRY)")
 
-# 6c: CONVENTIONAL_COMMITS_RE — #166 DRY. pr-hygiene.mjs and changelog.mjs are
-# both out of this issue's scope and stay .mjs, still importing the shared
-# constant from lib/conventional-commits.mjs.
-for _file in ["pr-hygiene.mjs", "changelog.mjs"]:
+# 6c: CONVENTIONAL_COMMITS_RE — #166 DRY. pr-hygiene.py and changelog.py are
+# both Python now (#245's cutover), still importing the shared constant from
+# lib/conventional_commits.py.
+for _file in ["pr-hygiene.py", "changelog.py"]:
     _src = open(py(_file), "r", encoding="utf-8").read()
-    if re.search(r"CONVENTIONAL_COMMITS_RE\s*=\s*/", _src):
+    if re.search(r"CONVENTIONAL_COMMITS_RE\s*=\s*re\.compile", _src):
         print(f"SELFTEST FAIL: {_file} still defines CONVENTIONAL_COMMITS_RE locally instead of importing the shared constant (#166 DRY)", file=sys.stderr)
         failures += 1
-    elif not re.search(r"from\s+[\"'].*lib/conventional-commits\.mjs[\"']", _src):
-        print(f"SELFTEST FAIL: {_file} does not import CONVENTIONAL_COMMITS_RE from lib/conventional-commits.mjs (#166 DRY)", file=sys.stderr)
+    elif not re.search(r"from\s+lib\.conventional_commits\s+import\s+CONVENTIONAL_COMMITS_RE", _src):
+        print(f"SELFTEST FAIL: {_file} does not import CONVENTIONAL_COMMITS_RE from lib.conventional_commits (#166 DRY)", file=sys.stderr)
         failures += 1
     else:
         print(f"SELFTEST ok: {_file} imports the shared CONVENTIONAL_COMMITS_RE instead of duplicating it (#166 DRY)")
 
 # 7: pr-hygiene, fixture-based (a PR body that pastes the issue body verbatim).
-# pr-hygiene.mjs is out of this issue's scope and stays .mjs.
-expect_red("pr-hygiene", ["bun", mjs("pr-hygiene.mjs"), "--fixture", os.path.join(FIXTURES, "pr-hygiene")])
+# pr-hygiene.py is Python now (#245's cutover).
+expect_red("pr-hygiene", ["python3", py("pr-hygiene.py"), "--fixture", os.path.join(FIXTURES, "pr-hygiene")])
 
 expect_green(
     "pr-hygiene (dependabot exemption, body rules only)",
-    ["bun", mjs("pr-hygiene.mjs"), "--fixture", os.path.join(FIXTURES, "pr-hygiene-dependabot")],
+    ["python3", py("pr-hygiene.py"), "--fixture", os.path.join(FIXTURES, "pr-hygiene-dependabot")],
 )
 
-out, err, code = run(["bun", mjs("pr-hygiene.mjs"), "--fixture", os.path.join(FIXTURES, "pr-hygiene-dependabot-review-required")])
+out, err, code = run(["python3", py("pr-hygiene.py"), "--fixture", os.path.join(FIXTURES, "pr-hygiene-dependabot-review-required")])
 _violation_lines = "\n".join(l for l in err.split("\n") if l.startswith("  "))
 if code == 0:
     print("SELFTEST FAIL: pr-hygiene (dependabot PR with added human commit) was expected to fail on the missing review but exited 0", file=sys.stderr)
@@ -466,17 +445,17 @@ elif len([l for l in _violation_lines.split("\n") if l]) != 1:
 else:
     print("SELFTEST ok: pr-hygiene (dependabot PR with added human commit) still requires a Fresh-session review comment, and only that")
 
-expect_red("pr-hygiene (no Fresh-session review comment)", ["bun", mjs("pr-hygiene.mjs"), "--fixture", os.path.join(FIXTURES, "pr-hygiene-review-missing")])
-expect_red("pr-hygiene (Fresh-session review comment predates last commit)", ["bun", mjs("pr-hygiene.mjs"), "--fixture", os.path.join(FIXTURES, "pr-hygiene-review-stale")])
-expect_green("pr-hygiene (Fresh-session review comment postdates last commit)", ["bun", mjs("pr-hygiene.mjs"), "--fixture", os.path.join(FIXTURES, "pr-hygiene-review-fresh")])
+expect_red("pr-hygiene (no Fresh-session review comment)", ["python3", py("pr-hygiene.py"), "--fixture", os.path.join(FIXTURES, "pr-hygiene-review-missing")])
+expect_red("pr-hygiene (Fresh-session review comment predates last commit)", ["python3", py("pr-hygiene.py"), "--fixture", os.path.join(FIXTURES, "pr-hygiene-review-stale")])
+expect_green("pr-hygiene (Fresh-session review comment postdates last commit)", ["python3", py("pr-hygiene.py"), "--fixture", os.path.join(FIXTURES, "pr-hygiene-review-fresh")])
 
 expect_green(
     "pr-hygiene (Fresh-session review via native PR review, not a comment)",
-    ["bun", mjs("pr-hygiene.mjs"), "--fixture", os.path.join(FIXTURES, "pr-hygiene-review-native")],
+    ["python3", py("pr-hygiene.py"), "--fixture", os.path.join(FIXTURES, "pr-hygiene-review-native")],
 )
 
 for name in ["pr-hygiene-merged-before-review-112", "pr-hygiene-merged-before-review-125"]:
-    out, err, code = run(["bun", mjs("pr-hygiene.mjs"), "--fixture", os.path.join(FIXTURES, name)])
+    out, err, code = run(["python3", py("pr-hygiene.py"), "--fixture", os.path.join(FIXTURES, name)])
     combined = out + err
     if code == 0:
         print(f"SELFTEST FAIL: pr-hygiene ({name}) was expected to fail on the merge-before-review audit but exited 0", file=sys.stderr)
@@ -487,12 +466,12 @@ for name in ["pr-hygiene-merged-before-review-112", "pr-hygiene-merged-before-re
     else:
         print(f"SELFTEST ok: pr-hygiene ({name}) correctly flags merging before its review completed")
 
-expect_green("pr-hygiene (merged after review — no audit false-positive)", ["bun", mjs("pr-hygiene.mjs"), "--fixture", os.path.join(FIXTURES, "pr-hygiene-review-fresh")])
+expect_green("pr-hygiene (merged after review — no audit false-positive)", ["python3", py("pr-hygiene.py"), "--fixture", os.path.join(FIXTURES, "pr-hygiene-review-fresh")])
 
 # check-pins: a submodule pinned to a branch (not its remote's default
 # branch) that's freshly cloned + `submodule update --init`ed describes as
-# "remotes/origin/<branch>", not "heads/<branch>". check-pins.mjs is out of
-# this issue's scope and stays .mjs.
+# "remotes/origin/<branch>", not "heads/<branch>". check-pins.py is Python
+# now (#245's cutover).
 tmp = tempfile.mkdtemp(prefix="cp-selftest-")
 
 fake_duckdb = os.path.join(tmp, "fake-duckdb")
@@ -525,33 +504,33 @@ clone_dir = os.path.join(tmp, "super-clone")
 sh(tmp, f"-c protocol.file.allow=always clone -q {super_dir} {clone_dir}")
 sh(clone_dir, "submodule update --init")
 
-expect_green("check-pins (detached-HEAD remote-tracking describe)", ["bun", mjs("check-pins.mjs"), "--root", clone_dir])
+expect_green("check-pins (detached-HEAD remote-tracking describe)", ["python3", py("check-pins.py"), "--root", clone_dir])
 
-# 8-12: lanes-check's self-test fixtures. lanes-check.mjs is out of this
-# issue's scope and stays .mjs.
+# 8-12: lanes-check's self-test fixtures. lanes-check.py is Python now
+# (#245's cutover).
 for name in ["unregistered", "missing", "continue-on-error", "continue-on-error-step", "lanes-md-drift"]:
-    expect_red(f"lanes-check ({name})", ["bun", mjs("lanes-check.mjs"), "--root", materialize(f"lanes-check-{name}")])
+    expect_red(f"lanes-check ({name})", ["python3", py("lanes-check.py"), "--root", materialize(f"lanes-check-{name}")])
 
-# docs-links, adr-lint, fixtures-validate, coverage-check are all out of this
-# issue's scope and stay .mjs.
-expect_red("docs-links (dead link)", ["bun", mjs("docs-links.mjs"), "--root", materialize("docs-links-dead-link")])
-expect_red("docs-links (dead anchor)", ["bun", mjs("docs-links.mjs"), "--root", materialize("docs-links-dead-anchor")])
+# docs-links, adr-lint, fixtures-validate, coverage-check are all Python now
+# (#245's cutover).
+expect_red("docs-links (dead link)", ["python3", py("docs-links.py"), "--root", materialize("docs-links-dead-link")])
+expect_red("docs-links (dead anchor)", ["python3", py("docs-links.py"), "--root", materialize("docs-links-dead-anchor")])
 
 for name in ["bad-filename", "gap", "bad-status", "missing-date"]:
-    expect_red(f"adr-lint ({name})", ["bun", mjs("adr-lint.mjs"), "--root", materialize(f"adr-lint-{name}")])
+    expect_red(f"adr-lint ({name})", ["python3", py("adr-lint.py"), "--root", materialize(f"adr-lint-{name}")])
 
-expect_red("fixtures-validate (invalid)", ["bun", mjs("fixtures-validate.mjs"), "--root", materialize("fixtures-validate-invalid")])
-expect_red("fixtures-validate (inert)", ["bun", mjs("fixtures-validate.mjs"), "--root", materialize("fixtures-validate-inert")])
+expect_red("fixtures-validate (invalid)", ["python3", py("fixtures-validate.py"), "--root", materialize("fixtures-validate-invalid")])
+expect_red("fixtures-validate (inert)", ["python3", py("fixtures-validate.py"), "--root", materialize("fixtures-validate-inert")])
 
 _dir = materialize("fixtures-validate-valid-provenance-token")
-expect_green("fixtures-validate (valid, provenance token)", ["bun", mjs("fixtures-validate.mjs"), "--root", _dir])
+expect_green("fixtures-validate (valid, provenance token)", ["python3", py("fixtures-validate.py"), "--root", _dir])
 expect_green("forbid-consumer (fixture provenance token exempt)", ["python3", py("hygiene", "forbid-consumer.py"), "--root", _dir])
 
-expect_red("coverage-check", ["bun", mjs("coverage-check.mjs"), "--root", materialize("coverage-check-bad-how")])
+expect_red("coverage-check", ["python3", py("coverage-check.py"), "--root", materialize("coverage-check-bad-how")])
 
-expect_red("fixtures-validate (non-numeric window)", ["bun", mjs("fixtures-validate.mjs"), "--root", materialize("fixtures-validate-nonnumeric-window")])
-expect_red("fixtures-validate (non-numeric lookback)", ["bun", mjs("fixtures-validate.mjs"), "--root", materialize("fixtures-validate-nonnumeric-lookback")])
-expect_red("fixtures-validate (HISTOGRAM sample not a histogram literal)", ["bun", mjs("fixtures-validate.mjs"), "--root", materialize("fixtures-validate-histogram-bad-literal")])
+expect_red("fixtures-validate (non-numeric window)", ["python3", py("fixtures-validate.py"), "--root", materialize("fixtures-validate-nonnumeric-window")])
+expect_red("fixtures-validate (non-numeric lookback)", ["python3", py("fixtures-validate.py"), "--root", materialize("fixtures-validate-nonnumeric-lookback")])
+expect_red("fixtures-validate (HISTOGRAM sample not a histogram literal)", ["python3", py("fixtures-validate.py"), "--root", materialize("fixtures-validate-histogram-bad-literal")])
 
 expect_red("forbid-consumer (forbidden token in fixture: value)", ["python3", py("hygiene", "forbid-consumer.py"), "--root", materialize("forbid-consumer-fixture-value")])
 expect_red("forbid-consumer (forbidden token in function: value)", ["python3", py("hygiene", "forbid-consumer.py"), "--root", materialize("forbid-consumer-function-value")])
@@ -608,14 +587,14 @@ expect_green(
     ["python3", py("hygiene", "tier-coverage-floor.py"), "--root", materialize("tier-coverage-floor-green")],
 )
 
-# description-validate: out of this issue's scope, stays .mjs.
+# description-validate: Python now (#245's cutover).
 for name in ["missing-ref", "missing-extension", "missing-extension-name", "missing-repo", "missing-github", "maintainers-not-array"]:
     expect_red(
         f"description-validate ({name})",
-        ["bun", mjs("description-validate.mjs"), "--file", os.path.join(FIXTURES, f"description-validate-{name}", "description.yml")],
+        ["python3", py("description-validate.py"), "--file", os.path.join(FIXTURES, f"description-validate-{name}", "description.yml")],
     )
 
-# changelog / changelog-check: out of this issue's scope, stays .mjs.
+# changelog / changelog-check: Python now (#245's cutover).
 tmp = tempfile.mkdtemp(prefix="changelog-selftest-")
 git_init(tmp, "main")
 for subject in ["feat: add widget scalar (#1)", "fix: correct widget edge case (#2)", "docs: document the widget scalar (#3)"]:
@@ -623,7 +602,7 @@ for subject in ["feat: add widget scalar (#1)", "fix: correct widget edge case (
     sh(tmp, "add f")
     sh(tmp, f'commit -q -m "{subject}"')
 
-run(["bun", mjs("changelog.mjs"), "--root", tmp])
+run(["python3", py("changelog.py"), "--root", tmp])
 with open(os.path.join(tmp, "CHANGELOG.md"), "r", encoding="utf-8") as f:
     generated = f.read()
 if not generated.startswith("<!-- generated by make changelog -->") or "feat: add widget scalar (#1)" not in generated:
@@ -633,35 +612,24 @@ if not generated.startswith("<!-- generated by make changelog -->") or "feat: ad
 else:
     print("SELFTEST ok: changelog writes every Conventional-Commit subject since the first commit (no tags)")
 
-expect_green("changelog-check (matches what changelog would write)", ["bun", mjs("changelog.mjs"), "--check", "--root", tmp])
+expect_green("changelog-check (matches what changelog would write)", ["python3", py("changelog.py"), "--check", "--root", tmp])
 
 write_file(os.path.join(tmp, "CHANGELOG.md"), generated + "\nhand-edited\n")
-expect_red("changelog-check (hand-edited CHANGELOG.md)", ["bun", mjs("changelog.mjs"), "--check", "--root", tmp])
+expect_red("changelog-check (hand-edited CHANGELOG.md)", ["python3", py("changelog.py"), "--check", "--root", tmp])
 
 # 13: pr-label / issue-label-check / docs-links pure-function unit
-# assertions. These three scripts are out of this issue's scope and stay
-# .mjs; their pure functions (guarded behind `import.meta.main`, so calling
-# them never touches the network) are exercised here via `bun -e` against
-# the real, unported source, rather than reimplemented in Python — the
-# behavior under test belongs to files this issue does not own porting.
-
-
-def js_call(module_rel, fn_name, *py_args):
-    args_js = ", ".join(json.dumps(a) for a in py_args)
-    script = f'import {{ {fn_name} }} from "{module_rel}"; console.log(JSON.stringify({fn_name}({args_js})));'
-    result = subprocess.run(["bun", "-e", script], capture_output=True, text=True, cwd=HERE)
-    if result.returncode != 0:
-        raise RuntimeError(f"bun -e failed calling {fn_name}: {result.stderr}")
-    return json.loads(result.stdout)
-
-
-def js_call_sorted_spread(module_rel, fn_name, *py_args):
-    args_js = ", ".join(json.dumps(a) for a in py_args)
-    script = f'import {{ {fn_name} }} from "{module_rel}"; console.log(JSON.stringify([...{fn_name}({args_js})].sort()));'
-    result = subprocess.run(["bun", "-e", script], capture_output=True, text=True, cwd=HERE)
-    if result.returncode != 0:
-        raise RuntimeError(f"bun -e failed calling {fn_name}: {result.stderr}")
-    return json.loads(result.stdout)
+# assertions. All three are Python now (#245's cutover); their pure
+# functions (guarded behind `if __name__ == "__main__"`, so importing them
+# never touches the network) are exercised in-process, exactly like
+# scanDiffForDeferral above — importlib.import_module() resolves a
+# hyphenated module name by string lookup (unlike the `import`/`from
+# import` statements, which require a valid identifier and can't name a
+# hyphenated file at all), so no importlib.util.spec_from_file_location
+# machinery or renaming is needed for these three, module-collision-free
+# siblings.
+_pr_label = importlib.import_module("pr-label")
+_issue_label_check = importlib.import_module("issue-label-check")
+_docs_links = importlib.import_module("docs-links")
 
 
 def assert_equal(label, actual, expected):
@@ -675,20 +643,20 @@ def assert_equal(label, actual, expected):
         print(f"SELFTEST ok: {label}")
 
 
-assert_equal("closesIssueNumber: single match", js_call("./pr-label.mjs", "closesIssueNumber", "intro\n\nCloses #42\n\nmore text"), 42)
-assert_equal("closesIssueNumber: case-insensitive", js_call("./pr-label.mjs", "closesIssueNumber", "closes #7"), 7)
-assert_equal("closesIssueNumber: no match", js_call("./pr-label.mjs", "closesIssueNumber", "no link here"), None)
-assert_equal("closesIssueNumber: ambiguous (two matches)", js_call("./pr-label.mjs", "closesIssueNumber", "Closes #1\n\nAlso closes #2"), None)
-assert_equal("missingLabels: some missing", js_call("./pr-label.mjs", "missingLabels", ["size:S", "area:ci"], ["size:S"]), ["area:ci"])
-assert_equal("missingLabels: none missing", js_call("./pr-label.mjs", "missingLabels", ["size:S"], ["size:S", "area:ci"]), [])
-assert_equal("isMissingLabel: missing both", js_call("./issue-label-check.mjs", "isMissingLabel", []), True)
-assert_equal("isMissingLabel: missing area", js_call("./issue-label-check.mjs", "isMissingLabel", ["size:S"]), True)
-assert_equal("isMissingLabel: has both", js_call("./issue-label-check.mjs", "isMissingLabel", ["size:S", "area:ci"]), False)
-assert_equal("slugify: basic", js_call("./docs-links.mjs", "slugify", "The layer map"), "the-layer-map")
-assert_equal("slugify: strips punctuation", js_call("./docs-links.mjs", "slugify", "Registry closure & the fixture format"), "registry-closure--the-fixture-format")
+assert_equal("closesIssueNumber: single match", _pr_label.closesIssueNumber("intro\n\nCloses #42\n\nmore text"), 42)
+assert_equal("closesIssueNumber: case-insensitive", _pr_label.closesIssueNumber("closes #7"), 7)
+assert_equal("closesIssueNumber: no match", _pr_label.closesIssueNumber("no link here"), None)
+assert_equal("closesIssueNumber: ambiguous (two matches)", _pr_label.closesIssueNumber("Closes #1\n\nAlso closes #2"), None)
+assert_equal("missingLabels: some missing", _pr_label.missingLabels(["size:S", "area:ci"], ["size:S"]), ["area:ci"])
+assert_equal("missingLabels: none missing", _pr_label.missingLabels(["size:S"], ["size:S", "area:ci"]), [])
+assert_equal("isMissingLabel: missing both", _issue_label_check.isMissingLabel([]), True)
+assert_equal("isMissingLabel: missing area", _issue_label_check.isMissingLabel(["size:S"]), True)
+assert_equal("isMissingLabel: has both", _issue_label_check.isMissingLabel(["size:S", "area:ci"]), False)
+assert_equal("slugify: basic", _docs_links.slugify("The layer map"), "the-layer-map")
+assert_equal("slugify: strips punctuation", _docs_links.slugify("Registry closure & the fixture format"), "registry-closure--the-fixture-format")
 assert_equal(
     "headingSlugs: collects every heading",
-    js_call_sorted_spread("./docs-links.mjs", "headingSlugs", "# Title\n\nSome text\n\n## A section\n"),
+    sorted(_docs_links.headingSlugs("# Title\n\nSome text\n\n## A section\n")),
     ["a-section", "title"],
 )
 
@@ -697,7 +665,7 @@ assert_equal(
 # (hygiene/forbid_deferral.py, imported at the top of this file) — #241
 # ports forbid-deferral itself, so unlike the pr-label/issue-label-check/
 # docs-links functions above, this one is exercised in-process, exactly like
-# the .mjs original exercised its own in-process import.
+# the pr-label/issue-label-check/docs-links functions are exercised above.
 with open(os.path.join(FIXTURES, "forbid-deferral.json"), "r", encoding="utf-8") as f:
     _manifest = json.load(f)
 
@@ -728,9 +696,10 @@ assert_equal(
     _manifest["adjacentUnrelatedCommentsExpected"],
 )
 
-# Now the real tree must be green. hygiene.mjs is ported to hygiene.py
-# (#241); lanes-check/docs-links/adr-lint/fixtures-validate/
-# description-validate are out of scope and stay .mjs.
+# Now the real tree must be green. Every scan below is Python (#245's
+# cutover): hygiene.py (#241), lanes-check/docs-links/adr-lint/
+# fixtures-validate/description-validate.py (ported by later issues in
+# this milestone, wired in here by #245).
 out, err, code = run(["python3", py("hygiene.py")])
 sys.stdout.write(out)
 sys.stderr.write(err)
@@ -741,16 +710,16 @@ else:
     print("SELFTEST ok: `make hygiene` is green on the real tree")
 
 for label, cmd in [
-    ("lanes-check", ["bun", mjs("lanes-check.mjs")]),
-    ("docs-links", ["bun", mjs("docs-links.mjs")]),
-    ("adr-lint", ["bun", mjs("adr-lint.mjs")]),
-    ("fixtures-validate", ["bun", mjs("fixtures-validate.mjs")]),
+    ("lanes-check", ["python3", py("lanes-check.py")]),
+    ("docs-links", ["python3", py("docs-links.py")]),
+    ("adr-lint", ["python3", py("adr-lint.py")]),
+    ("fixtures-validate", ["python3", py("fixtures-validate.py")]),
     ("kernel-fixture-loader", ["python3", py("hygiene", "kernel-fixture-loader.py")]),
     ("derivation-sync", ["python3", py("hygiene", "derivation-sync.py")]),
     ("registry-roster-closure", ["python3", py("hygiene", "registry-roster-closure.py")]),
     ("divergence-enum-coverage", ["python3", py("hygiene", "divergence-enum-coverage.py")]),
     ("tier-coverage-floor", ["python3", py("hygiene", "tier-coverage-floor.py")]),
-    ("description-validate", ["bun", mjs("description-validate.mjs")]),
+    ("description-validate", ["python3", py("description-validate.py")]),
 ]:
     out, err, code = run(cmd)
     sys.stdout.write(out)
@@ -762,11 +731,11 @@ for label, cmd in [
         print(f"SELFTEST ok: `make {label}` is green on the real tree")
 
 # Deliberately no "`make changelog-check` is green on the real tree"
-# assertion here — see scripts/hygiene-selftest.mjs's own comment on this
-# (CHANGELOG.md is only ever current relative to main's own tip).
+# assertion here — CHANGELOG.md is only ever current relative to main's own
+# tip, so an open branch can't guarantee it (Article II.2).
 
-# check-pins: the "heads/<branch>" describe form. check-pins.mjs is out of
-# this issue's scope and stays .mjs.
+# check-pins: the "heads/<branch>" describe form. check-pins.py is Python
+# now (#245's cutover).
 tmp = tempfile.mkdtemp(prefix="cp-heads-selftest-")
 
 fake_duckdb = os.path.join(tmp, "fake-duckdb")
@@ -799,10 +768,10 @@ if "heads/v1.5-variegata" not in describe:
     print(f"SELFTEST FAIL: heads/<branch> fixture setup didn't reproduce the expected describe form: {describe}", file=sys.stderr)
     failures += 1
 
-expect_green("check-pins (local heads/<branch> describe)", ["bun", mjs("check-pins.mjs"), "--root", super_dir])
+expect_green("check-pins (local heads/<branch> describe)", ["python3", py("check-pins.py"), "--root", super_dir])
 
-# check-pins: #47 — the storage-partner pin. check-pins.mjs is out of this
-# issue's scope and stays .mjs.
+# check-pins: #47 — the storage-partner pin. check-pins.py is Python now
+# (#245's cutover).
 tmp = tempfile.mkdtemp(prefix="cp-partner-selftest-")
 
 fake_duckdb = os.path.join(tmp, "fake-duckdb")
@@ -845,18 +814,18 @@ sh(super_dir, "commit -q -m add-submodules-and-partner-pin")
 
 expect_green(
     "check-pins (partner pin present, build/partners/rawduck/ not built yet — pending, not fatal)",
-    ["bun", mjs("check-pins.mjs"), "--root", super_dir],
+    ["python3", py("check-pins.py"), "--root", super_dir],
 )
 
 partner_checkout = os.path.join(super_dir, "build", "partners", "rawduck")
 sh(tmp, f"-c protocol.file.allow=always clone -q {fake_rawduck} {partner_checkout}")
-expect_green("check-pins (partner pin matches build/partners/rawduck/ checkout)", ["bun", mjs("check-pins.mjs"), "--root", super_dir])
+expect_green("check-pins (partner pin matches build/partners/rawduck/ checkout)", ["python3", py("check-pins.py"), "--root", super_dir])
 
 write_file(os.path.join(fake_rawduck, "f"), "rawduck-content-2")
 sh(fake_rawduck, "add f")
 sh(fake_rawduck, "commit -q -m rawduck-commit-2")
 sh(partner_checkout, "pull -q origin main")
-expect_red("check-pins (partner pin disagrees with build/partners/rawduck/ checkout)", ["bun", mjs("check-pins.mjs"), "--root", super_dir])
+expect_red("check-pins (partner pin disagrees with build/partners/rawduck/ checkout)", ["python3", py("check-pins.py"), "--root", super_dir])
 
 if failures > 0:
     print(f"hygiene-selftest: FAIL ({failures} check(s))", file=sys.stderr)

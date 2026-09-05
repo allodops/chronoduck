@@ -1,7 +1,7 @@
 name: pr-label
 
 # Mirrors a PR's linked issue's size:/area: labels onto the PR — see
-# scripts/pr-label.mjs's header for the full rationale (issue #124: no PR in
+# scripts/pr-label.py's header for the full rationale (issue #124: no PR in
 # this repo has ever carried a label, unlike every issue).
 #
 # Two jobs, one script:
@@ -14,7 +14,7 @@ name: pr-label
 # SECURITY: pull_request_target runs with a write token on the BASE ref and
 # never checks out or executes PR head code — the script only reads the PR
 # number/body/labels via the API (event payload or REST) and calls the
-# labels API using the trusted, in-repo scripts/pr-label.mjs from the base
+# labels API using the trusted, in-repo scripts/pr-label.py from the base
 # ref.
 on:
   pull_request_target:
@@ -39,9 +39,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          bun-version-file: .bun-version
+          python-version: '3.12'
       - run: make pr-label PR=${{ github.event.pull_request.number }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -52,9 +52,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          bun-version-file: .bun-version
+          python-version: '3.12'
       - run: make pr-label
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
