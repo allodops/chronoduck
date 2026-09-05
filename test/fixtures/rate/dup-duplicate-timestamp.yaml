@@ -21,6 +21,12 @@
 # factor' = (60 + 6 + 15) / 60 = 1.35, value' = 3000 * 1.35 = 4050,
 # rate' = 4050 / 108 = 37.5 — the same delta, a different avg_interval alone
 # changes the answer.
+#
+# The L6a chDB leg (#43) runs this same fixture against timeSeriesRateToGrid:
+# ClickHouse's own duplicate-timestamp rule ("the sample with the greatest
+# value wins") is the same totalOrder tie-break, so the two engines agree on
+# 50 rather than needing an excuse — the declared divergence this fixture
+# exercises is ChdbDivergence::DUP_TS_KEEPS_MAX, asserted, not excused.
 fixture: rate/dup-duplicate-timestamp
 function: rate
 edge_mode: EXTRAPOLATE

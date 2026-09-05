@@ -4,6 +4,12 @@
 # sample, no `st`: `extrapolate`'s effective sample count stays 1 (no
 # synthetic ST point to raise it to 2), so there is nothing to form a slope
 # from and the fold yields no value at all.
+#
+# The L6a chDB leg (#43) runs this same fixture against timeSeriesRateToGrid:
+# ClickHouse's own two-sample floor (combined count < 2 -> NULL) agrees with
+# the kernel's own NULL-for-one-sample rule, so both sides answer NULL
+# without either excusing the other — the declared divergence this fixture
+# exercises is ChdbDivergence::NULL_FOR_TOO_FEW, asserted, not excused.
 fixture: rate/threshold-single-sample-without-st
 function: rate
 edge_mode: EXTRAPOLATE

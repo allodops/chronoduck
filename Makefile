@@ -105,6 +105,14 @@ partner-rawduck-build: ## Build the RawDuck storage partner (L15) at its pinned 
 partner-rawduck-test: ## LOAD chronoduck + the built rawduck extension together and run test/partners/rawduck/*.sql (smoke-LOAD only); RAWDUCK_REF=head targets the HEAD build instead of the pinned one
 	bun scripts/partners/rawduck-test.mjs
 
+.PHONY: chdb-fetch
+chdb-fetch: ## Vendor libchdb at its pinned (repository, tag), checksum-verified, into build/ (L6a, #43)
+	bun scripts/live-oracles/chdb-fetch.mjs
+
+.PHONY: chdb-differential
+chdb-differential: ## Run every test/fixtures/rate/*.yaml fixture against chDB's timeSeriesRateToGrid under the comparator, rostered by (fixture, oracle) (L6a, #43)
+	bun scripts/live-oracles/chdb-differential.mjs
+
 .PHONY: build-relevant-changed
 build-relevant-changed: ## Print/write BUILD_RELEVANT=true|false for whether the diff against origin/main could affect the compiled extension
 	bun scripts/build-relevant-changed.mjs
