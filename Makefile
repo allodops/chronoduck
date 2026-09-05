@@ -132,6 +132,10 @@ chdb-fetch: ## Vendor libchdb at its pinned (repository, tag), checksum-verified
 chdb-differential: ## Run every rate fixture (test/fixtures/rate/*.yaml and test/fixtures/derived/**/*.yaml) against chDB's timeSeriesRateToGrid under the comparator, rostered by (fixture, oracle) (L6a, #43)
 	bun scripts/live-oracles/chdb-differential.mjs
 
+.PHONY: memory-check-grid-stream
+memory-check-grid-stream: ## Operator-level L11 self-check for issue #40 AC2: peak RSS stays flat across a 100x-1000x series-count spread on the 1s/5min-window shape (release build required; not a merge-gate lane, see #45)
+	bun scripts/memory-check-grid-stream.mjs
+
 .PHONY: build-relevant-changed
 build-relevant-changed: ## Print/write BUILD_RELEVANT=true|false for whether the diff against origin/main could affect the compiled extension
 	bun scripts/build-relevant-changed.mjs
