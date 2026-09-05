@@ -1,0 +1,21 @@
+# threshold family (docs/testing/fixtures.md's threshold row): "single
+# sample without a start timestamp" — this issue's own acceptance criterion,
+# "NULL for one sample *only* when no start-timestamp role is bound". One
+# sample, no `st`: `extrapolate`'s effective sample count stays 1 (no
+# synthetic ST point to raise it to 2), so there is nothing to form a slope
+# from and the fold yields no value at all.
+fixture: rate/threshold-single-sample-without-st
+function: rate
+edge_mode: EXTRAPOLATE
+domain: COUNTER
+grid: {start: 100, end: 100, step: 1}
+window: 100
+lookback: 100
+samples:
+  - [50, 10]
+expected:
+  [null]
+provenance:
+  source: hand-derived
+  derived_by: chronoduck-issue-33
+  derived_at: 2026-09-05

@@ -1,0 +1,36 @@
+# edge family (docs/testing/fixtures.md's edge row): the left-open,
+# right-closed window rule, `Window.contains`'s own `anchor - width < t <=
+# anchor` (`src/kernel/window.hpp:Window:` `bool contains(int64_t t) const`).
+#
+# Window is (100, 200]. A decoy sample sits at t = 100 exactly (the excluded
+# lower edge) with a value (999) that would trigger a spurious reset if it
+# were ever admitted. The two real samples are t = 101 (one tick inside the
+# open bound) and t = 200 (the closed upper edge). delta = 40 - 10 = 30
+# (the decoy never participates), S = 200 - 101 = 99, avg_interval = 99,
+# threshold = 108.9; duration_to_start = 101 - 100 = 1 and
+# duration_to_end = 200 - 200 = 0, both under threshold, so
+# factor = 100 / 99 and rate = delta / S = 30 / 99 = 0.30303030303030304.
+fixture: rate/edge-boundary
+function: rate
+edge_mode: EXTRAPOLATE
+domain: COUNTER
+grid: {start: 200, end: 200, step: 1}
+window: 100
+lookback: 100
+samples:
+  - [100, 999]  # exactly at t - range: excluded by the left-open bound
+  - [101, 10]   # t - range + 1: the first admitted sample
+  - [200, 40]   # exactly at t: the closed upper edge
+expected:
+  [0.30303030303030304]
+wrong:
+  # A boundary bug that makes the window inclusive on both ends admits the
+  # t=100 decoy too: walking [999, 10, 40] detects a reset at 999->10 (delta
+  # += 999) then closes with 40 - 999 = -959, total delta = 40; n = 3,
+  # S = 100, avg_interval = 50, threshold = 55; both gaps (0 and 0 ticks)
+  # extrapolate fully, factor = 1, rate = 40 / window(100) = 0.4.
+  both-ends-inclusive: 0.4
+provenance:
+  source: hand-derived
+  derived_by: chronoduck-issue-33
+  derived_at: 2026-09-05

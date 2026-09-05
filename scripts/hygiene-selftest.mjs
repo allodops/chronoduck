@@ -609,6 +609,20 @@ await expectRed("fixtures-validate (HISTOGRAM sample not a histogram literal)", 
 await expectRed("forbid-consumer (forbidden token in fixture: value)", ["bun", join(HERE, "hygiene", "forbid-consumer.mjs"), "--root", materialize("forbid-consumer-fixture-value")]);
 await expectRed("forbid-consumer (forbidden token in function: value)", ["bun", join(HERE, "hygiene", "forbid-consumer.mjs"), "--root", materialize("forbid-consumer-function-value")]);
 
+// kernel-fixture-loader: #33 — each of the four fatal ratchet verdicts
+// (Article V.4 / docs/testing/rules.md's T7) gets its own fixture, plus one
+// proving the matching, all-passing case stays green. Every manifest here
+// carries only a `test/fixtures/roster.json` and, where relevant, one
+// `test/fixtures/rate/always-null.yaml` — the evaluator's own C++ source is
+// read from this repo directly (kernel-fixture-loader.mjs's own "not part
+// of the tree under --root" posture), so a materialized root never needs a
+// copy of it.
+await expectRed("kernel-fixture-loader (REGRESSED: roster'd fixture now fails)", ["bun", join(HERE, "hygiene", "kernel-fixture-loader.mjs"), "--root", materialize("kernel-fixture-loader-regressed")]);
+await expectRed("kernel-fixture-loader (VANISHED: roster'd id has no current fixture)", ["bun", join(HERE, "hygiene", "kernel-fixture-loader.mjs"), "--root", materialize("kernel-fixture-loader-vanished")]);
+await expectRed("kernel-fixture-loader (ARRIVED-FAILING: new fixture, not in roster, fails)", ["bun", join(HERE, "hygiene", "kernel-fixture-loader.mjs"), "--root", materialize("kernel-fixture-loader-arrived-failing")]);
+await expectRed("kernel-fixture-loader (UNRECORDED: new fixture, not in roster, passes)", ["bun", join(HERE, "hygiene", "kernel-fixture-loader.mjs"), "--root", materialize("kernel-fixture-loader-unrecorded")]);
+await expectGreen("kernel-fixture-loader (roster matches, everything passes)", ["bun", join(HERE, "hygiene", "kernel-fixture-loader.mjs"), "--root", materialize("kernel-fixture-loader-green")]);
+
 // description-validate: 6 distinct violation branches, each isolated to its
 // own otherwise-valid-and-complete description.yml fixture.
 for (const name of [
@@ -805,6 +819,17 @@ assertEqual("headingSlugs: collects every heading", [...headingSlugs("# Title\n\
     failures++;
   } else {
     console.log("SELFTEST ok: `make fixtures-validate` is green on the real tree");
+  }
+}
+{
+  const { out, err, code } = await run(["bun", join(HERE, "hygiene", "kernel-fixture-loader.mjs")]);
+  process.stdout.write(out);
+  process.stderr.write(err);
+  if (code !== 0) {
+    console.error("SELFTEST FAIL: `make kernel-fixture-loader` is not green on the real tree");
+    failures++;
+  } else {
+    console.log("SELFTEST ok: `make kernel-fixture-loader` is green on the real tree");
   }
 }
 {

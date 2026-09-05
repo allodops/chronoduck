@@ -1,0 +1,29 @@
+# threshold family (docs/testing/fixtures.md's threshold row): "single
+# sample with its start timestamp inside the window" — the other half of
+# this issue's own acceptance criterion. One sample at t = 100, v = 5, with
+# st = 80 strictly inside the left gap (window_start = 50 < 80 < 100):
+# `extrapolate` models it as a synthetic (80, 0.0) point ahead of the real
+# sample, raising the effective count to 2 and yielding a value where a bare
+# `(t, v)` sample could not.
+#
+# eff_first_t = 80, eff_delta = 0 (synthetic jump) + 5 (the real value) = 5.
+# sampled_interval = 100 - 80 = 20, avg_interval = 20 (eff_n = 2),
+# threshold = 22. duration_to_start = 0 (the ST short-circuit).
+# duration_to_end = 110 - 100 = 10, under threshold, extrapolates fully.
+# factor = (20 + 0 + 10) / 20 = 1.5, value = 5 * 1.5 = 7.5,
+# rate = 7.5 / window(60) = 0.125.
+fixture: rate/threshold-single-sample-with-st
+function: rate
+edge_mode: EXTRAPOLATE
+domain: COUNTER
+grid: {start: 110, end: 110, step: 1}
+window: 60
+lookback: 60
+samples:
+  - [100, 5, 80]
+expected:
+  [0.125]
+provenance:
+  source: hand-derived
+  derived_by: chronoduck-issue-33
+  derived_at: 2026-09-05

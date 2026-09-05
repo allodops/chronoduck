@@ -127,6 +127,10 @@ adr-lint: ## Verify docs/decisions/*.md's filename, numbering and front matter (
 fixtures-validate: ## Validate every test/fixtures/*.yaml against the language-neutral fixture format
 	bun scripts/fixtures-validate.mjs
 
+.PHONY: kernel-fixture-loader
+kernel-fixture-loader: ## Replay every test/fixtures/rate/*.yaml through the comparator and the fixture-identity roster (L2, Article V.4)
+	bun scripts/hygiene/kernel-fixture-loader.mjs
+
 .PHONY: coverage-check
 coverage-check: ## Verify docs/design/coverage.md's K/K+/P rows and milestone tokens against the design docs and the issue tracker
 	bun scripts/coverage-check.mjs
