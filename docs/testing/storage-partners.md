@@ -96,7 +96,8 @@ at all, at the DuckDB version chronoduck itself is pinned to.
   checked out (the root `Makefile`'s own extension-ci-tools-submodule-absent warning). This check
   is scoped to the pinned checkout only: it never looks at `build/partners/rawduck-head/` (below).
 - The lane is registered as `partner-rawduck` in `.github/ci-lanes.json`, posture `release`
-  (`.github/workflows/release.yml`, push to `main` only) — layer L15, owner tsouza.
+  (`.github/workflows/release.yml`, push to `main`, plus a `workflow_dispatch` escape hatch for
+  verifying a fix from a branch before it reaches `main` — issue #225) — layer L15, owner tsouza.
 
 ## Tracking partner HEAD drift
 

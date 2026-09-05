@@ -1,13 +1,17 @@
 name: release
 
-# Release-posture lanes (docs/testing/lanes.md): push to main only, no-op on
+# Release-posture lanes (docs/testing/lanes.md): push to main, no-op on
 # ordinary pull requests, not a required status check. First tenant:
 # partner-rawduck (L15, issue #47) — building a storage partner's own
 # extension at chronoduck's DuckDB pin is comparable cost to chronoduck's own
-# build, not something every PR should pay.
+# build, not something every PR should pay. `workflow_dispatch` (issue #225)
+# is a manual escape hatch only — mirrors nightly.yml's own trigger — so a
+# fix to this lane can be verified with a real run from a branch before it
+# reaches `main`, instead of only after a push there.
 on:
   push:
     branches: [main]
+  workflow_dispatch: {}
 
 permissions:
   contents: read
