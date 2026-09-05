@@ -129,6 +129,10 @@ oracle-fence: ## Walk every #include reachable from test/oracle/ and fail if any
 shape-roster: ## L3's ShapeID property roster, identity-ratcheted against test/oracle/shape-roster.json (Article V.4, T7)
 	python3 scripts/hygiene/shape-roster.py
 
+.PHONY: parity-roster
+parity-roster: ## L8's operator == aggregate parity roster, identity-ratcheted against test/sql/parity-roster.json (Article V.4, #44)
+	python3 scripts/hygiene/parity-roster.py
+
 .PHONY: forbid-deferral
 forbid-deferral: ## PR-diff deferral-language scan: make forbid-deferral PR=<n>
 	$(if $(PR),,$(error usage: make forbid-deferral PR=<n>))

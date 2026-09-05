@@ -233,6 +233,33 @@ expect_green(
     ["python3", py("hygiene", "shape-roster.py"), "--root", materialize("shape-roster-green")],
 )
 
+# 4e-4: parity-roster (#44, T7) — L8's operator == aggregate parity leg,
+# ratcheted the same way shape-roster is.
+expect_red(
+    "parity-roster (VANISHED: roster'd row no longer a D0 RANGE/HIST registry row)",
+    ["python3", py("hygiene", "parity-roster.py"), "--root", materialize("parity-roster-vanished")],
+)
+expect_red(
+    "parity-roster (REGRESSED: roster'd row lost its L8-PARITY citation)",
+    ["python3", py("hygiene", "parity-roster.py"), "--root", materialize("parity-roster-regressed")],
+)
+expect_red(
+    "parity-roster (ARRIVED-FAILING: new D0 RANGE/HIST row, no parity citation)",
+    ["python3", py("hygiene", "parity-roster.py"), "--root", materialize("parity-roster-arrived-failing")],
+)
+expect_red(
+    "parity-roster (UNRECORDED: parity citation exists, roster.json not updated)",
+    ["python3", py("hygiene", "parity-roster.py"), "--root", materialize("parity-roster-unrecorded")],
+)
+expect_red(
+    "parity-roster (UNKNOWN-ROW: citation names a row that isn't a D0 RANGE/HIST row)",
+    ["python3", py("hygiene", "parity-roster.py"), "--root", materialize("parity-roster-unknown-row")],
+)
+expect_green(
+    "parity-roster (registry, citation and roster all agree)",
+    ["python3", py("hygiene", "parity-roster.py"), "--root", materialize("parity-roster-green")],
+)
+
 # 4f: the comparator headroom pin's static_assert mechanism — pure C++/g++.
 for name, expect_message in [
     ("comparator-headroom-accept-red", "a reorder factor eroded to the accept edge must fail the floor"),

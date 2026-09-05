@@ -104,6 +104,14 @@ window must be positive
 
 # --- fixture-equal to the aggregate form: acceptance criterion 1 ------------
 #
+# L8-PARITY: ts_rate
+#
+# The row this citation names (scripts/hygiene/parity-roster.py, #44's own
+# registry-driven closure leg): the block below is `ts_rate`'s operator ==
+# aggregate, bit-exact parity leg — every D0 RANGE row src/kernel/registry.def
+# declares needs one of these, named by this exact citation, or
+# parity-roster.py fails ARRIVED-FAILING on the row.
+#
 # 40 series x 3001 samples each (120,040 rows): every series' own range
 # spans far more than one STANDARD_VECTOR_SIZE morsel (3001 > 2048), so this
 # one dataset also exercises "a series split across two morsels" from the
