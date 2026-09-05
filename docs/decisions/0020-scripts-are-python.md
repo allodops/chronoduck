@@ -11,8 +11,9 @@ deciders: tsouza
 `scripts/` needs one scripting language, chosen against the real tooling convention of the
 ecosystem chronoduck ships into. Reading the actual file trees rather than assuming their shape:
 
-- DuckDB core's own vendored `duckdb/scripts/` carries, at any depth, 79 `.py` files and 16 `.sh`
-  files and nothing else scripting anything.
+- DuckDB core's own vendored `duckdb/scripts/` is predominantly Python and shell: 79 `.py` files
+  and 16 `.sh` files, at any depth, the two languages driving essentially all of that tree's
+  automation.
 - `extension-ci-tools/scripts/` — the reusable CI machinery chronoduck's own workflows `include`
   (Article IV.1) — carries 3 `.py` files (`append_extension_metadata.py`,
   `modify_distribution_matrix.py`, `configure_helper.py`) and nothing else.
