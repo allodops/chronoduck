@@ -7,7 +7,7 @@
 // Follows `docs/testing/primitives.md`'s Tier 0 `is_stale / stale_marker`
 // row exactly: bit-pattern round-trips, the one invariant, the reference's
 // pinned bit pattern as the oracle, and the one must-die mutant.
-#include "../../src/kernel/stale.hpp"
+#include "kernel/stale.hpp"
 
 #include <cmath>
 #include <cstdio>

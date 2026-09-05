@@ -9,7 +9,7 @@
 // row exactly: the six named edge cases, the invariant checked against an
 // independently-spelled inequality, and — this issue's own acceptance
 // criterion — a killing row for *every* `<`/`<=` the function contains.
-#include "../../src/kernel/window.hpp"
+#include "kernel/window.hpp"
 
 #include <cstdint>
 #include <cstdio>

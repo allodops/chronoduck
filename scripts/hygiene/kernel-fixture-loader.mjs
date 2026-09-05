@@ -59,7 +59,8 @@ const ROSTER_PATH = join(root, "test", "fixtures", "roster.json");
 // selftest root (which never includes a copy of it) still compiles the one
 // real evaluator.
 const REAL_HERE = dirname(fileURLToPath(import.meta.url));
-const LOADER_CPP = join(REAL_HERE, "..", "..", "test", "kernel", "rate_fixture_loader.cpp");
+const REAL_ROOT = join(REAL_HERE, "..", "..");
+const LOADER_CPP = join(REAL_ROOT, "test", "kernel", "rate_fixture_loader.cpp");
 
 const SUPPORTED_EDGE_MODE = "EXTRAPOLATE";
 const SUPPORTED_DOMAIN = "COUNTER";
@@ -128,7 +129,17 @@ function buildWirePayload(doc, rel) {
 
 async function compileLoader(tmpDir) {
   const binPath = join(tmpDir, "rate_fixture_loader");
-  const compile = await run(["g++", "-std=c++17", "-Wall", "-Wextra", LOADER_CPP, "-o", binPath]);
+  const compile = await run([
+    "g++",
+    "-std=c++17",
+    "-Wall",
+    "-Wextra",
+    "-I",
+    join(REAL_ROOT, "src"),
+    LOADER_CPP,
+    "-o",
+    binPath,
+  ]);
   if (compile.code !== 0) {
     throw new Error(`failed to compile ${relative(root, LOADER_CPP)}:\n${compile.out}${compile.err}`);
   }

@@ -11,7 +11,7 @@
 // `EvaluateRate` — independent of `scripts/kernel-fixture-loader.mjs`'s YAML
 // parsing and wire-format marshalling, so a bug in the composition itself is
 // caught here even if the loader script were never run.
-#include "../../src/kernel/comparator.hpp"
+#include "kernel/comparator.hpp"
 #include "rate_fixture_eval.hpp"
 
 #include <cstdio>

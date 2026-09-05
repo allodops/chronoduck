@@ -19,8 +19,8 @@
 // independently reproduce — x86-64's SSE2 double arithmetic has no excess
 // precision to defeat in the first place, so there is no observable
 // behavioural difference to assert on here.
-#include "../../src/kernel/comparator.hpp"
-#include "../../src/kernel/kahan.hpp"
+#include "kernel/comparator.hpp"
+#include "kernel/kahan.hpp"
 
 #include <cmath>
 #include <cstdio>

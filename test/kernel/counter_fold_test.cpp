@@ -13,7 +13,7 @@
 // without), this issue's own `st_reset` four-case table, a one-line
 // independent-fold oracle checked over randomized trials (MR-PERM,
 // MR-SCALE), and the two named must-die mutants.
-#include "../../src/kernel/counter_fold.hpp"
+#include "kernel/counter_fold.hpp"
 
 #include <cmath>
 #include <cstdio>

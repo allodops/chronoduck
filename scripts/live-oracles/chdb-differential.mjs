@@ -135,6 +135,14 @@ function buildWirePayload(doc, divergenceTag) {
   return lines.join("\n") + "\n";
 }
 
+// #229/#235: chdb_diff_eval.cpp reaches test/kernel/rate_fixture_eval.hpp via
+// "../../kernel/rate_fixture_eval.hpp", which in turn reaches its own kernel
+// headers with the clean, non-`../` `#include "kernel/foo.hpp"` form that
+// #229 gave every test/kernel/*.cpp file. That form only resolves against
+// `<root>/src` (the same root `kernel-primitive-tests.mjs` and
+// `kernel-fixture-loader.mjs` use), so this g++ invocation needs the
+// matching `-I <root>/src` flag even though chdb_diff_eval.cpp itself lives
+// outside test/kernel/ and keeps its own original relative includes.
 async function compileEvaluator(tmpDir, chdbDir) {
   const binPath = join(tmpDir, "chdb_diff_eval");
   const compile = await run([
@@ -143,6 +151,7 @@ async function compileEvaluator(tmpDir, chdbDir) {
     "-O1",
     "-Wall",
     "-Wextra",
+    `-I${join(root, "src")}`,
     `-I${chdbDir}`,
     EVAL_CPP,
     "-o",

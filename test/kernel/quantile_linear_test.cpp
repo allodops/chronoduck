@@ -9,7 +9,7 @@
 // φ × n table, the three invariants, the sorted-vector oracle written out
 // independently, and both must-die mutants, each demonstrated by a shadow
 // implementation carrying the mutation.
-#include "../../src/kernel/quantile_linear.hpp"
+#include "kernel/quantile_linear.hpp"
 
 #include <algorithm>
 #include <cmath>

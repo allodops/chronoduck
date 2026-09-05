@@ -14,6 +14,20 @@
 // one compile-and-run convention, rather than one hardcoded script per
 // primitive (Article II's own "single source of truth" spirit, applied to
 // hygiene tooling rather than only to production code).
+//
+// #229: the compile invocation passes `-I <root>/src` so each test's own
+// quoted `#include "kernel/<name>.hpp"` resolves the same way
+// `src/chronoduck_extension.cpp` already resolves its own `#include
+// "kernel/<name>.hpp"` — src/ is this tree's established header root, not
+// the repo root — instead of via a fragile `../../src/kernel/<name>.hpp`
+// climb out of test/kernel/. The fragile form is what let it compile with
+// no -I flag at all in the first place. `-I <root>` is kept alongside it so
+// `oracle_sweep_test.cpp`'s `#include "test/oracle/<name>.hpp"` (a
+// cross-top-level-directory reference with no `src/chronoduck_extension.cpp`
+// precedent to follow) keeps resolving root-relative.
+// `forbid-relative-kernel-include.mjs` is the mechanical scan that keeps the
+// fragile `../` form from coming back, regardless of which of these two
+// clean forms a given include uses.
 import { mkdtempSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
@@ -59,7 +73,19 @@ for (const file of files) {
   const name = basename(file, ".cpp"); // e.g. "comparator_test"
   const binPath = join(tmp, name);
 
-  const compile = await run(["g++", "-std=c++17", "-Wall", "-Wextra", testPath, "-o", binPath]);
+  const compile = await run([
+    "g++",
+    "-std=c++17",
+    "-Wall",
+    "-Wextra",
+    "-I",
+    join(root, "src"),
+    "-I",
+    root,
+    testPath,
+    "-o",
+    binPath,
+  ]);
   if (compile.code !== 0) {
     violations.push(`test/kernel/${file} failed to compile:\n${compile.out}${compile.err}`);
     continue;
