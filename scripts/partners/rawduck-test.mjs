@@ -26,16 +26,26 @@
 // `.test`. Executed the same way scripts/smoke.mjs executes its own
 // one-liner: as a single `-c` script string against the CLI, success meaning
 // exit 0 and no "Error:"-prefixed line in the output.
+//
+// HEAD mode (`partner-rawduck-head`, L15, issue #49): with RAWDUCK_REF=head
+// in the environment, this targets the build produced by
+// `RAWDUCK_REF=head make partner-rawduck-build` at
+// build/partners/rawduck-head/ instead of the pinned checkout at
+// build/partners/rawduck/, and reports the actual commit under test (the
+// partner's default-branch HEAD at build time) alongside any failing leg.
 import { readFileSync, readdirSync, existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+const HEAD_MODE = process.env.RAWDUCK_REF === "head";
+const LABEL = HEAD_MODE ? "partner-rawduck-head-test" : "partner-rawduck-test";
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..", "..");
 const DUCKDB_BIN = join(ROOT, "build", "release", "duckdb");
 const CHRONODUCK_EXT = join(ROOT, "build", "release", "extension", "chronoduck", "chronoduck.duckdb_extension");
-const RAWDUCK_ROOT = join(ROOT, "build", "partners", "rawduck");
+const RAWDUCK_ROOT = join(ROOT, "build", "partners", HEAD_MODE ? "rawduck-head" : "rawduck");
 const RAWDUCK_EXT = join(RAWDUCK_ROOT, "build", "release", "extension", "rawduck", "rawduck.duckdb_extension");
 // RawDuck's own extension_config.cmake also builds DuckDB's core `json`
 // extension as a sibling artifact (RawDuck's ingest path depends on the JSON
@@ -48,14 +58,27 @@ const RAWDUCK_JSON_EXT = join(RAWDUCK_ROOT, "build", "release", "extension", "js
 const TEST_DIR = join(ROOT, "test", "partners", "rawduck");
 
 function fail(message) {
-  console.error(`partner-rawduck-test: FAIL — ${message}`);
+  console.error(`${LABEL}: FAIL — ${message}`);
   process.exit(1);
 }
 
+const buildHint = HEAD_MODE ? "RAWDUCK_REF=head make partner-rawduck-build" : "make partner-rawduck-build";
+
 if (!existsSync(DUCKDB_BIN)) fail(`${DUCKDB_BIN} does not exist — run \`make release\` first`);
 if (!existsSync(CHRONODUCK_EXT)) fail(`${CHRONODUCK_EXT} does not exist — run \`make release\` first`);
-if (!existsSync(RAWDUCK_EXT)) fail(`${RAWDUCK_EXT} does not exist — run \`make partner-rawduck-build\` first`);
+if (!existsSync(RAWDUCK_EXT)) fail(`${RAWDUCK_EXT} does not exist — run \`${buildHint}\` first`);
 if (!existsSync(TEST_DIR)) fail(`${TEST_DIR} does not exist`);
+
+// HEAD mode: name the commit under test up front — the checkout at
+// RAWDUCK_ROOT was left at whatever commit the paired build step resolved
+// and built (this script never re-resolves it, so the reported commit is
+// exactly what was actually built and is about to be tested).
+if (HEAD_MODE) {
+  const headRev = Bun.spawnSync(["git", "rev-parse", "HEAD"], { cwd: RAWDUCK_ROOT, stdout: "pipe", stderr: "pipe" });
+  const headSha = headRev.exitCode === 0 ? headRev.stdout.toString("utf8").trim() : null;
+  if (!headSha) fail(`could not read HEAD of ${RAWDUCK_ROOT} — run \`${buildHint}\` first`);
+  console.log(`${LABEL}: testing RawDuck at HEAD commit ${headSha}`);
+}
 
 const testFiles = readdirSync(TEST_DIR).filter((f) => f.endsWith(".sql")).sort();
 if (testFiles.length === 0) fail(`no test/partners/rawduck/*.sql files found`);
@@ -88,16 +111,16 @@ for (const file of testFiles) {
   const combined = out + err;
   const erred = code !== 0 || /^Error:/m.test(combined);
   if (erred) {
-    console.error(`partner-rawduck-test: FAIL — test/partners/rawduck/${file}`);
+    console.error(`${LABEL}: FAIL — test/partners/rawduck/${file}`);
     console.error(combined.trim());
     failures++;
   } else {
-    console.log(`partner-rawduck-test: PASS — test/partners/rawduck/${file}`);
+    console.log(`${LABEL}: PASS — test/partners/rawduck/${file}`);
   }
 }
 
 if (failures > 0) {
-  console.error(`partner-rawduck-test: FAIL (${failures}/${testFiles.length} file(s))`);
+  console.error(`${LABEL}: FAIL (${failures}/${testFiles.length} file(s))`);
   process.exit(1);
 }
-console.log(`partner-rawduck-test: PASS (${testFiles.length} file(s))`);
+console.log(`${LABEL}: PASS (${testFiles.length} file(s))`);

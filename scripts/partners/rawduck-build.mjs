@@ -18,6 +18,16 @@
 // artifact back into the checkout's own build/ tree; either a new partner
 // commit or a bumped duckdb-pin.mjs constant changes the key and forces a
 // real rebuild.
+//
+// HEAD mode (`partner-rawduck-head`, L15, issue #49): with RAWDUCK_REF=head
+// in the environment, the target commit is resolved at run time as
+// scripts/partners/rawduck.json's repository's own default-branch HEAD via
+// `git ls-remote`, instead of the file's pinned "commit" field — everything
+// else (re-pointing the duckdb submodule at our own pin, the build, the
+// cache) is identical. HEAD mode uses its own checkout
+// (build/partners/rawduck-head/) and cache root
+// (build/partners/rawduck-head-cache/) so it never disturbs the pinned
+// checkout `make check-pins` compares scripts/partners/rawduck.json against.
 import { $ } from "bun";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, copyFileSync, readFileSync } from "node:fs";
@@ -25,15 +35,18 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { EXPECTED_DUCKDB_REF } from "../lib/duckdb-pin.mjs";
 
+const HEAD_MODE = process.env.RAWDUCK_REF === "head";
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..", "..");
 const CONFIG_PATH = join(ROOT, "scripts", "partners", "rawduck.json");
-const CHECKOUT_DIR = join(ROOT, "build", "partners", "rawduck");
-const CACHE_ROOT = join(ROOT, "build", "partners", "rawduck-cache");
+const CHECKOUT_DIR = join(ROOT, "build", "partners", HEAD_MODE ? "rawduck-head" : "rawduck");
+const CACHE_ROOT = join(ROOT, "build", "partners", HEAD_MODE ? "rawduck-head-cache" : "rawduck-cache");
 const ARTIFACT_REL = join("build", "release", "extension", "rawduck", "rawduck.duckdb_extension");
+const LABEL = HEAD_MODE ? "partner-rawduck-head-build" : "partner-rawduck-build";
 
 function fail(message) {
-  console.error(`partner-rawduck-build: FAIL — ${message}`);
+  console.error(`${LABEL}: FAIL — ${message}`);
   process.exit(1);
 }
 
@@ -53,22 +66,45 @@ if (!config.repository || !config.commit) {
   fail(`${CONFIG_PATH} must declare "repository" and "commit"`);
 }
 
-const cacheKey = createHash("sha256").update(`${config.commit}:${EXPECTED_DUCKDB_REF}`).digest("hex").slice(0, 16);
+const repoUrl = `https://github.com/${config.repository}.git`;
+
+// In HEAD mode, resolve the partner's own default-branch tip via a
+// network-only `git ls-remote` — no local clone required to find it, and it
+// reflects whatever the partner's default branch actually points at *right
+// now*, which is the whole point of this lane (issue #49: catch upstream
+// drift before it silently breaks compatibility).
+async function resolveDefaultBranchHead() {
+  const { out, err, code } = await run(ROOT, ["git", "ls-remote", repoUrl, "HEAD"]);
+  if (code !== 0 || !out.trim()) {
+    fail(`could not resolve ${config.repository}'s default-branch HEAD via \`git ls-remote ${repoUrl} HEAD\`:\n${err}`);
+  }
+  const sha = out.trim().split(/\s+/)[0];
+  if (!/^[0-9a-f]{40}$/.test(sha)) {
+    fail(`\`git ls-remote ${repoUrl} HEAD\` returned an unexpected line: "${out.trim()}"`);
+  }
+  return sha;
+}
+
+const targetCommit = HEAD_MODE ? await resolveDefaultBranchHead() : config.commit;
+if (HEAD_MODE) {
+  console.log(`${LABEL}: HEAD mode — ${config.repository}'s current default-branch HEAD is ${targetCommit}`);
+}
+
+const cacheKey = createHash("sha256").update(`${targetCommit}:${EXPECTED_DUCKDB_REF}`).digest("hex").slice(0, 16);
 const cacheDir = join(CACHE_ROOT, cacheKey);
 const cachedArtifact = join(cacheDir, "rawduck.duckdb_extension");
 
 mkdirSync(dirname(CHECKOUT_DIR), { recursive: true });
 
-// 1. Ensure build/partners/rawduck/ is a checkout of exactly the pinned commit.
-const repoUrl = `https://github.com/${config.repository}.git`;
-
+// 1. Ensure the checkout dir is at exactly targetCommit (the pinned commit,
+// or — in HEAD mode — the default-branch tip resolved above).
 async function currentHead() {
   const { out, code } = await run(CHECKOUT_DIR, ["git", "rev-parse", "HEAD"]);
   return code === 0 ? out.trim() : null;
 }
 
 if (!existsSync(join(CHECKOUT_DIR, ".git"))) {
-  console.log(`partner-rawduck-build: cloning ${repoUrl} into build/partners/rawduck/`);
+  console.log(`${LABEL}: cloning ${repoUrl} into ${CHECKOUT_DIR}`);
   const clone = await run(ROOT, ["git", "clone", repoUrl, CHECKOUT_DIR]);
   if (clone.code !== 0) {
     fail(`could not clone ${repoUrl}:\n${clone.err}`);
@@ -76,39 +112,43 @@ if (!existsSync(join(CHECKOUT_DIR, ".git"))) {
 } else {
   const head = await currentHead();
   if (head === null) {
-    fail(`build/partners/rawduck/ exists but is not a usable git checkout — remove it and re-run`);
+    fail(`${CHECKOUT_DIR} exists but is not a usable git checkout — remove it and re-run`);
   }
 }
 
 let head = await currentHead();
-if (head !== config.commit) {
-  console.log(`partner-rawduck-build: checking out pinned commit ${config.commit} (currently at ${head})`);
-  let checkout = await run(CHECKOUT_DIR, ["git", "checkout", "--detach", config.commit]);
+if (head !== targetCommit) {
+  console.log(`${LABEL}: checking out ${targetCommit} (currently at ${head})`);
+  let checkout = await run(CHECKOUT_DIR, ["git", "checkout", "--detach", targetCommit]);
   if (checkout.code !== 0) {
     // the commit may not be reachable from whatever refs were fetched at clone time
-    const fetch = await run(CHECKOUT_DIR, ["git", "fetch", "origin", config.commit]);
+    const fetch = await run(CHECKOUT_DIR, ["git", "fetch", "origin", targetCommit]);
     if (fetch.code === 0) {
-      checkout = await run(CHECKOUT_DIR, ["git", "checkout", "--detach", config.commit]);
+      checkout = await run(CHECKOUT_DIR, ["git", "checkout", "--detach", targetCommit]);
     }
   }
   if (checkout.code !== 0) {
     fail(
-      `could not check out pinned commit "${config.commit}" in ${config.repository} — is scripts/partners/rawduck.json's "commit" field wrong?\n${checkout.err}`
+      HEAD_MODE
+        ? `could not check out ${config.repository}'s own default-branch HEAD "${targetCommit}" — has it moved again since resolution?\n${checkout.err}`
+        : `could not check out pinned commit "${targetCommit}" in ${config.repository} — is scripts/partners/rawduck.json's "commit" field wrong?\n${checkout.err}`
     );
   }
   head = await currentHead();
-  if (head !== config.commit) {
-    fail(`checkout of "${config.commit}" reported success but HEAD is "${head}" — refusing to proceed`);
+  if (head !== targetCommit) {
+    fail(`checkout of "${targetCommit}" reported success but HEAD is "${head}" — refusing to proceed`);
   }
 }
-console.log(`partner-rawduck-build: build/partners/rawduck/ is at the pinned commit ${config.commit}`);
+console.log(
+  `${LABEL}: ${CHECKOUT_DIR} is at ${HEAD_MODE ? `${config.repository}'s current default-branch HEAD` : "the pinned commit"} ${targetCommit}`
+);
 
 // 2. Cache hit: skip straight to placing the cached artifact and reporting.
 if (existsSync(cachedArtifact)) {
   const destDir = join(CHECKOUT_DIR, dirname(ARTIFACT_REL));
   mkdirSync(destDir, { recursive: true });
   copyFileSync(cachedArtifact, join(CHECKOUT_DIR, ARTIFACT_REL));
-  console.log(`partner-rawduck-build: PASS (cache hit, key ${cacheKey}) — ${join(CHECKOUT_DIR, ARTIFACT_REL)}`);
+  console.log(`${LABEL}: PASS (cache hit, key ${cacheKey}) — HEAD ${targetCommit} — ${join(CHECKOUT_DIR, ARTIFACT_REL)}`);
   process.exit(0);
 }
 
@@ -136,26 +176,26 @@ if (duckdbCheckout.code !== 0) {
 if (duckdbCheckout.code !== 0) {
   fail(`could not re-point ${config.repository}'s duckdb submodule at our own pin "${EXPECTED_DUCKDB_REF}":\n${duckdbCheckout.err}`);
 }
-console.log(`partner-rawduck-build: re-pointed build/partners/rawduck/duckdb to our own pin ${EXPECTED_DUCKDB_REF}`);
+console.log(`${LABEL}: re-pointed ${duckdbDir} to our own pin ${EXPECTED_DUCKDB_REF}`);
 
 // 4. Build, matching the root Makefile's own CMAKE_BUILD_PARALLEL_LEVEL convention.
 const nproc = (await run(ROOT, ["nproc"])).out.trim() || "1";
-console.log(`partner-rawduck-build: building rawduck.duckdb_extension (commit ${config.commit}, duckdb ${EXPECTED_DUCKDB_REF})`);
+console.log(`${LABEL}: building rawduck.duckdb_extension (commit ${targetCommit}, duckdb ${EXPECTED_DUCKDB_REF})`);
 const build = await run(CHECKOUT_DIR, ["make", "release"], { CMAKE_BUILD_PARALLEL_LEVEL: nproc });
 if (build.code !== 0) {
   const tail = (build.out + build.err).split("\n").slice(-60).join("\n");
   fail(
-    `rawduck failed to build at partner commit "${config.commit}" against our duckdb pin "${EXPECTED_DUCKDB_REF}" (exit ${build.code}):\n${tail}`
+    `rawduck failed to build at ${HEAD_MODE ? `${config.repository}'s current default-branch HEAD commit` : "partner commit"} "${targetCommit}" against our duckdb pin "${EXPECTED_DUCKDB_REF}" (exit ${build.code}):\n${tail}`
   );
 }
 
 const artifactPath = join(CHECKOUT_DIR, ARTIFACT_REL);
 if (!existsSync(artifactPath)) {
-  fail(`build exited 0 but ${ARTIFACT_REL} was not produced`);
+  fail(`build exited 0 but ${ARTIFACT_REL} was not produced (HEAD ${targetCommit})`);
 }
 
 // 5. Populate the cache for the next run with this same (commit, our pin).
 mkdirSync(cacheDir, { recursive: true });
 copyFileSync(artifactPath, cachedArtifact);
 
-console.log(`partner-rawduck-build: PASS (built, cached under key ${cacheKey}) — ${artifactPath}`);
+console.log(`${LABEL}: PASS (built, cached under key ${cacheKey}) — HEAD ${targetCommit} — ${artifactPath}`);
