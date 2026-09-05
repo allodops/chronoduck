@@ -131,6 +131,18 @@ fixtures-validate: ## Validate every test/fixtures/*.yaml against the language-n
 kernel-fixture-loader: ## Replay every test/fixtures/rate/*.yaml through the comparator and the fixture-identity roster (L2, Article V.4)
 	bun scripts/hygiene/kernel-fixture-loader.mjs
 
+.PHONY: registry-roster-closure
+registry-roster-closure: ## Every fixture-representable registry.def row has a test/fixtures/**/*.yaml fixture (L13)
+	bun scripts/hygiene/registry-roster-closure.mjs
+
+.PHONY: divergence-enum-coverage
+divergence-enum-coverage: ## Every declared-divergence enum value in src/ is exercised by a fixture or sqllogictest (Article V.3)
+	bun scripts/hygiene/divergence-enum-coverage.mjs
+
+.PHONY: tier-coverage-floor
+tier-coverage-floor: ## Per-Tier primitive test coverage never regresses and never sits at a zero floor (L13)
+	bun scripts/hygiene/tier-coverage-floor.mjs
+
 .PHONY: coverage-check
 coverage-check: ## Verify docs/design/coverage.md's K/K+/P rows and milestone tokens against the design docs and the issue tracker
 	bun scripts/coverage-check.mjs

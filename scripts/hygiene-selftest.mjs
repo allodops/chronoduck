@@ -623,6 +623,71 @@ await expectRed("kernel-fixture-loader (ARRIVED-FAILING: new fixture, not in ros
 await expectRed("kernel-fixture-loader (UNRECORDED: new fixture, not in roster, passes)", ["bun", join(HERE, "hygiene", "kernel-fixture-loader.mjs"), "--root", materialize("kernel-fixture-loader-unrecorded")]);
 await expectGreen("kernel-fixture-loader (roster matches, everything passes)", ["bun", join(HERE, "hygiene", "kernel-fixture-loader.mjs"), "--root", materialize("kernel-fixture-loader-green")]);
 
+// registry-roster-closure: #36 — a fixture-representable row (a real
+// domain, i.e. not DOMAIN_NONE) with zero test/fixtures/**/*.yaml fixtures
+// is red, naming the row; the same row with a matching fixture (`function:`
+// the row's name minus its `ts_` prefix) is green; and a DOMAIN_NONE row
+// with zero fixtures is *also* green, proving the DOMAIN_NONE carve-out
+// isn't itself a false-negative — the check still runs, it just has nothing
+// to require of that row.
+await expectRed("registry-roster-closure (fixture-representable row, no fixture)", [
+  "bun",
+  join(HERE, "hygiene", "registry-roster-closure.mjs"),
+  "--root",
+  materialize("registry-roster-closure-missing"),
+]);
+await expectGreen("registry-roster-closure (fixture present, ts_ prefix stripped)", [
+  "bun",
+  join(HERE, "hygiene", "registry-roster-closure.mjs"),
+  "--root",
+  materialize("registry-roster-closure-green"),
+]);
+await expectGreen("registry-roster-closure (DOMAIN_NONE row needs no fixture)", [
+  "bun",
+  join(HERE, "hygiene", "registry-roster-closure.mjs"),
+  "--root",
+  materialize("registry-roster-closure-domain-none-green"),
+]);
+
+// divergence-enum-coverage: #36 — a synthetic `enum class FooDivergence` in
+// src/ with a member no fixture mentions is red, naming the member; the
+// same enum with both members' names present somewhere under
+// test/fixtures/ is green. The real tree declares no such enum yet (L6a is
+// out of M1's scope), which is why `make hygiene`'s own real-tree run below
+// reports 0 declared divergences rather than exercising this path there.
+await expectRed("divergence-enum-coverage (unexercised member)", [
+  "bun",
+  join(HERE, "hygiene", "divergence-enum-coverage.mjs"),
+  "--root",
+  materialize("divergence-enum-coverage-red"),
+]);
+await expectGreen("divergence-enum-coverage (every member exercised)", [
+  "bun",
+  join(HERE, "hygiene", "divergence-enum-coverage.mjs"),
+  "--root",
+  materialize("divergence-enum-coverage-green"),
+]);
+
+// tier-coverage-floor: #36 — a synthetic two-primitive Tier 0 table plus a
+// synthetic tier-coverage-floor.json isolates each of the four fatal
+// outcomes (REGRESSED, ZERO-FLOOR, UNTRACKED, and a citation naming a
+// primitive its own Tier's table doesn't list) in its own fixture, plus one
+// proving the matching, floor-equals-reality case stays green.
+for (const [name, note] of [
+  ["tier-coverage-floor-regressed", "REGRESSED: coverage fell below the committed floor"],
+  ["tier-coverage-floor-zero", "ZERO-FLOOR: a floor of 0 is refused outright"],
+  ["tier-coverage-floor-untracked", "UNTRACKED: new coverage with no floor entry yet"],
+  ["tier-coverage-floor-unknown-primitive", "UNKNOWN-PRIMITIVE: a citation names a primitive its Tier doesn't list"],
+]) {
+  await expectRed(`tier-coverage-floor (${note})`, ["bun", join(HERE, "hygiene", "tier-coverage-floor.mjs"), "--root", materialize(name)]);
+}
+await expectGreen("tier-coverage-floor (coverage matches the committed floor exactly)", [
+  "bun",
+  join(HERE, "hygiene", "tier-coverage-floor.mjs"),
+  "--root",
+  materialize("tier-coverage-floor-green"),
+]);
+
 // description-validate: 6 distinct violation branches, each isolated to its
 // own otherwise-valid-and-complete description.yml fixture.
 for (const name of [
@@ -830,6 +895,39 @@ assertEqual("headingSlugs: collects every heading", [...headingSlugs("# Title\n\
     failures++;
   } else {
     console.log("SELFTEST ok: `make kernel-fixture-loader` is green on the real tree");
+  }
+}
+{
+  const { out, err, code } = await run(["bun", join(HERE, "hygiene", "registry-roster-closure.mjs")]);
+  process.stdout.write(out);
+  process.stderr.write(err);
+  if (code !== 0) {
+    console.error("SELFTEST FAIL: `make registry-roster-closure` is not green on the real tree");
+    failures++;
+  } else {
+    console.log("SELFTEST ok: `make registry-roster-closure` is green on the real tree");
+  }
+}
+{
+  const { out, err, code } = await run(["bun", join(HERE, "hygiene", "divergence-enum-coverage.mjs")]);
+  process.stdout.write(out);
+  process.stderr.write(err);
+  if (code !== 0) {
+    console.error("SELFTEST FAIL: `make divergence-enum-coverage` is not green on the real tree");
+    failures++;
+  } else {
+    console.log("SELFTEST ok: `make divergence-enum-coverage` is green on the real tree");
+  }
+}
+{
+  const { out, err, code } = await run(["bun", join(HERE, "hygiene", "tier-coverage-floor.mjs")]);
+  process.stdout.write(out);
+  process.stderr.write(err);
+  if (code !== 0) {
+    console.error("SELFTEST FAIL: `make tier-coverage-floor` is not green on the real tree");
+    failures++;
+  } else {
+    console.log("SELFTEST ok: `make tier-coverage-floor` is green on the real tree");
   }
 }
 {

@@ -18,6 +18,9 @@ const TREE_SCANS = [
   "hygiene/forbid-test-tolerance",
   "hygiene/kernel-primitive-tests",
   "hygiene/kernel-fixture-loader",
+  "hygiene/registry-roster-closure",
+  "hygiene/divergence-enum-coverage",
+  "hygiene/tier-coverage-floor",
   "fixtures-validate",
 ];
 
