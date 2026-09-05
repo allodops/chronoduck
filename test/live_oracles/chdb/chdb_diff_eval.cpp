@@ -128,10 +128,10 @@ std::optional<ChdbDivergence> ParseDivergence(const std::string &tok) {
 // the scalar-array form `docs/testing/live-oracles.md`'s example and
 // ClickHouse's own reference documentation both use (no FROM/table needed —
 // the aggregate evaluates directly over its array arguments). Every sample
-// value is an explicit `CAST(... AS Float64)`
-// (`docs/testing/live-oracles.md:chdb-float64:` `harness passes Float64`) —
-// the family "computes in the input's type", so a harness bug here would
-// silently run the comparison in Float32 instead of a declared divergence.
+// value is an explicit `CAST(... AS Float64)` — the family "computes in the
+// input's type", so a harness bug here would silently run the comparison in
+// Float32 instead of a declared divergence
+// (`docs/testing/live-oracles.md:chdb-float32-leg:` `a Float32 leg would be a harness bug, not a divergence`).
 std::string BuildQuery(int64_t start, int64_t end, int64_t step, int64_t window,
                        const std::vector<RawSample> &samples) {
 	std::ostringstream ts;
