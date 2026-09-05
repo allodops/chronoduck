@@ -58,6 +58,14 @@ struct Grid {
 	int64_t end;
 	int64_t step;
 
+	// `end_ - start_` is computed in `__int128_t`, not `int64_t`: two legal,
+	// in-range DuckDB `TIMESTAMP`s can be ~1.85e19 microseconds apart —
+	// beyond `int64_t`'s ~9.22e18 max (the same argument
+	// `src/chronoduck_extension.cpp:FloorDiv:` makes for `ts_grid_index`) —
+	// so a plain `int64_t` subtraction here is signed-integer-overflow UB on
+	// a reachable, legal `(start, end)` pair, not just a theoretical extreme
+	// (confirmed live with UBSan before this fix: `Grid(INT64_MIN/2,
+	// INT64_MAX/2 + 1000, 1000)` overflowed at this exact line).
 	Grid(int64_t start_, int64_t end_, int64_t step_) : start(start_), end(end_), step(step_) {
 		if (step_ <= 0) {
 			throw std::invalid_argument("Grid: step must be positive");
@@ -65,15 +73,19 @@ struct Grid {
 		if (end_ < start_) {
 			throw std::invalid_argument("Grid: end must be >= start");
 		}
-		if ((end_ - start_) % step_ != 0) {
+		__int128_t span = static_cast<__int128_t>(end_) - static_cast<__int128_t>(start_);
+		if (span % step_ != 0) {
 			throw std::invalid_argument("Grid: step must evenly divide end - start");
 		}
 	}
 
 	// The number of grid points, inclusive of both `start` and `end` —
 	// `docs/testing/primitives.md:grid-row:` `count == (end−start)/step + 1`.
+	// Widened for the same reason the constructor's own `span` is: `end -
+	// start` can overflow `int64_t` for a legal, far-apart pair.
 	int64_t count() const {
-		return (end - start) / step + 1;
+		__int128_t span = static_cast<__int128_t>(end) - static_cast<__int128_t>(start);
+		return static_cast<int64_t>(span / step) + 1;
 	}
 
 	// The timestamp of grid point `i`. Not bounds-checked against

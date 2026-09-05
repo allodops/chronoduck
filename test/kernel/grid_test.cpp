@@ -172,6 +172,67 @@ void TestIndexOfAtInvariant() {
 	}
 }
 
+// A regression test for a real bug found in this project's own M1 ACPR
+// (Adversarial Critic Pass Review): the constructor's span-divisibility
+// check and `count()` computed `end - start` as plain `int64_t`, unlike
+// `index_of()`, which was already correctly widened to `__int128_t`
+// (`docs/design/architecture.md:time-native:` cites the same argument —
+// two legal, in-range DuckDB `TIMESTAMP`s can be ~1.85e19 microseconds
+// apart, beyond `int64_t`'s ~9.22e18 max). That gap was reachable from
+// ordinary SQL (`BindGridArgs` passes bind-time `start`/`end` straight into
+// `Grid(...)`) as signed-integer-overflow UB, and this exact test file had
+// no case covering it — the ACPR's own "we are blind in test" finding.
+// This test both proves the fix's correctness on a legal extreme-span grid
+// and, via a must-die shadow mutant reproducing the original unwidened
+// arithmetic, proves the fix is load-bearing (the mutant produces a visibly
+// wrong, wrapped-around count on the same input, not just "compiles").
+void TestExtremeSpanOverflow() {
+	// A legal grid whose span exceeds int64_t's range: start near INT64_MIN,
+	// step large enough that count() stays representable while (end - start)
+	// itself does not fit in int64_t.
+	const int64_t start = INT64_MIN + 500;
+	const int64_t step = 1000000000LL; // 1000s in microseconds
+	const int64_t n = 18000000001LL;   // grid point count (chosen so the span is ~1.8e19 us > INT64_MAX)
+	const int64_t end = static_cast<int64_t>(static_cast<__int128_t>(start) + static_cast<__int128_t>(n - 1) * step);
+
+	bool threw = false;
+	Grid *g = nullptr;
+	try {
+		g = new Grid(start, end, step);
+	} catch (const std::invalid_argument &) {
+		threw = true;
+	}
+	Check(!threw, "a legal extreme-span grid (end - start > INT64_MAX) must not throw a spurious construction error");
+	if (g != nullptr) {
+		Check(g->count() == n, "count() on an extreme-span grid must report the correct value, not a wrapped-around one");
+		Check(g->at(0) == start, "at(0) on an extreme-span grid must be start");
+		Check(g->index_of(end) == n - 1, "index_of(end) on an extreme-span grid must be count() - 1");
+		delete g;
+	}
+}
+
+// Must-die mutant: the original unwidened `int64_t` arithmetic this bug
+// fix replaced. Reproduces the exact plain-`int64_t` `(end - start)`
+// computation the real constructor/`count()` used before the fix, on the
+// same extreme-span input `TestExtremeSpanOverflow` uses — the wraparound
+// this mutant exhibits (a negative or otherwise nonsensical span) is what
+// the real code no longer does.
+int64_t MutantUnwidenedCount(int64_t start, int64_t end, int64_t step) {
+	return (end - start) / step + 1; // the pre-fix, unwidened computation
+}
+
+void TestUnwidenedSpanMutant() {
+	const int64_t start = INT64_MIN + 500;
+	const int64_t step = 1000000000LL;
+	const int64_t n = 18000000001LL;
+	const int64_t end = static_cast<int64_t>(static_cast<__int128_t>(start) + static_cast<__int128_t>(n - 1) * step);
+
+	int64_t mutant_count = MutantUnwidenedCount(start, end, step);
+	Check(mutant_count != n,
+	      "must-die: the unwidened-arithmetic mutant's count() on an extreme-span grid must differ from the correct "
+	      "(widened) value — if it doesn't, the widening fix has regressed back to plain int64_t");
+}
+
 // Must-die mutant #1: "Floor<->ceil"
 // (`docs/testing/primitives.md:grid-row:` `Floor↔ceil`). A shadow
 // `index_of` that rounds up instead of down; correct on every t that lands

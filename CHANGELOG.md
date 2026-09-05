@@ -4,6 +4,7 @@
 
 ## Unreleased
 
+- docs(adr): choose the partition-sort sink over windowed aggregates (#203)
 - ci(tsan): require ThreadSanitizer on merge, vector-size-2 stays nightly (#202)
 - feat(test): ingest externally derived fixtures and add the manifest sync test (#201)
 - test(hygiene): add L13 meta-tests for roster closure, divergence coverage, tier floors (#200)
