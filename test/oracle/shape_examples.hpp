@@ -67,11 +67,11 @@ inline ShapeExample RateExtrapolateCounterExample() {
 	return ex;
 }
 
-// The full ShapeID roster this issue's registry can express today — a
-// single-row vector for now, expanded whenever a future issue registers
-// another (name, edge_mode, domain) combination in
-// `src/kernel/registry.def` (each new row needs its own entry here plus a
-// `// ShapeID:` citation, or `scripts/hygiene/shape-roster.mjs` reports it as
+// The full ShapeID roster this issue's registry can express: a single-row
+// vector, since `src/kernel/registry.def` currently declares exactly one
+// (name, edge_mode, domain) combination with a real domain. Registering
+// another combination needs its own entry here plus a `// ShapeID:`
+// citation, or `scripts/hygiene/shape-roster.mjs` reports it as
 // ARRIVED-FAILING).
 inline std::vector<ShapeExample> ShapeIdRoster() {
 	return {RateExtrapolateCounterExample()};

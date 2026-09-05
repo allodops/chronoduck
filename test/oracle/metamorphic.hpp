@@ -294,8 +294,10 @@ MrResult CheckScale(Evaluate &&eval, Compare &&equal, SplitMix64 &rng, const std
 // ============================================================================
 // MR-RESET — Reset re-basing.
 // ============================================================================
-// "Inserting a counter reset at t and re-basing all later samples leaves
-// increase and rate unchanged and raises resets by exactly one." `MakeReset`
+// Inserting a counter reset at t and re-basing every sample that follows it
+// leaves increase and rate unchanged and raises resets by exactly one
+// (docs/testing/metamorphic.md's own MR-RESET definition, paraphrased here).
+// `MakeReset`
 // (series.hpp) rebases `base[k..]` by subtracting `base[k-1].v`: every real
 // increment between consecutive samples is preserved, so the reset-adjusted
 // telescoping sum (`prev.v` added back at the one reset, then `last - first`

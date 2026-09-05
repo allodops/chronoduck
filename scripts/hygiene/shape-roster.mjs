@@ -31,13 +31,12 @@
 //                       that (name, edge_mode, domain) combination at all.
 //   - REGRESSED:       in roster.json and still a real registry shape, but
 //                       no `// ShapeID:` citation exists for it any more.
-//   - ARRIVED-FAILING: a real registry shape with a citation, but not yet in
-//                       roster.json — no, that's UNRECORDED; a real registry
-//                       shape with NO citation at all and not in roster.json
-//                       is ARRIVED-FAILING (a new row with no worked example
-//                       yet).
-//   - UNRECORDED:      a real registry shape, cited, but roster.json forgot
-//                       to record it.
+//   - ARRIVED-FAILING: a real registry shape with NO citation at all and
+//                       absent from roster.json (a new row with no worked
+//                       example).
+//   - UNRECORDED:      a real registry shape, cited, absent from
+//                       roster.json — the fix here is recording it, not
+//                       writing an example.
 // A fifth, non-ratchet check catches a citation naming a shape the registry
 // does not currently declare at all (a stale/typo citation) — UNKNOWN-SHAPE,
 // the same idea as tier-coverage-floor.mjs's own UNKNOWN-PRIMITIVE.
