@@ -23,7 +23,7 @@
 //   - roster.pass entry, fixture no longer exists       -> VANISHED
 //   - roster.shape_gap entry, still SHAPE_GAP            -> OK
 //   - roster.shape_gap entry, now PASS (template gained  -> UNRECORDED
-//     the capability — an improvement, not yet recorded)
+//     the capability — an improvement the roster doesn't record)
 //   - roster.shape_gap entry, now FAIL                   -> ARRIVED-FAILING
 //   - roster.shape_gap entry, fixture no longer exists   -> VANISHED
 //   - not in either roster set, now PASS or SHAPE_GAP    -> UNRECORDED
