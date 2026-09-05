@@ -10,12 +10,12 @@
 // independent oracle), the dedup unit case (the 50-vs-37.5 shape), the
 // residency bound the primitive exists to prove, and the two named must-die
 // mutants ("the eos guard" and "dedup collapse dropped").
-#include "../../src/kernel/counter_fold.hpp"
-#include "../../src/kernel/grid.hpp"
-#include "../../src/kernel/grid_stream.hpp"
-#include "../../src/kernel/sample_buffer.hpp"
-#include "../../src/kernel/window.hpp"
-#include "../../src/kernel/window_walk.hpp"
+#include "kernel/counter_fold.hpp"
+#include "kernel/grid.hpp"
+#include "kernel/grid_stream.hpp"
+#include "kernel/sample_buffer.hpp"
+#include "kernel/window.hpp"
+#include "kernel/window_walk.hpp"
 
 #include <algorithm>
 #include <cstdint>
