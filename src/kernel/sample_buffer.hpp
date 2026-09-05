@@ -156,10 +156,9 @@ public:
 	// Bump-allocates room for exactly one more sample, growing by a new
 	// page (doubling capacity) when the current page is full. The returned
 	// pointer stays valid for this arena's lifetime: earlier pages are
-	// never moved or reallocated, which is what "append growth across
-	// arena pages" (this row's own unit contract,
-	// `docs/testing/primitives.md:samplebuffer-row:` `append` growth across
-	// arena pages`) actually means to test.
+	// never moved or reallocated, which is what this row's own unit
+	// contract for append means to test
+	// (`docs/testing/primitives.md:samplebuffer-row:` `growth across arena pages`).
 	Sample *push() {
 		if (pages_.empty() || pages_.back().used == pages_.back().capacity) {
 			add_page(pages_.empty() ? kInitialPageCapacity : pages_.back().capacity * 2);
@@ -287,9 +286,9 @@ public:
 	}
 
 	// Concatenates `other`'s raw samples onto this buffer — no sorting, no
-	// deduplication (this row's own invariant,
-	// `docs/testing/primitives.md:samplebuffer-row:` `merge` then
-	// `sort_dedup` equals `sort_dedup` of the concatenation, bit-exact`).
+	// deduplication: this row's own invariant is that merging and then
+	// sort_dedup-ing equals sort_dedup on the plain concatenation, bit-exact
+	// (`docs/testing/primitives.md:samplebuffer-row:` `of the concatenation, bit-exact`).
 	// `other` is left unmodified.
 	void merge(const SampleBuffer &other) {
 		other.arena_.for_each([this](const Sample &s) { append(s); });

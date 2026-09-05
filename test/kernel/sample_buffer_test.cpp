@@ -170,9 +170,9 @@ void TestAppendGrowsAcrossPages() {
 	Check(arena.size() == 100, "the arena must report every pushed sample, across every page");
 
 	// Pointer stability: pointers handed out by the earliest pushes must
-	// still read back correctly after many later pushes forced several more
-	// page allocations — a `std::vector`'s reallocate-and-copy growth would
-	// have invalidated these; a page-based arena does not.
+	// still read back correctly after many subsequent pushes forced several
+	// more page allocations — a `std::vector`'s reallocate-and-copy growth
+	// would have invalidated these; a page-based arena does not.
 	for (int i = 0; i < kFirstPageCapacity; i++) {
 		char what[128];
 		std::snprintf(what, sizeof(what), "pointer from push #%d must survive later page growth unmoved", i);
@@ -479,8 +479,8 @@ void TestMissedPageFreeMutant() {
 // point duplicated in the raw ingest, over the (0, 300] window.
 //
 // The Prometheus extrapolation arithmetic itself (the 1.1x threshold, the
-// half-interval fallback) is Tier 4's `extrapolate` primitive, issue #32,
-// not yet built — `ToyExtrapolatedIncrease` below is a LOCAL, test-only
+// half-interval fallback) belongs to Tier 4's `extrapolate` primitive,
+// which #32 builds. `ToyExtrapolatedIncrease` below is a LOCAL, test-only
 // reproduction of that published formula (not a re-derivation; the numbers
 // are cerberus's), used only to show *why* the sample count sort_dedup
 // corrects matters: it is the divisor of the average-interval estimate the
