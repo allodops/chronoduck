@@ -1,7 +1,4 @@
-# name: test/partners/rawduck/smoke.test
-# group: [rawduck]
-
--- test/partners/rawduck/smoke.test
+-- test/partners/rawduck/smoke.sql
 --
 -- L15 smoke-LOAD (docs/testing/storage-partners.md): chronoduck and rawduck
 -- both LOAD into the same DuckDB shell without conflict, and a minimal
@@ -10,8 +7,13 @@
 -- one — this file only proves the two extensions coexist and interoperate at
 -- all. Run by scripts/partners/rawduck-test.mjs, which LOADs both
 -- .duckdb_extension files (plus RawDuck's own json sibling artifact) before
--- this script runs; see that script's header for why this is a plain SQL
--- script rather than a DuckDB sqllogictest file despite the extension.
+-- this script runs. Deliberately NOT named `*.test`: DuckDB's own sqllogic
+-- test runner (`./build/release/test/unittest "test/*"`, what `make test`
+-- invokes) auto-discovers every `.test` file under `test/` and tries to
+-- parse it as sqllogictest syntax regardless of directory — this file's `--`
+-- SQL-comment header lines aren't valid sqllogictest directives, so a
+-- `.test` extension here breaks the ordinary test lane, not just the
+-- partner-specific one.
 
 -- A minimal RawMergeTree store (README "Usage"): no CREATE TABLE, no schema
 -- declaration — the `metrics` table and its typed columns emerge from the

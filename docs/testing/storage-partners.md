@@ -82,7 +82,9 @@ at all, at the DuckDB version chronoduck itself is pinned to.
   produces — so a repeat run with both unchanged copies the cached artifact instead of rebuilding.
 - `make partner-rawduck-test` (`scripts/partners/rawduck-test.mjs`) LOADs chronoduck's own built
   extension and the freshly built `rawduck.duckdb_extension` into the same stock DuckDB shell and
-  runs every `test/partners/rawduck/*.test` file. For this layer's current scope that is a
+  runs every `test/partners/rawduck/*.sql` file (deliberately not `*.test`: DuckDB's own sqllogictest
+  runner auto-discovers `.test` files under `test/` regardless of directory, and a plain SQL script
+  isn't valid sqllogictest syntax). For this layer's current scope that is a
   smoke-LOAD only: both extensions load without conflict, and a minimal RawDuck-backed table
   answers a `ts_rate` query. Real fixture-driven layout-parity testing against RawDuck's actual
   on-disk layout is out of scope here (T2.10); so is tracking the partner's HEAD drifting away from

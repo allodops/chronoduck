@@ -5,21 +5,27 @@
 // extension into the same stock DuckDB shell — build/release/duckdb, exactly
 // the binary scripts/smoke.mjs already treats as "a stock DuckDB shell" for
 // chronoduck's own LOAD, -unsigned since neither .duckdb_extension is signed
-// — and runs every test/partners/rawduck/*.test file against it.
+// — and runs every test/partners/rawduck/*.sql file against it.
 //
 // Smoke-LOAD only, per this issue's own scope (T2.9): confirms both
 // extensions load together without conflict and a minimal RawDuck table
 // answers a ts_rate query. Real fixture-driven layout-parity testing against
 // RawDuck's on-disk layout is issue #48's job, not this script's.
 //
-// A *.test file here is a plain SQL script, not a DuckDB sqllogictest file
-// despite the shared extension — sqllogictest's `require <extension>`
-// directive resolves against DuckDB's own known-extension list, which a
-// partner extension built out-of-tree under build/partners/rawduck/ is not
-// part of, so the real DuckDB unittest runner can never load it. Executed
-// the same way scripts/smoke.mjs executes its own one-liner: as a single
-// `-c` script string against the CLI, success meaning exit 0 and no
-// "Error:"-prefixed line in the output.
+// A *.sql file here is a plain SQL script, not a DuckDB sqllogictest file —
+// deliberately not named `*.test`: DuckDB's own sqllogictest runner
+// (`./build/release/test/unittest "test/*"`, what `make test` invokes)
+// auto-discovers every `.test` file under `test/` regardless of directory
+// and tries to parse it as sqllogictest syntax; a plain SQL script's `--`
+// comment header isn't valid sqllogictest, so a `.test` extension here broke
+// the ordinary test lane, not just this partner-specific one. Separately,
+// sqllogictest's `require <extension>` directive resolves against DuckDB's
+// own known-extension list, which a partner extension built out-of-tree
+// under build/partners/rawduck/ is not part of, so the real DuckDB unittest
+// runner could never load this file's contents even if the extension were
+// `.test`. Executed the same way scripts/smoke.mjs executes its own
+// one-liner: as a single `-c` script string against the CLI, success meaning
+// exit 0 and no "Error:"-prefixed line in the output.
 import { readFileSync, readdirSync, existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -51,8 +57,8 @@ if (!existsSync(CHRONODUCK_EXT)) fail(`${CHRONODUCK_EXT} does not exist — run 
 if (!existsSync(RAWDUCK_EXT)) fail(`${RAWDUCK_EXT} does not exist — run \`make partner-rawduck-build\` first`);
 if (!existsSync(TEST_DIR)) fail(`${TEST_DIR} does not exist`);
 
-const testFiles = readdirSync(TEST_DIR).filter((f) => f.endsWith(".test")).sort();
-if (testFiles.length === 0) fail(`no test/partners/rawduck/*.test files found`);
+const testFiles = readdirSync(TEST_DIR).filter((f) => f.endsWith(".sql")).sort();
+if (testFiles.length === 0) fail(`no test/partners/rawduck/*.sql files found`);
 
 const preamble = [
   existsSync(RAWDUCK_JSON_EXT) ? `LOAD '${RAWDUCK_JSON_EXT}';` : null,
