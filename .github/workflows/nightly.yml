@@ -1,5 +1,14 @@
 name: nightly
 
+# Nightly-posture lanes (docs/testing/lanes.md): scheduled, not required, red
+# is a bug to fix rather than a tolerated state. Second tenant:
+# partner-rawduck-head (L15, issue #49) — builds the RawDuck storage partner
+# at its own default-branch HEAD (never the pin scripts/partners/rawduck.json
+# fixes for the release-posture partner-rawduck lane) against chronoduck's
+# own DuckDB pin, to catch upstream drift before it silently breaks
+# compatibility. A red run here is a compatibility bug, not chronoduck's own
+# regression: the fix is a partner-pin bump PR (rawduck.json, plus an ADR
+# amendment if the layout changed), filed as a `finding`-labeled issue.
 on:
   schedule:
     - cron: "0 5 * * *"
@@ -22,3 +31,28 @@ jobs:
         env:
           STANDARD_VECTOR_SIZE: "2"
       - run: make test_debug
+
+  partner-rawduck-head:
+    name: partner-rawduck-head
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: ccache-partner-rawduck-head-v1.5.4
+          max-size: 5GB
+          evict-old-files: job
+      - run: make release
+      - run: make partner-rawduck-build
+        env:
+          RAWDUCK_REF: head
+      - run: make partner-rawduck-test
+        env:
+          RAWDUCK_REF: head

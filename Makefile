@@ -90,11 +90,11 @@ check-pins: ## Verify duckdb / extension-ci-tools submodule pins agree with each
 	bun scripts/check-pins.mjs
 
 .PHONY: partner-rawduck-build
-partner-rawduck-build: ## Build the RawDuck storage partner (L15) at its pinned commit against our own duckdb pin, cached by (commit, pin)
+partner-rawduck-build: ## Build the RawDuck storage partner (L15) at its pinned commit against our own duckdb pin, cached by (commit, pin); RAWDUCK_REF=head builds at RawDuck's own default-branch HEAD instead (partner-rawduck-head, issue #49)
 	bun scripts/partners/rawduck-build.mjs
 
 .PHONY: partner-rawduck-test
-partner-rawduck-test: ## LOAD chronoduck + the built rawduck extension together and run test/partners/rawduck/*.sql (smoke-LOAD only)
+partner-rawduck-test: ## LOAD chronoduck + the built rawduck extension together and run test/partners/rawduck/*.sql (smoke-LOAD only); RAWDUCK_REF=head targets the HEAD build instead of the pinned one
 	bun scripts/partners/rawduck-test.mjs
 
 .PHONY: build-relevant-changed

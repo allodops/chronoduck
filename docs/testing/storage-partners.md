@@ -87,16 +87,45 @@ at all, at the DuckDB version chronoduck itself is pinned to.
   isn't valid sqllogictest syntax). For this layer's current scope that is a
   smoke-LOAD only: both extensions load without conflict, and a minimal RawDuck-backed table
   answers a `ts_rate` query. Real fixture-driven layout-parity testing against RawDuck's actual
-  on-disk layout is out of scope here (T2.10); so is tracking the partner's HEAD drifting away from
-  the pinned commit over time (T2.11).
+  on-disk layout is out of scope here (T2.10).
 - `make check-pins` reports the pinned partner commit alongside the `duckdb`/`extension-ci-tools`
   submodule pins, and fails when `scripts/partners/rawduck.json`'s commit disagrees with what's
   actually checked out at `build/partners/rawduck/` — skipped, not failed, when that directory
   doesn't exist yet (a hygiene-only run that never built the partner has nothing to compare
   against), matching this repo's established pattern for a check whose subject isn't always
-  checked out (the root `Makefile`'s own extension-ci-tools-submodule-absent warning).
+  checked out (the root `Makefile`'s own extension-ci-tools-submodule-absent warning). This check
+  is scoped to the pinned checkout only: it never looks at `build/partners/rawduck-head/` (below).
 - The lane is registered as `partner-rawduck` in `.github/ci-lanes.json`, posture `release`
   (`.github/workflows/release.yml`, push to `main` only) — layer L15, owner tsouza.
+
+## Tracking partner HEAD drift
+
+`scripts/partners/rawduck.json`'s `commit` is a deliberate pin: `partner-rawduck` only ever proves
+that *that exact* RawDuck commit still builds and loads against chronoduck's DuckDB pin. It says
+nothing about whether RawDuck's own default branch has since moved somewhere incompatible — the
+nightly `partner-rawduck-head` lane (`.github/workflows/nightly.yml`, posture `nightly`, layer L15,
+owner tsouza) exists to catch exactly that, before it silently breaks compatibility for whoever
+next bumps the pin.
+
+`partner-rawduck-head` runs the identical two targets `partner-rawduck` runs —
+`make partner-rawduck-build` and `make partner-rawduck-test` — with `RAWDUCK_REF=head` set. That
+env var makes `scripts/partners/rawduck-build.mjs` resolve `scripts/partners/rawduck.json`'s
+`repository` field's own default-branch tip at run time (`git ls-remote <repo> HEAD`, never
+`rawduck.json`'s pinned `commit`), still re-points the resulting checkout's `duckdb` submodule at
+chronoduck's own pin exactly as the pinned build does, and builds and caches it under its own
+`build/partners/rawduck-head/` checkout and `build/partners/rawduck-head-cache/` cache root —
+distinct from `partner-rawduck`'s paths, so the two lanes never disturb each other's checkout or
+cache and `make check-pins`'s pinned-commit comparison keeps comparing against the pin, not
+whatever HEAD happened to build most recently. `scripts/partners/rawduck-test.mjs`, under the same
+env var, targets that HEAD checkout and reports the actual commit under test before running
+`test/partners/rawduck/*.sql` against it — so the lane's own output names both the HEAD commit and,
+on a red run, the failing leg (the `.sql` file whose script errored).
+
+A red `partner-rawduck-head` run is a compatibility bug in the pin, not a chronoduck regression: the
+fix is a partner-pin bump PR — bumping `scripts/partners/rawduck.json`'s `commit` to (or past) the
+commit that broke, plus a `docs/decisions/0019-rawduck-first-storage-partner.md` amendment if the
+new commit changed the layout the ADR records — filed from a `finding`-labeled issue the next work
+loop opens against the failing run.
 
 ### Citations into a build artifact
 

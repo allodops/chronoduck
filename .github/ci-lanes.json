@@ -83,6 +83,13 @@
       "posture": "release",
       "layers": ["L15"],
       "owner": "tsouza"
+    },
+    {
+      "context": "partner-rawduck-head",
+      "workflow": "nightly.yml",
+      "posture": "nightly",
+      "layers": ["L15"],
+      "owner": "tsouza"
     }
   ]
 }
