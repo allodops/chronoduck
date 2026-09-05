@@ -25,36 +25,94 @@ from pathlib import Path
 
 import yaml
 
+# PyYAML's default int resolver is YAML 1.1, not the YAML 1.2 core schema
+# the `yaml` npm package (which the fixture corpus's original JS validator
+# used) resolves against: it treats `_` as a digit-group separator
+# (`1_000` resolves to the int 1000) and a bare leading zero as octal
+# (`010` resolves to the int 8, `017` to 15) — verified against real `node`
+# + that package, neither is a number the JS side agrees with. It leaves
+# `1_000`/`-1_000` as plain strings, and treats a bare leading zero as
+# ordinary decimal (`010` -> the int 10, matching plain `10`, not octal 8),
+# while still resolving an explicit `0o`-prefixed octal (`0o10` -> 8) or
+# `0x`-prefixed hex literal as a number. PyYAML's own int resolver entries
+# are dropped from the relevant first-character lists (see adr-lint.py's
+# `_NoTimestampLoader` for the same yaml_implicit_resolvers-rebuild idiom,
+# there dropping the timestamp tag instead) and replaced with one matching
+# the core schema's `int`/`intOct`/`intHex` resolvers exactly: an
+# optionally-signed run of plain digits, or an unsigned `0x`/`0o` literal —
+# dropping this loader's default int resolver's `0b` binary and `H:MM:SS`
+# sexagesimal forms too, since core schema resolves neither as a number
+# either. This must happen *before* the float resolver below is added:
+# once appended, that resolver's broadened regex also matches a bare digit
+# run (`100`), and PyYAML returns the first implicit resolver that matches
+# a given leading character, so a plain integer would otherwise resolve as
+# the (numerically equivalent, but type-inconsistent with "int resolver")
+# tag:yaml.org,2002:float instead of tag:yaml.org,2002:int.
+#
+# Narrowing the *resolver* regex is not enough on its own:
+# SafeConstructor.construct_yaml_int, which turns a scalar tagged
+# tag:yaml.org,2002:int into an actual int, has its own YAML-1.1 parsing
+# baked in independent of whatever regex matched — any value starting with
+# a bare "0" digit (not "0b"/"0x") is parsed with base 8 regardless, so
+# without a replacement constructor too, "010" would still come out as the
+# octal value 8 once the narrowed resolver above tags it as an int at all.
+# _construct_yaml12_int reimplements the construction step against the same
+# three literal forms the resolver above now recognizes.
+class _Yaml12NumberLoader(yaml.SafeLoader):
+    pass
+
+
+_Yaml12NumberLoader.yaml_implicit_resolvers = {
+    first: [(tag, regexp) for tag, regexp in resolvers if tag != "tag:yaml.org,2002:int"]
+    for first, resolvers in _Yaml12NumberLoader.yaml_implicit_resolvers.items()
+}
+
+_Yaml12NumberLoader.add_implicit_resolver(
+    "tag:yaml.org,2002:int",
+    re.compile(r"^[-+]?[0-9]+$|^0o[0-7]+$|^0x[0-9a-fA-F]+$"),
+    list("-+0123456789"),
+)
+
+
+def _construct_yaml12_int(loader, node):
+    value = loader.construct_scalar(node)
+    sign = -1 if value[0] == "-" else 1
+    if value[0] in "+-":
+        value = value[1:]
+    if value.startswith("0x"):
+        return sign * int(value[2:], 16)
+    if value.startswith("0o"):
+        return sign * int(value[2:], 8)
+    return sign * int(value, 10)
+
+
+_Yaml12NumberLoader.add_constructor("tag:yaml.org,2002:int", _construct_yaml12_int)
+
 # PyYAML's default (YAML 1.1) float resolver requires both a decimal point
 # and a signed exponent to recognize scientific notation, so `1e9`, `1E9`,
 # `-1e21` and even `1.5e21` (no exponent sign) are left as plain strings —
 # only `1.5e+21` (decimal point *and* signed exponent) already resolves as a
 # float. Fixture authors write numeric grid/window/lookback/sample values in
 # all of these forms, and this script's numeric type checks (_is_number
-# below) need every one of them recognized as a number, not a string (see
-# adr-lint.py's `_NoTimestampLoader` for a similar PyYAML implicit-resolver
-# override). A loader whose float implicit resolver additionally matches the
-# broader numeric-literal grammar — `^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$`,
-# i.e. scientific notation with or without a decimal point, with or without
-# a signed exponent — closes that gap without touching anything else PyYAML
+# below) need every one of them recognized as a number, not a string. A
+# loader whose float implicit resolver additionally matches the broader
+# numeric-literal grammar — `^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$`, i.e.
+# scientific notation with or without a decimal point, with or without a
+# signed exponent — closes that gap without touching anything else PyYAML
 # already resolves as a number: the resolver is appended after PyYAML's own
-# int/float resolvers for the same leading characters, so already-correct
-# matches (plain integers, `0x1A` hex, a YAML-1.1-style `007` octal,
-# decimal-with-signed-exponent floats) are found first and never reach this
-# one.
-class _ScientificNotationLoader(yaml.SafeLoader):
-    pass
-
-
-_ScientificNotationLoader.add_implicit_resolver(
+# (and the corrected) int resolver for the same leading characters, so an
+# already-correct match (plain integers, `0x1A` hex, `0o10` octal,
+# decimal-with-signed-exponent floats) is found first and never reaches
+# this one.
+_Yaml12NumberLoader.add_implicit_resolver(
     "tag:yaml.org,2002:float",
     re.compile(r"^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$"),
     list("-+0123456789."),
 )
 
-# A violation message embeds fixture values the same way the original
-# fixtures-validate.mjs did: `${value}` template-literal coercion for
-# format_value, JSON.stringify for format_json. Both ultimately go through
+# A violation message embeds fixture values the way JavaScript's own
+# coercions would: `${value}` template-literal coercion for format_value,
+# JSON.stringify for format_json. Both ultimately go through
 # JS's Number::toString algorithm (ECMA-262) for any numeric value, which
 # neither YAML's int/float distinction nor Python's own float repr
 # reproduces on its own:
@@ -303,7 +361,7 @@ for file in files:
     rel = file.relative_to(root)
     try:
         with open(file, encoding="utf8") as f:
-            doc = yaml.load(f, Loader=_ScientificNotationLoader)
+            doc = yaml.load(f, Loader=_Yaml12NumberLoader)
     except yaml.YAMLError as e:
         violations.append(f"{rel}: could not parse YAML ({e})")
         continue

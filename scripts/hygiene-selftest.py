@@ -554,6 +554,7 @@ expect_red("coverage-check", ["python3", py("coverage-check.py"), "--root", mate
 expect_red("fixtures-validate (non-numeric window)", ["python3", py("fixtures-validate.py"), "--root", materialize("fixtures-validate-nonnumeric-window")])
 expect_red("fixtures-validate (non-numeric lookback)", ["python3", py("fixtures-validate.py"), "--root", materialize("fixtures-validate-nonnumeric-lookback")])
 expect_red("fixtures-validate (HISTOGRAM sample not a histogram literal)", ["python3", py("fixtures-validate.py"), "--root", materialize("fixtures-validate-histogram-bad-literal")])
+expect_red("fixtures-validate (YAML-1.1 underscore-grouped int literal)", ["python3", py("fixtures-validate.py"), "--root", materialize("fixtures-validate-yaml11-underscore-int")])
 
 expect_red("forbid-consumer (forbidden token in fixture: value)", ["python3", py("hygiene", "forbid-consumer.py"), "--root", materialize("forbid-consumer-fixture-value")])
 expect_red("forbid-consumer (forbidden token in function: value)", ["python3", py("hygiene", "forbid-consumer.py"), "--root", materialize("forbid-consumer-function-value")])
