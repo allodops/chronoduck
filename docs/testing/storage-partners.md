@@ -69,18 +69,18 @@ at all, at the DuckDB version chronoduck itself is pinned to.
   builds against, and `duckdb_ref` — informational only, recording what that commit's *own*
   `duckdb` submodule pointed at when the commit was chosen. The build never reads `duckdb_ref`: it
   always re-points the partner's `duckdb` submodule at chronoduck's own pinned DuckDB tag
-  (`scripts/lib/duckdb-pin.mjs`), because L15's whole premise — chronoduck's functions running
+  (`scripts/lib/duckdb_pin.py`), because L15's whole premise — chronoduck's functions running
   unmodified over a partner's tables — requires both extensions to be built against the identical
   DuckDB version. A partner commit whose own pin has drifted from ours, and which fails to build
   once re-pointed, is exactly the incompatibility this harness exists to surface, not paper over.
-- `make partner-rawduck-build` (`scripts/partners/rawduck-build.mjs`) fetches the pinned commit into
+- `make partner-rawduck-build` (`scripts/partners/rawduck-build.py`) fetches the pinned commit into
   `build/partners/rawduck/` — a plain `git clone`, never a submodule of this repo and never
   committed (`build/` is gitignored) — re-points its `duckdb` submodule as above, and builds
   `rawduck.duckdb_extension` with this repo's own `CMAKE_BUILD_PARALLEL_LEVEL` convention. The
   artifact is cached under `build/partners/rawduck-cache/<key>/`, keyed by a hash of the partner
   commit and chronoduck's own DuckDB pin — the only two inputs that can change what the build
   produces — so a repeat run with both unchanged copies the cached artifact instead of rebuilding.
-- `make partner-rawduck-test` (`scripts/partners/rawduck-test.mjs`) LOADs chronoduck's own built
+- `make partner-rawduck-test` (`scripts/partners/rawduck-test.py`) LOADs chronoduck's own built
   extension and the freshly built `rawduck.duckdb_extension` into the same stock DuckDB shell and
   runs every `test/partners/rawduck/*.sql` file (deliberately not `*.test`: DuckDB's own sqllogictest
   runner auto-discovers `.test` files under `test/` regardless of directory, and a plain SQL script
@@ -110,14 +110,14 @@ next bumps the pin.
 
 `partner-rawduck-head` runs the identical two targets `partner-rawduck` runs —
 `make partner-rawduck-build` and `make partner-rawduck-test` — with `RAWDUCK_REF=head` set. That
-env var makes `scripts/partners/rawduck-build.mjs` resolve `scripts/partners/rawduck.json`'s
+env var makes `scripts/partners/rawduck-build.py` resolve `scripts/partners/rawduck.json`'s
 `repository` field's own default-branch tip at run time (`git ls-remote <repo> HEAD`, never
 `rawduck.json`'s pinned `commit`), still re-points the resulting checkout's `duckdb` submodule at
 chronoduck's own pin exactly as the pinned build does, and builds and caches it under its own
 `build/partners/rawduck-head/` checkout and `build/partners/rawduck-head-cache/` cache root —
 distinct from `partner-rawduck`'s paths, so the two lanes never disturb each other's checkout or
 cache and `make check-pins`'s pinned-commit comparison keeps comparing against the pin, not
-whatever HEAD happened to build most recently. `scripts/partners/rawduck-test.mjs`, under the same
+whatever HEAD happened to build most recently. `scripts/partners/rawduck-test.py`, under the same
 env var, targets that HEAD checkout and reports the actual commit under test before running
 `test/partners/rawduck/*.sql` against it — so the lane's own output names both the HEAD commit and,
 on a red run, the failing leg (the `.sql` file whose script errored).
