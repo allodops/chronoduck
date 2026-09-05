@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """make smoke
 
-Port of scripts/smoke.mjs. LOAD the release build into a stock DuckDB
-shell (-unsigned, since it's not signed) and assert chronoduck_version()
-actually reports a version.
+LOAD the release build into a stock DuckDB shell (-unsigned, since it's not
+signed) and assert chronoduck_version() actually reports a version.
 """
 
 import subprocess

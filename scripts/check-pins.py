@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
 """make check-pins
 
-Port of scripts/check-pins.mjs. Pin-consistency check (Article IV): the
-duckdb and extension-ci-tools submodule pins must agree with each other on
-the versions T0.3 fixes, and -- once
-.github/workflows/MainDistributionPipeline.yml exists (T0.4) -- with the
-duckdb_version/ci_tools_version it declares. Absent that file, the workflow
-side is reported "pending", never a failure: this task doesn't own that
-file.
+Pin-consistency check (Article IV): the duckdb and extension-ci-tools
+submodule pins must agree with each other on the versions T0.3 fixes, and
+-- once .github/workflows/MainDistributionPipeline.yml exists (T0.4) --
+with the duckdb_version/ci_tools_version it declares. Absent that file, the
+workflow side is reported "pending", never a failure: this task doesn't own
+that file.
 
 Also reports (#47) the storage-partner pin declared in
 scripts/partners/rawduck.json alongside the submodule pins above, and fails
 when that pinned commit disagrees with what's actually checked out at
 build/partners/rawduck/ -- but only when that directory exists. It's a
 plain `git clone` (never a submodule, never committed -- see
-scripts/partners/rawduck-build.mjs), so a hygiene-only run that never built
+scripts/partners/rawduck-build.py), so a hygiene-only run that never built
 the partner has nothing to compare against; that absence is reported
 "pending", exactly like the MainDistributionPipeline.yml case above and the
 Makefile's own "extension-ci-tools submodule not checked out" warning
@@ -23,10 +22,10 @@ partner-rawduck lane, is where this comparison actually bites).
 
 Same shape again (#43) for the libchdb pin declared in
 scripts/live-oracles/chdb.json: also never a submodule, never committed --
-scripts/live-oracles/chdb-fetch.mjs fetches a checksummed release tarball
+scripts/live-oracles/chdb-fetch.py fetches a checksummed release tarball
 into build/live-oracles/chdb/<tag>/ instead of cloning a source tree. There
 is no independent HEAD to compare against (there's no git checkout at
-all); chdb-fetch.mjs itself already refuses to vendor anything whose
+all); chdb-fetch.py itself already refuses to vendor anything whose
 sha256 doesn't match the pin, so the fact that libchdb.so and chdb.h exist
 at the pinned tag's own directory is the "actual matches pinned" evidence
 here. Absent that directory, it's "pending" (run `make chdb-fetch`), same
@@ -93,7 +92,7 @@ def workflow_versions(root):
 
     try:
         doc = yaml.safe_load(wf_path.read_text(encoding="utf8"))
-    except Exception as e:  # noqa: BLE001 - mirrors the .mjs's catch-all
+    except Exception as e:  # noqa: BLE001 - any parse failure degrades to a reported error, never a crash
         return {"present": True, "duckdb": None, "ciTools": None, "error": f"could not parse YAML ({e})"}
 
     jobs = list((doc or {}).get("jobs", {}).values())
@@ -155,7 +154,7 @@ def partner_pin_status(root):
 
 
 # libchdb pin (#43): scripts/live-oracles/chdb.json names the pinned
-# (repository, tag, per-platform sha256) scripts/live-oracles/chdb-fetch.mjs
+# (repository, tag, per-platform sha256) scripts/live-oracles/chdb-fetch.py
 # vendors into build/live-oracles/chdb/<tag>/ (never a submodule, never
 # committed -- see that script's own header comment).
 def libchdb_pin_status(root):
@@ -171,7 +170,7 @@ def libchdb_pin_status(root):
     pinned = f"{config['repository']}@{config['tag']}"
     # Only linux-x86_64 is pinned today (chdb.json's own comment: the only
     # platform the chdb-differential CI lane runs on) -- the same
-    # "no pin for this platform" case chdb-fetch.mjs itself fails loudly on,
+    # "no pin for this platform" case chdb-fetch.py itself fails loudly on,
     # reported here as a violation for the same reason, not silently skipped.
     is_linux_x64 = sys.platform.startswith("linux") and platform.machine() in ("x86_64", "amd64")
     platform_key = "linux-x86_64" if is_linux_x64 else None

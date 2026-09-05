@@ -3,7 +3,7 @@
 #
 # Loads chronoduck's own built extension AND the freshly built rawduck
 # extension into the same stock DuckDB shell -- build/release/duckdb, exactly
-# the binary scripts/smoke.mjs already treats as "a stock DuckDB shell" for
+# the binary scripts/smoke.py already treats as "a stock DuckDB shell" for
 # chronoduck's own LOAD, -unsigned since neither .duckdb_extension is signed
 # -- and runs every test/partners/rawduck/*.sql file against it.
 #
@@ -23,7 +23,7 @@
 # own known-extension list, which a partner extension built out-of-tree
 # under build/partners/rawduck/ is not part of, so the real DuckDB unittest
 # runner could never load this file's contents even if the extension were
-# `.test`. Executed the same way scripts/smoke.mjs executes its own
+# `.test`. Executed the same way scripts/smoke.py executes its own
 # one-liner: as a single `-c` script string against the CLI, success meaning
 # exit 0 and no "Error:"-prefixed line in the output.
 #

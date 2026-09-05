@@ -3,7 +3,7 @@
 // (docs/design/surface.md's "any state whose partial contains a float sum
 // is D1 unless it uses reproducible_sum" rule). This combination is
 // invalid, so the static_assert below must fail to compile — proven by
-// scripts/hygiene-selftest.mjs, which compiles this file directly with a
+// scripts/hygiene-selftest.py, which compiles this file directly with a
 // bare g++ and asserts on the nonzero exit code AND the static_assert
 // message appearing in stderr, never exit code alone.
 #include "../../src/kernel/registry_types.hpp"

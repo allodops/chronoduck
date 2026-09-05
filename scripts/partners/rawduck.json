@@ -2,5 +2,5 @@
   "repository": "quackscience/rawduck",
   "commit": "7807eee995bbcbd8ace0ea7b8b61c2bd52862dfa",
   "duckdb_ref": "v1.5.4",
-  "_comment": "commit is the tip of quackscience/rawduck's own 'v1.5.4' branch (\"Bump DuckDB submodule and CI to v1.5.4 (Variegata).\"), chosen because its own duckdb submodule gitlink (08e34c447bae34eaee3723cac61f2878b6bdf787) already IS this repo's own duckdb pin (see scripts/lib/duckdb-pin.mjs) — duckdb_ref records that fact, informationally; it is not consulted by the build, which always re-points the partner's duckdb submodule at duckdb-pin.mjs's EXPECTED_DUCKDB_REF regardless of what this field or the partner's own .gitmodules says (scripts/partners/rawduck-build.mjs)."
+  "_comment": "commit is the tip of quackscience/rawduck's own 'v1.5.4' branch (\"Bump DuckDB submodule and CI to v1.5.4 (Variegata).\"), chosen because its own duckdb submodule gitlink (08e34c447bae34eaee3723cac61f2878b6bdf787) already IS this repo's own duckdb pin (see scripts/lib/duckdb_pin.py) — duckdb_ref records that fact, informationally; it is not consulted by the build, which always re-points the partner's duckdb submodule at duckdb_pin.py's EXPECTED_DUCKDB_REF regardless of what this field or the partner's own .gitmodules says (scripts/partners/rawduck-build.py)."
 }

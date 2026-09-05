@@ -1,7 +1,7 @@
 Closes #124
 
 ## How
-Added scripts/pr-label.mjs (event mode driven by PR number, backfill mode walking every open
+Added scripts/pr-label.py (event mode driven by PR number, backfill mode walking every open
 PR) plus a matching workflow, mirroring the size:/area: labels already present on the linked
 issue onto the PR.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Port of scripts/print-duckdb-pin.mjs.
+"""make print-duckdb-pin
 
 Prints scripts/lib/duckdb_pin.py's single pin constant, and nothing else, on
 stdout. Consumed by the root Makefile's `OVERRIDE_GIT_DESCRIBE` default

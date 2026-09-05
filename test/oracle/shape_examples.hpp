@@ -3,7 +3,7 @@
 // one deterministic live example per shape"). A ShapeID is `name/edge_mode/
 // domain` (`docs/testing/registry-and-fixtures.md`: "the property roster —
 // each name x edge mode x value domain is a ShapeID"), with any leading
-// `ts_` stripped the same way `scripts/hygiene/registry-roster-closure.mjs`
+// `ts_` stripped the same way `scripts/hygiene/registry-roster-closure.py`
 // already matches a fixture's `function:` field against a registry row.
 //
 // This file names no expected NUMBER independently derived here — each
@@ -19,11 +19,11 @@
 // file (living under `test/oracle/`, fenced from `src/`) cannot import
 // itself.
 //
-// `scripts/hygiene/shape-roster.mjs` (T7, docs/testing/rules.md) reads the
+// `scripts/hygiene/shape-roster.py` (T7, docs/testing/rules.md) reads the
 // `// ShapeID: <id>` citation directly above each entry below as this
 // roster's own "current" set, ratcheted against
 // `test/oracle/shape-roster.json` exactly the way
-// `scripts/hygiene/kernel-fixture-loader.mjs` ratchets `test/fixtures/
+// `scripts/hygiene/kernel-fixture-loader.py` ratchets `test/fixtures/
 // roster.json` against the fixtures it finds — REGRESSED/VANISHED/
 // ARRIVED-FAILING/UNRECORDED are all fatal there, per Article V.4.
 #pragma once
@@ -71,7 +71,7 @@ inline ShapeExample RateExtrapolateCounterExample() {
 // vector, since `src/kernel/registry.def` currently declares exactly one
 // (name, edge_mode, domain) combination with a real domain. Registering
 // another combination needs its own entry here plus a `// ShapeID:`
-// citation, or `scripts/hygiene/shape-roster.mjs` reports it as
+// citation, or `scripts/hygiene/shape-roster.py` reports it as
 // ARRIVED-FAILING).
 inline std::vector<ShapeExample> ShapeIdRoster() {
 	return {RateExtrapolateCounterExample()};

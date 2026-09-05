@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "duckdb/community-extensions description.yml",
-  "description": "duckdb/community-extensions publishes no standalone JSON Schema file for description.yml — its shape is enforced in code, by scripts/build.py (extension.name, repo.github and repo.ref are read without a fallback, i.e. required; roughly half of the optional fields below are build.py-only) and scripts/generate_extensions_json.py (the rest of the optional fields, read via .get() with no required check). This file is our own hand-derived encoding of that behavior, for scripts/description-validate.mjs to check against; see the sibling .source file for the exact upstream commits and the per-field attribution table.",
+  "description": "duckdb/community-extensions publishes no standalone JSON Schema file for description.yml — its shape is enforced in code, by scripts/build.py (extension.name, repo.github and repo.ref are read without a fallback, i.e. required; roughly half of the optional fields below are build.py-only) and scripts/generate_extensions_json.py (the rest of the optional fields, read via .get() with no required check). This file is our own hand-derived encoding of that behavior, for scripts/description-validate.py to check against; see the sibling .source file for the exact upstream commits and the per-field attribution table.",
   "type": "object",
   "required": ["extension", "repo"],
   "properties": {

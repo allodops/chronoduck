@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """make release-checklist
 
-Port of scripts/release-checklist.mjs. Prints the steps for cutting a
-chronoduck release. Informational only -- no step here runs automatically;
-each names the make target or manual action that carries it out.
+Prints the steps for cutting a chronoduck release. Informational only --
+no step here runs automatically; each names the make target or manual
+action that carries it out.
 """
 
 STEPS = [

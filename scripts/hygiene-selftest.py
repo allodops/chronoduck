@@ -29,7 +29,6 @@ def run(cmd, cwd=None, input_=None):
 
 
 def sh(cwd, cmd):
-    # Mirrors the .mjs helper's `$`git -c protocol.file.allow=always -C ${cwd} ${{ raw: cmd }}`.quiet()` —
     # cmd is a trusted, fixed shell command string built only from this file's own literals.
     subprocess.run(f"git -c protocol.file.allow=always -C {cwd} {cmd}", shell=True, capture_output=True, text=True)
 
@@ -144,8 +143,7 @@ expect_green(
 
 # 4c: the (state, det, scale_kind) static_assert rule — proven by actually
 # compiling a standalone C++ fixture with a bare g++, not merely asserted in
-# prose (untouched by this port — pure C++/g++, no scripting language
-# involved).
+# prose (pure C++/g++, no scripting language involved).
 red_path = os.path.join(ROOT, "test", "hygiene-fixtures", "registry-static-assert-red.cpp")
 out, err, code = run(["g++", "-std=c++17", "-c", red_path, "-o", "/dev/null"])
 combined = out + err
@@ -222,8 +220,7 @@ expect_green(
     ["python3", py("hygiene", "shape-roster.py"), "--root", materialize("shape-roster-green")],
 )
 
-# 4f: the comparator headroom pin's static_assert mechanism — pure C++/g++,
-# untouched by this port.
+# 4f: the comparator headroom pin's static_assert mechanism — pure C++/g++.
 for name, expect_message in [
     ("comparator-headroom-accept-red", "a reorder factor eroded to the accept edge must fail the floor"),
     ("comparator-headroom-reject-red", "a reorder factor eroded toward the divergence edge must fail the floor"),
@@ -331,8 +328,7 @@ expect_green(
 )
 
 # 5c: #181 — build-relevant-changed correctly classifies a src/ change as
-# relevant and a docs-only change as not. build-relevant-changed.py is a
-# Python port; invoked via python3 like every other real-tree check here.
+# relevant and a docs-only change as not.
 tmp = tempfile.mkdtemp(prefix="brc-selftest-")
 git_init(tmp, "main")
 write_file(os.path.join(tmp, "docs", "readme.md"), "base\n")
@@ -407,9 +403,9 @@ elif "fetchPrDiff" not in _forbid_deferral_py_src:
 else:
     print("SELFTEST ok: hygiene/forbid_deferral.py imports the shared fetchPrDiff() instead of duplicating the gh-tsouza call (#166 DRY)")
 
-# 6c: CONVENTIONAL_COMMITS_RE — #166 DRY. pr-hygiene.py and changelog.py are
-# both Python now (#245's cutover), still importing the shared constant from
-# lib/conventional_commits.py.
+# 6c: CONVENTIONAL_COMMITS_RE — #166 DRY. pr-hygiene.py and changelog.py
+# both import the shared constant from lib/conventional_commits.py rather
+# than defining their own copy.
 for _file in ["pr-hygiene.py", "changelog.py"]:
     _src = open(py(_file), "r", encoding="utf-8").read()
     if re.search(r"CONVENTIONAL_COMMITS_RE\s*=\s*re\.compile", _src):
@@ -422,7 +418,6 @@ for _file in ["pr-hygiene.py", "changelog.py"]:
         print(f"SELFTEST ok: {_file} imports the shared CONVENTIONAL_COMMITS_RE instead of duplicating it (#166 DRY)")
 
 # 7: pr-hygiene, fixture-based (a PR body that pastes the issue body verbatim).
-# pr-hygiene.py is Python now (#245's cutover).
 expect_red("pr-hygiene", ["python3", py("pr-hygiene.py"), "--fixture", os.path.join(FIXTURES, "pr-hygiene")])
 
 expect_green(
@@ -469,8 +464,7 @@ expect_green("pr-hygiene (merged after review — no audit false-positive)", ["p
 
 # check-pins: a submodule pinned to a branch (not its remote's default
 # branch) that's freshly cloned + `submodule update --init`ed describes as
-# "remotes/origin/<branch>", not "heads/<branch>". check-pins.py is Python
-# now (#245's cutover).
+# "remotes/origin/<branch>", not "heads/<branch>".
 tmp = tempfile.mkdtemp(prefix="cp-selftest-")
 
 fake_duckdb = os.path.join(tmp, "fake-duckdb")
@@ -505,13 +499,10 @@ sh(clone_dir, "submodule update --init")
 
 expect_green("check-pins (detached-HEAD remote-tracking describe)", ["python3", py("check-pins.py"), "--root", clone_dir])
 
-# 8-12: lanes-check's self-test fixtures. lanes-check.py is Python now
-# (#245's cutover).
+# 8-12: lanes-check's self-test fixtures.
 for name in ["unregistered", "missing", "continue-on-error", "continue-on-error-step", "lanes-md-drift"]:
     expect_red(f"lanes-check ({name})", ["python3", py("lanes-check.py"), "--root", materialize(f"lanes-check-{name}")])
 
-# docs-links, adr-lint, fixtures-validate, coverage-check are all Python now
-# (#245's cutover).
 expect_red("docs-links (dead link)", ["python3", py("docs-links.py"), "--root", materialize("docs-links-dead-link")])
 expect_red("docs-links (dead anchor)", ["python3", py("docs-links.py"), "--root", materialize("docs-links-dead-anchor")])
 
@@ -586,14 +577,12 @@ expect_green(
     ["python3", py("hygiene", "tier-coverage-floor.py"), "--root", materialize("tier-coverage-floor-green")],
 )
 
-# description-validate: Python now (#245's cutover).
 for name in ["missing-ref", "missing-extension", "missing-extension-name", "missing-repo", "missing-github", "maintainers-not-array"]:
     expect_red(
         f"description-validate ({name})",
         ["python3", py("description-validate.py"), "--file", os.path.join(FIXTURES, f"description-validate-{name}", "description.yml")],
     )
 
-# changelog / changelog-check: Python now (#245's cutover).
 tmp = tempfile.mkdtemp(prefix="changelog-selftest-")
 git_init(tmp, "main")
 for subject in ["feat: add widget scalar (#1)", "fix: correct widget edge case (#2)", "docs: document the widget scalar (#3)"]:
@@ -617,8 +606,7 @@ write_file(os.path.join(tmp, "CHANGELOG.md"), generated + "\nhand-edited\n")
 expect_red("changelog-check (hand-edited CHANGELOG.md)", ["python3", py("changelog.py"), "--check", "--root", tmp])
 
 # 13: pr-label / issue-label-check / docs-links pure-function unit
-# assertions. All three are Python now (#245's cutover); their pure
-# functions (guarded behind `if __name__ == "__main__"`, so importing them
+# assertions. Their pure functions (guarded behind `if __name__ == "__main__"`, so importing them
 # never touches the network) are exercised in-process, exactly like
 # scanDiffForDeferral above — importlib.import_module() resolves a
 # hyphenated module name by string lookup (unlike the `import`/`from
@@ -660,11 +648,10 @@ assert_equal(
 )
 
 # scanDiffForDeferral: pure-function assertions on actual violation
-# content/count, run directly against the ported Python implementation
-# (hygiene/forbid_deferral.py, imported at the top of this file) — #241
-# ports forbid-deferral itself, so unlike the pr-label/issue-label-check/
-# docs-links functions above, this one is exercised in-process, exactly like
-# the pr-label/issue-label-check/docs-links functions are exercised above.
+# content/count, run directly against hygiene/forbid_deferral.py's
+# implementation (imported by its normal underscored module name at the
+# top of this file, unlike the hyphenated pr-label/issue-label-check/
+# docs-links imports above) — exercised in-process the same way as those.
 with open(os.path.join(FIXTURES, "forbid-deferral.json"), "r", encoding="utf-8") as f:
     _manifest = json.load(f)
 
@@ -695,10 +682,9 @@ assert_equal(
     _manifest["adjacentUnrelatedCommentsExpected"],
 )
 
-# Now the real tree must be green. Every scan below is Python (#245's
-# cutover): hygiene.py (#241), lanes-check/docs-links/adr-lint/
-# fixtures-validate/description-validate.py (ported by later issues in
-# this milestone, wired in here by #245).
+# Now the real tree must be green: hygiene.py (#241) orchestrates
+# lanes-check/docs-links/adr-lint/fixtures-validate/description-validate.py
+# and the rest of the scans below.
 out, err, code = run(["python3", py("hygiene.py")])
 sys.stdout.write(out)
 sys.stderr.write(err)
@@ -733,8 +719,7 @@ for label, cmd in [
 # assertion here — CHANGELOG.md is only ever current relative to main's own
 # tip, so an open branch can't guarantee it (Article II.2).
 
-# check-pins: the "heads/<branch>" describe form. check-pins.py is Python
-# now (#245's cutover).
+# check-pins: the "heads/<branch>" describe form.
 tmp = tempfile.mkdtemp(prefix="cp-heads-selftest-")
 
 fake_duckdb = os.path.join(tmp, "fake-duckdb")
@@ -769,8 +754,7 @@ if "heads/v1.5-variegata" not in describe:
 
 expect_green("check-pins (local heads/<branch> describe)", ["python3", py("check-pins.py"), "--root", super_dir])
 
-# check-pins: #47 — the storage-partner pin. check-pins.py is Python now
-# (#245's cutover).
+# check-pins: #47 — the storage-partner pin.
 tmp = tempfile.mkdtemp(prefix="cp-partner-selftest-")
 
 fake_duckdb = os.path.join(tmp, "fake-duckdb")

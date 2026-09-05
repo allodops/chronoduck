@@ -1,9 +1,8 @@
 """Resolve a base ref to diff against, on a possibly-shallow CI checkout.
 
-Port of scripts/lib/git-base.mjs. Originally written for
-scripts/hygiene/constitution-check.mjs, factored out so
-scripts/build-relevant-changed.mjs doesn't duplicate it -- and, once
-#241-#244 port both of those callers, the same relationship holds in Python.
+Shared by scripts/hygiene/constitution-check.py and
+scripts/build-relevant-changed.py so neither duplicates this logic
+(#166-style DRY).
 """
 
 import subprocess

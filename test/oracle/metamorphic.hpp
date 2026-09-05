@@ -28,7 +28,7 @@
 // same rounding decisions the comparator's own reorder budget exists to
 // bound — `test/kernel/oracle_sweep_test.cpp` closes over the real
 // `chronoduck::equal_values` for that one relation, so this file still
-// defines no tolerance of its own (`scripts/hygiene/forbid-test-tolerance.mjs`
+// defines no tolerance of its own (`scripts/hygiene/forbid-test-tolerance.py`
 // has nothing to find here) and Article V.3's "one comparator" stays true:
 // the only place a floating-point tolerance is EVALUATED is the caller's
 // injected `Compare`, never a literal here.

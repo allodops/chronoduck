@@ -3,12 +3,12 @@
 // row: "every ... primitive has its own translation unit, its own
 // table-driven tests ... exercised directly"). Hand-rolled `main()`, no test
 // framework, compiled and run with a bare `g++ -std=c++17` by
-// `scripts/hygiene/kernel-primitive-tests.mjs` — the same dependency-free-TU
+// `scripts/hygiene/kernel-primitive-tests.py` — the same dependency-free-TU
 // pattern `extrapolate_test.cpp` established.
 //
 // Every case here is the same scenario as one of `test/fixtures/rate/*.yaml`
 // (this issue's own hand-derived fixtures), checked directly in C++ against
-// `EvaluateRate` — independent of `scripts/kernel-fixture-loader.mjs`'s YAML
+// `EvaluateRate` — independent of `scripts/hygiene/kernel-fixture-loader.py`'s YAML
 // parsing and wire-format marshalling, so a bug in the composition itself is
 // caught here even if the loader script were never run.
 #include "kernel/comparator.hpp"

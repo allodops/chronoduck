@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Port of scripts/hygiene/forbid-deferral.mjs.
+"""Scan a PR diff's added lines for deferral language lacking an issue reference.
 
-Named with an underscore (not a hyphen, unlike this port's 16 sibling
-scans) because scripts/hygiene-selftest.py imports scanDiffForDeferral()
-from it directly for its pure-function unit assertions — a hyphenated name
-cannot be `import`ed by name in Python. This is the same "hyphenated for a
-standalone CLI entry point, underscored for an importable module"
-convention scripts/lib/*.py already established (PR #249's own Deviations
-section); this file is both at once (a CLI entry point AND an importable
-module), so it follows the importable-module half of that convention.
+Named with an underscore (not a hyphen, unlike its sibling scans under
+scripts/hygiene/) because scripts/hygiene-selftest.py imports
+scanDiffForDeferral() from it directly for its pure-function unit
+assertions — a hyphenated name cannot be `import`ed by name in Python. This
+is the same "hyphenated for a standalone CLI entry point, underscored for
+an importable module" convention scripts/lib/*.py already established (PR
+#249's own Deviations section); this file is both at once (a CLI entry
+point AND an importable module), so it follows the importable-module half
+of that convention.
 """
 import os
 import re
@@ -46,10 +47,13 @@ def head_words(text, n):
 
 
 # Deferral language is an excuse to skip something, and belongs in prose —
-# comments — not in a string or regex literal. See
-# scripts/hygiene/forbid-deferral.mjs's own header comment for the full
-# rationale (the two-line wrap-boundary join, the #178 adjacent-comment
-# regression). This is a mechanical port, unchanged.
+# comments — not in a string or regex literal. Two behaviors below are
+# deliberate: a deferral phrase split across a wrapped two-line comment
+# (`// this is a stopgap for` / `// now, will replace it`) is still caught,
+# by joining the previous comment line's tail words to this line's head
+# words before matching; and `prev` is reset to None on any line that isn't
+# itself a continuing comment in scope, so an unrelated adjacent line can
+# never be mistaken for part of the same comment (the #178 regression).
 def scanDiffForDeferral(diff):
     lines = diff.split("\n")
     current_file = None

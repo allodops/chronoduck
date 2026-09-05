@@ -3,7 +3,7 @@
 // Tier 0-5 primitive has its own translation unit, its own table-driven
 // tests ... exercised directly"). Hand-rolled `main()`, no test framework,
 // compiled and run with a bare `g++ -std=c++17` by
-// `scripts/hygiene/kernel-primitive-tests.mjs` — the same
+// `scripts/hygiene/kernel-primitive-tests.py` — the same
 // dependency-free-TU pattern `window_walk_test.cpp` established.
 //
 // Structure follows `docs/testing/primitives.md`'s Tier 3 `edge_context`

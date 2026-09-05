@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """make description-validate
 
-Port of scripts/description-validate.mjs. Validates
-docs/community/description.yml against the shape
+Validates docs/community/description.yml against the shape
 scripts/vendor/description.schema.json documents (its own header, and the
 sibling .source file, explain why that's a hand-derived encoding rather than
 a vendored upstream file — duckdb/community-extensions ships no standalone
@@ -44,10 +43,11 @@ def validate(doc):
             violations.append('missing required field "repo.ref"')
 
     # `.get()` can't distinguish an absent key from an explicit `maintainers:
-    # null` (both return None); the .mjs original's `extension?.maintainers
-    # !== undefined` check treats an explicit null as present-but-wrong-type
-    # and flags it, so mirror that by checking key presence explicitly
-    # rather than truthiness of the looked-up value.
+    # null` (both return None); an explicit null is a real authoring mistake
+    # -- the field is present but has the wrong type -- and should be
+    # flagged rather than silently treated as "the field is absent", so key
+    # presence is checked explicitly rather than the looked-up value's
+    # truthiness.
     maintainers_present = isinstance(extension, dict) and "maintainers" in extension
     maintainers = extension.get("maintainers") if maintainers_present else None
     if maintainers_present and not isinstance(maintainers, list):

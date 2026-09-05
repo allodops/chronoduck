@@ -2,7 +2,7 @@
 // src/kernel/registry.def (Article V.1). Deliberately dependency-free: no
 // `#include "duckdb.hpp"` and no other DuckDB header, so this file compiles
 // standalone with a bare `g++`/`clang++ -std=c++17` and can be compile-tested
-// by scripts/hygiene-selftest.mjs's fixtures without the duckdb submodule
+// by scripts/hygiene-selftest.py's fixtures without the duckdb submodule
 // checked out.
 #pragma once
 

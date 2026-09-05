@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """make issue-label-check
 
-Port of scripts/issue-label-check.mjs. Every Task issue is labelled
-size:/area: at creation (BOOTSTRAP §2.2/2.3; an Epic is marked by its issue
+Every Task issue is labelled size:/area: at creation (BOOTSTRAP §2.2/2.3; an Epic is marked by its issue
 `type` instead and never carries these labels, so Epics are exempt here) --
 this is a drift check, not an inference tool: it flags any OPEN, non-Epic
 issue missing either label so it stays visible, rather than trying to guess
