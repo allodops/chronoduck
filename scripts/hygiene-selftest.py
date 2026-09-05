@@ -373,35 +373,55 @@ expect_red("forbid-deferral", ["python3", py("hygiene", "forbid_deferral.py"), "
 # 6b: #154 regression — a static check, not a live PR fetch. Both importers
 # (pr-hygiene.py and hygiene/forbid_deferral.py) are Python, so both
 # regression assertions run against the Python lib only.
+#
+# An inline "pr diff" subprocess call, whatever CLI-identity token it uses —
+# a bare literal ("gh", or an operator's personal alias) or a variable name —
+# is a duplicate of scripts/lib/gh_diff.py's fetchPrDiff() (#166 DRY); only
+# gh_diff.py itself is allowed to make this call.
+_INLINE_PR_DIFF_RE = re.compile(r'subprocess\.run\(\s*\[\s*("[^"]*"|\'[^\']*\'|[A-Za-z_][A-Za-z0-9_]*)\s*,\s*"pr"\s*,\s*"diff"')
+
 _pr_hygiene_src = open(py("pr-hygiene.py"), "r", encoding="utf-8").read()
-if "gh-tsouza pr diff" in _pr_hygiene_src:
-    print('SELFTEST FAIL: pr-hygiene.py still calls "gh-tsouza pr diff" directly instead of importing fetchPrDiff from lib.gh_diff (#166 DRY)', file=sys.stderr)
+if _INLINE_PR_DIFF_RE.search(_pr_hygiene_src):
+    print('SELFTEST FAIL: pr-hygiene.py still calls "pr diff" via its own inline subprocess instead of importing fetchPrDiff from lib.gh_diff (#166 DRY)', file=sys.stderr)
     failures += 1
 elif not re.search(r"from\s+lib\.gh_diff\s+import\s+fetchPrDiff", _pr_hygiene_src):
     print("SELFTEST FAIL: pr-hygiene.py does not import fetchPrDiff from lib.gh_diff (#166 DRY)", file=sys.stderr)
     failures += 1
 else:
-    print("SELFTEST ok: pr-hygiene.py imports the shared fetchPrDiff() instead of duplicating the gh-tsouza call (#166 DRY)")
+    print("SELFTEST ok: pr-hygiene.py imports the shared fetchPrDiff() instead of duplicating the interactive-CLI call (#166 DRY)")
 
+# gh_diff.py is the one file that IS allowed (expected) to make this call —
+# but per #263, the CLI identity it invokes must be a configurable variable
+# read once from the environment (defaulting sensibly), never a personal
+# alias baked in as a string literal.
 _gh_diff_py_src = open(py("lib", "gh_diff.py"), "r", encoding="utf-8").read()
+_gh_diff_pr_diff_call = _INLINE_PR_DIFF_RE.search(_gh_diff_py_src)
 if '"--patch"' in _gh_diff_py_src or "'--patch'" in _gh_diff_py_src:
     print("SELFTEST FAIL: lib/gh_diff.py still fetches the --patch (per-commit) diff (#154 regression)", file=sys.stderr)
     failures += 1
-elif "gh-tsouza" not in _gh_diff_py_src:
-    print('SELFTEST FAIL: lib/gh_diff.py — no "gh-tsouza pr diff" invocation found; expected one (#154 regression check needs updating)', file=sys.stderr)
+elif not _gh_diff_pr_diff_call:
+    print('SELFTEST FAIL: lib/gh_diff.py — no "pr diff" invocation found; expected one (#154 regression check needs updating)', file=sys.stderr)
+    failures += 1
+elif _gh_diff_pr_diff_call.group(1).startswith('"') or _gh_diff_pr_diff_call.group(1).startswith("'"):
+    print('SELFTEST FAIL: lib/gh_diff.py hardcodes its "pr diff" CLI identity as a string literal instead of a configurable variable (#263)', file=sys.stderr)
     failures += 1
 else:
-    print("SELFTEST ok: lib/gh_diff.py fetches the net PR diff, not --patch (#154 regression, Python side)")
+    _gh_diff_cli_var = _gh_diff_pr_diff_call.group(1)
+    if not re.search(rf'{re.escape(_gh_diff_cli_var)}\s*=\s*os\.environ\.get\(', _gh_diff_py_src):
+        print(f'SELFTEST FAIL: lib/gh_diff.py calls "pr diff" via {_gh_diff_cli_var}, but that name is never sourced from os.environ.get(...) — looks hardcoded rather than operator-configurable (#263)', file=sys.stderr)
+        failures += 1
+    else:
+        print("SELFTEST ok: lib/gh_diff.py fetches the net PR diff, not --patch, via an environment-configurable CLI identity (#154, #263)")
 
 _forbid_deferral_py_src = open(py("hygiene", "forbid_deferral.py"), "r", encoding="utf-8").read()
-if "gh-tsouza" in _forbid_deferral_py_src:
-    print('SELFTEST FAIL: hygiene/forbid_deferral.py calls gh-tsouza directly instead of importing fetchPrDiff from lib.gh_diff (#166 DRY)', file=sys.stderr)
+if _INLINE_PR_DIFF_RE.search(_forbid_deferral_py_src):
+    print('SELFTEST FAIL: hygiene/forbid_deferral.py calls "pr diff" directly instead of importing fetchPrDiff from lib.gh_diff (#166 DRY)', file=sys.stderr)
     failures += 1
 elif "fetchPrDiff" not in _forbid_deferral_py_src:
     print("SELFTEST FAIL: hygiene/forbid_deferral.py does not import fetchPrDiff from lib.gh_diff (#166 DRY)", file=sys.stderr)
     failures += 1
 else:
-    print("SELFTEST ok: hygiene/forbid_deferral.py imports the shared fetchPrDiff() instead of duplicating the gh-tsouza call (#166 DRY)")
+    print("SELFTEST ok: hygiene/forbid_deferral.py imports the shared fetchPrDiff() instead of duplicating the interactive-CLI call (#166 DRY)")
 
 # 6c: CONVENTIONAL_COMMITS_RE — #166 DRY. pr-hygiene.py and changelog.py
 # both import the shared constant from lib/conventional_commits.py rather

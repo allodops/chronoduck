@@ -1,13 +1,14 @@
 """Shared plain-`gh`-CLI helper for scripts that run standalone in CI.
 
-No Claude Code session, no `gh-tsouza` alias available there -- the one
-deliberate exception to this project's "always gh-tsouza" rule, which is
-about interactive sessions on the owner's machine, not scripts GitHub
-Actions itself executes. Never call the gh*() functions below from a
-script meant to run interactively (scripts/ruleset.py is that case and
-keeps its own gh-tsouza constant; it is never invoked by a workflow, only
-by a human or Claude Code locally, per Article VII.3) -- importing the
-REPO constant alone is fine, since it's just data, not a plain-`gh` call.
+CI has no interactively-configured GitHub CLI identity available there --
+the one deliberate exception to this project's rule that interactive work
+uses a configurable local identity, which governs sessions on the owner's
+machine, not scripts GitHub Actions itself executes. Never call the gh*()
+functions below from a script meant to run interactively (scripts/ruleset.py
+is that case and keeps its own configurable-identity constant; it is never
+invoked by a workflow, only run interactively on the owner's machine, per
+Article VII.3) -- importing the REPO constant alone is fine, since it's
+just data, not a plain-`gh` call.
 """
 
 import json

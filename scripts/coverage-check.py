@@ -23,19 +23,26 @@ forward reference to the not-yet-created registry.def. A row with neither
 (empty, or pure prose with no identifiable construct) fails.
 
 The "(class N)" self-reference check is fully offline. The "T<major>.<minor>"
-plan-key check shells out to `gh-tsouza issue list --search` to confirm the
-token names a real issue's `<!-- plan-key: T#.# -->` comment, mirroring
-forbid-ledger.py's issueIsOpen() pattern: when a token exists to verify and
-gh is unavailable, that is reported as a violation, not silently skipped
+plan-key check shells out to the configurable interactive GitHub CLI's
+`issue list --search` to confirm the token names a real issue's
+`<!-- plan-key: T#.# -->` comment, mirroring forbid-ledger.py's
+issueIsOpen() pattern: when a token exists to verify and the CLI is
+unavailable, that is reported as a violation, not silently skipped
 (Article II.3's "offline runs report this check as red only when such a
 comment is present to verify" generalized to plan-key tokens).
 """
 
 import json
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+# The interactive GitHub CLI identity: configured per-operator via the
+# environment, outside tracked source, so no personal alias is ever a literal
+# in this file. Defaults to plain `gh` for anyone without one configured.
+GH_INTERACTIVE = os.environ.get("CHRONODUCK_GH_INTERACTIVE_CLI", "gh")
 
 args = sys.argv[1:]
 root_idx = args.index("--root") if "--root" in args else -1
@@ -194,7 +201,7 @@ plan_key_tokens = {m.group(0) for m in re.finditer(r"\bT\d+\.\d+\b", coverage_te
 def issue_exists_for_plan_key(token):
     try:
         result = subprocess.run(
-            ["gh-tsouza", "issue", "list", "--state", "all", "--search", f'"plan-key: {token}" in:body', "--json", "number"],
+            [GH_INTERACTIVE, "issue", "list", "--state", "all", "--search", f'"plan-key: {token}" in:body', "--json", "number"],
             capture_output=True,
             text=True,
             check=True,
@@ -202,13 +209,13 @@ def issue_exists_for_plan_key(token):
         parsed = json.loads(result.stdout)
         return isinstance(parsed, list) and len(parsed) > 0
     except Exception:
-        return None  # gh unavailable
+        return None  # interactive GitHub CLI unavailable
 
 
 for token in plan_key_tokens:
     exists = issue_exists_for_plan_key(token)
     if exists is None:
-        violations.append(f'coverage.md: could not verify plan-key "{token}" (gh-tsouza unavailable)')
+        violations.append(f'coverage.md: could not verify plan-key "{token}" ({GH_INTERACTIVE} unavailable)')
     elif not exists:
         violations.append(f'coverage.md: cites plan-key "{token}", which no issue\'s "<!-- plan-key: {token} -->" comment names')
 
