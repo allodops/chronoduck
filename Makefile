@@ -128,8 +128,12 @@ fixtures-validate: ## Validate every test/fixtures/*.yaml against the language-n
 	bun scripts/fixtures-validate.mjs
 
 .PHONY: kernel-fixture-loader
-kernel-fixture-loader: ## Replay every test/fixtures/rate/*.yaml through the comparator and the fixture-identity roster (L2, Article V.4)
+kernel-fixture-loader: ## Replay every test/fixtures/{rate,derived}/**/*.yaml through the comparator and the fixture-identity roster (L2, Article V.4)
 	bun scripts/hygiene/kernel-fixture-loader.mjs
+
+.PHONY: derivation-sync
+derivation-sync: ## Check test/fixtures/derived/manifest.json against the actual files and the roster (L2/L12, Article V.4)
+	bun scripts/hygiene/derivation-sync.mjs
 
 .PHONY: registry-roster-closure
 registry-roster-closure: ## Every fixture-representable registry.def row has a test/fixtures/**/*.yaml fixture (L13)

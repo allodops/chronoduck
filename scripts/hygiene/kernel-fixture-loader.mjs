@@ -23,8 +23,10 @@
 //
 // Identity ratchet (Article V.4 / T7): `test/fixtures/roster.json` is the
 // set of fixture ids known to pass. Every fixture actually found under
-// `test/fixtures/rate/*.yaml` is run; its id is then classified against the
-// roster:
+// `test/fixtures/rate/*.yaml` OR `test/fixtures/derived/**/*.yaml` — #37's
+// own destination for files a derivation tool drops in, read alongside the
+// hand-derived set rather than through a second, parallel loader — is run;
+// its id is then classified against the roster:
 //   - in roster, passes now        -> OK
 //   - in roster, fails now         -> REGRESSED
 //   - in roster, missing entirely  -> VANISHED
@@ -32,7 +34,12 @@
 //   - not in roster, passes        -> UNRECORDED (add it to roster.json)
 // All four are fatal (T7); a fixture set that matches the roster exactly,
 // every one passing, is the only green outcome.
-import { readFileSync, readdirSync, existsSync } from "node:fs";
+// `scripts/hygiene/derivation-sync.mjs` is a separate, complementary check
+// scoped to `test/fixtures/derived/manifest.json` alone (#37): it compares
+// the derivation tool's own declared inventory against the roster and
+// against the files actually present, so a fixture the tool silently
+// dropped is caught even before it ever reaches this loader.
+import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { join, relative, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
@@ -42,6 +49,7 @@ const rootIdx = args.indexOf("--root");
 const root = rootIdx === -1 ? process.cwd() : args[rootIdx + 1];
 
 const FIXTURE_DIR = join(root, "test", "fixtures", "rate");
+const DERIVED_DIR = join(root, "test", "fixtures", "derived");
 const ROSTER_PATH = join(root, "test", "fixtures", "roster.json");
 
 // The evaluator's own C++ source is this script's machinery, not part of
@@ -70,12 +78,23 @@ async function run(cmd, { input } = {}) {
   return { out, err, code };
 }
 
+// Recursive, so `test/fixtures/derived/rate/*.yaml` (and any further
+// per-source subdirectory a future batch adds) is found the same way
+// `test/fixtures/rate/*.yaml`'s own flat listing already was — one walker,
+// not a second copy for the nested case.
 function listFixtureFiles(dir) {
   if (!existsSync(dir)) return [];
-  return readdirSync(dir)
-    .filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"))
-    .sort()
-    .map((f) => join(dir, f));
+  const out = [];
+  const walk = (d) => {
+    for (const entry of readdirSync(d).sort()) {
+      const full = join(d, entry);
+      const st = statSync(full);
+      if (st.isDirectory()) walk(full);
+      else if (entry.endsWith(".yaml") || entry.endsWith(".yml")) out.push(full);
+    }
+  };
+  walk(dir);
+  return out;
 }
 
 // [t, v] or [t, v, st] -> "t v has_st st", the wire format
@@ -135,7 +154,7 @@ async function main() {
   const tmp = mkdtempSync(join(tmpdir(), "kernel-fixture-loader-"));
   const binPath = await compileLoader(tmp);
 
-  const files = listFixtureFiles(FIXTURE_DIR);
+  const files = [...listFixtureFiles(FIXTURE_DIR), ...listFixtureFiles(DERIVED_DIR)];
   const current = new Map(); // fixture id -> { pass, rel }
 
   for (const file of files) {

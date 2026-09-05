@@ -623,6 +623,25 @@ await expectRed("kernel-fixture-loader (ARRIVED-FAILING: new fixture, not in ros
 await expectRed("kernel-fixture-loader (UNRECORDED: new fixture, not in roster, passes)", ["bun", join(HERE, "hygiene", "kernel-fixture-loader.mjs"), "--root", materialize("kernel-fixture-loader-unrecorded")]);
 await expectGreen("kernel-fixture-loader (roster matches, everything passes)", ["bun", join(HERE, "hygiene", "kernel-fixture-loader.mjs"), "--root", materialize("kernel-fixture-loader-green")]);
 
+// kernel-fixture-loader: #37 — the loader now also walks
+// test/fixtures/derived/**/*.yaml (one level deeper than
+// test/fixtures/rate/*.yaml's own flat listing), held to the same roster
+// identity either way; a fixture that exists only under derived/ and
+// nowhere under rate/ still goes green once the roster records it.
+await expectGreen("kernel-fixture-loader (reads test/fixtures/derived/**/*.yaml too)", ["bun", join(HERE, "hygiene", "kernel-fixture-loader.mjs"), "--root", materialize("kernel-fixture-loader-derived-green")]);
+
+// derivation-sync: #37 — the sync test named in the issue's own Goal,
+// comparing test/fixtures/derived/manifest.json (the derivation tool's own
+// declared inventory) against the files actually present and against
+// test/fixtures/roster.json, plus the flat "the tool's version is in every
+// provenance" rule. Four fatal verdicts, each its own fixture, plus the
+// matching-everywhere green case.
+await expectRed("derivation-sync (DROPPED: manifest names a fixture no file declares)", ["bun", join(HERE, "hygiene", "derivation-sync.mjs"), "--root", materialize("derivation-sync-dropped")]);
+await expectRed("derivation-sync (UNDECLARED: a file the manifest never named)", ["bun", join(HERE, "hygiene", "derivation-sync.mjs"), "--root", materialize("derivation-sync-undeclared")]);
+await expectRed("derivation-sync (UNRECORDED: manifest and files agree, roster doesn't)", ["bun", join(HERE, "hygiene", "derivation-sync.mjs"), "--root", materialize("derivation-sync-unrecorded")]);
+await expectRed("derivation-sync (VERSION-MISMATCH: derived_by doesn't match tool@tool_version)", ["bun", join(HERE, "hygiene", "derivation-sync.mjs"), "--root", materialize("derivation-sync-version-mismatch")]);
+await expectGreen("derivation-sync (manifest, files and roster all agree)", ["bun", join(HERE, "hygiene", "derivation-sync.mjs"), "--root", materialize("derivation-sync-green")]);
+
 // registry-roster-closure: #36 — a fixture-representable row (a real
 // domain, i.e. not DOMAIN_NONE) with zero test/fixtures/**/*.yaml fixtures
 // is red, naming the row; the same row with a matching fixture (`function:`
@@ -895,6 +914,17 @@ assertEqual("headingSlugs: collects every heading", [...headingSlugs("# Title\n\
     failures++;
   } else {
     console.log("SELFTEST ok: `make kernel-fixture-loader` is green on the real tree");
+  }
+}
+{
+  const { out, err, code } = await run(["bun", join(HERE, "hygiene", "derivation-sync.mjs")]);
+  process.stdout.write(out);
+  process.stderr.write(err);
+  if (code !== 0) {
+    console.error("SELFTEST FAIL: `make derivation-sync` is not green on the real tree");
+    failures++;
+  } else {
+    console.log("SELFTEST ok: `make derivation-sync` is green on the real tree");
   }
 }
 {

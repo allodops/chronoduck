@@ -1,0 +1,4 @@
+{
+  "test/fixtures/roster.json": "WyJyYXRlL2Rlcml2ZWQvYWx3YXlzLW51bGwiXQ==",
+  "test/fixtures/derived/rate/always-null.yaml": "Zml4dHVyZTogcmF0ZS9kZXJpdmVkL2Fsd2F5cy1udWxsCmZ1bmN0aW9uOiByYXRlCmVkZ2VfbW9kZTogRVhUUkFQT0xBVEUKZG9tYWluOiBDT1VOVEVSCmdyaWQ6IHtzdGFydDogMTAwLCBlbmQ6IDEwMCwgc3RlcDogMX0Kd2luZG93OiAxMDAKbG9va2JhY2s6IDEwMApzYW1wbGVzOgogIC0gWzUwLCAxMF0KZXhwZWN0ZWQ6CiAgW251bGxdCnByb3ZlbmFuY2U6CiAgc291cmNlOiBoYW5kLWRlcml2ZWQK"
+}

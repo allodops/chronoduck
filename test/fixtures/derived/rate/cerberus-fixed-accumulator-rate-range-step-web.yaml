@@ -1,0 +1,53 @@
+# Externally derived (see this directory's own manifest.json): sourced from
+# cerberus's fixed_accumulator_rate_range_step.txtar, a two-series
+# `sum by(job) (rate(...[5m]))` range-step case. This fixture keeps only the
+# `job="web"` series — a plain monotonic counter, +10 every 60s — since the
+# kernel's own fixture format has no `groupBy`; the other series (`job="api"`,
+# a sawtooth counter exercising the reset-correction term) is out of this
+# single fixture's shape and is left for a future fixture rather than
+# reshaped to fit here.
+#
+# Six samples 60 ticks apart, t=0..300, v=10..60. A 300s window swept every
+# 30 ticks from t=60 to t=300 — a sweep family case (per
+# docs/testing/fixtures.md's sweep row) whose every point cerberus's own
+# `expected_rows` already records; two are re-derived here as a spot check
+# against this kernel's own `extrapolate` arithmetic rather than trusted
+# blind:
+#
+# t=60: window (-240, 60] admits t=0 (v=10) and t=60 (v=20); n=2, delta=10,
+# sampled_interval=60, avg_interval=60, threshold=66. duration_to_start =
+# 0-(-240)=240, over threshold, falls back to avg_interval/2=30; the zero
+# clamp (sampled_interval*(first/delta) = 60*(10/10) = 60) is larger than
+# 30 so it does not tighten further. duration_to_end = 60-60=0, under
+# threshold. factor = (60+30+0)/60 = 1.5, value = 10*1.5 = 15,
+# rate = 15/300 = 0.05.
+#
+# t=300: window (0, 300] excludes t=0 (the left-open bound) and admits
+# t=60..300 (v=20..60); n=5, delta=40 (60-20), sampled_interval=240,
+# avg_interval=60, threshold=66. duration_to_start=60-0=60, under
+# threshold, and the zero clamp (240*(20/40)=120) does not tighten it
+# further. duration_to_end=300-300=0. factor=(240+60+0)/240=1.25,
+# value=40*1.25=50, rate=50/300=0.16666666666666666 — the steady-state
+# 10-per-60s rate, once the window is finally full.
+fixture: rate/derived/cerberus-fixed-accumulator-rate-range-step-web
+function: rate
+edge_mode: EXTRAPOLATE
+domain: COUNTER
+grid: {start: 60, end: 300, step: 30}
+window: 300
+lookback: 300
+samples:
+  - [0, 10]
+  - [60, 20]
+  - [120, 30]
+  - [180, 40]
+  - [240, 50]
+  - [300, 60]
+expected:
+  [0.05, 0.06666666666666667, 0.08333333333333333, 0.1, 0.11666666666666668,
+   0.13333333333333333, 0.16666666666666666, 0.16666666666666666, 0.16666666666666666]
+provenance:
+  source: cerberus@64663c2711ad9d8c6ee6fa9f2f5026febbbf9f74
+  derived_by: chronoduck-manual-ingest@0.1.0
+  ref: test/spec/promql/fixed_accumulator_rate_range_step.txtar
+  derived_at: 2026-09-05
