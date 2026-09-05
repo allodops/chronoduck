@@ -1,0 +1,23 @@
+# cadence family (docs/testing/fixtures.md's cadence row): "window smaller
+# than scrape interval" — a 30s scrape cadence with a 20-tick window can
+# never bracket two samples at once (consecutive samples are 30 ticks apart,
+# wider than the window itself), so every grid point on this 30-step grid
+# sees at most one sample and yields no value — an empty-window result that
+# comes from structure, not from a gap in the data.
+fixture: rate/cadence-window-smaller-than-scrape
+function: rate
+edge_mode: EXTRAPOLATE
+domain: COUNTER
+grid: {start: 30, end: 90, step: 30}
+window: 20
+lookback: 20
+samples:
+  - [30, 10]
+  - [60, 20]
+  - [90, 35]
+expected:
+  [null, null, null]
+provenance:
+  source: hand-derived
+  derived_by: chronoduck-issue-33
+  derived_at: 2026-09-05

@@ -1,0 +1,35 @@
+# sweep family (docs/testing/fixtures.md's sweep row): eval-instant offsets
+# off the sample clock. Two samples 60 ticks apart (t = 1000, v = 100 and
+# t = 1060, v = 180) swept by a 15-step grid from 1000 to 1300 — a superset
+# of the named offsets {0, 15, 30, 60, 90, 120, 180, 300}s off t = 1000,
+# since all eight are multiples of the 15-tick step.
+#
+# An 80-wide window brackets both samples only while its lower edge stays
+# below 1000 and its anchor stays at or above 1060, i.e. anchor in
+# [1060, 1080) — grid points 1060 and 1075 (indices 4 and 5). Every other
+# anchor sees at most one sample (offsets 0/15/30/90/120 admit exactly one)
+# or none at all (180 and 300 push the window off the data entirely — "both
+# sides agreeing on empty").
+#
+# At anchor 1060: window (980, 1060], duration_to_start = 20,
+# duration_to_end = 0. At anchor 1075: window (995, 1075],
+# duration_to_start = 5, duration_to_end = 15. Both splits sum the same
+# extrapolated slack (window - span = 80 - 60 = 20), so factor = 80/60 in
+# both cases: delta = 80, rate = delta / span = 80 / 60 = 1.3333333333333333.
+fixture: rate/sweep-eval-instant-offsets
+function: rate
+edge_mode: EXTRAPOLATE
+domain: COUNTER
+grid: {start: 1000, end: 1300, step: 15}
+window: 80
+lookback: 80
+samples:
+  - [1000, 100]
+  - [1060, 180]
+expected:
+  [null, null, null, null, 1.3333333333333333, 1.3333333333333333, null, null,
+   null, null, null, null, null, null, null, null, null, null, null, null, null]
+provenance:
+  source: hand-derived
+  derived_by: chronoduck-issue-33
+  derived_at: 2026-09-05

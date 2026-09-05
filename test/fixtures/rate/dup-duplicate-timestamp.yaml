@@ -1,0 +1,42 @@
+# dup family (docs/testing/fixtures.md's dup row): the 50-vs-37.5
+# duplicate-timestamp bug ("sample count inflating the interval estimate"),
+# the same pair of numbers docs/testing/layers.md's L8 row names as its own
+# first cross-path entry.
+#
+# Two real samples, t = 10 (v = 1000) and t = 70 (v = 4000), span S = 60,
+# delta = 3000 (no reset). A third raw entry at the same t = 10 with a
+# lesser value (700) is the duplicate: SampleBuffer.sort_dedup resolves it by
+# the declared totalOrder tie-break (the greater value wins, 1000 > 700), so
+# the correctly-deduped fold sees exactly n = 2, avg_interval = S = 60,
+# threshold = 66. Window (4, 112] gives duration_to_start = 10 - 4 = 6 and
+# duration_to_end = 112 - 70 = 42; 42 is under 66 so the correct fold
+# extrapolates fully: factor = (60 + 6 + 42) / 60 = 1.8,
+# value = 3000 * 1.8 = 5400, rate = 5400 / window(108) = 50.
+#
+# A naive implementation that fails to dedupe the duplicate timestamp counts
+# n = 3 raw samples instead of 2, inflating avg_interval's denominator:
+# avg_interval' = 60 / 2 = 30, threshold' = 33. The same 42-tick right gap
+# now exceeds threshold' and falls back to half the (smaller) average
+# interval, 30 / 2 = 15, instead of extrapolating fully to 42:
+# factor' = (60 + 6 + 15) / 60 = 1.35, value' = 3000 * 1.35 = 4050,
+# rate' = 4050 / 108 = 37.5 — the same delta, a different avg_interval alone
+# changes the answer.
+fixture: rate/dup-duplicate-timestamp
+function: rate
+edge_mode: EXTRAPOLATE
+domain: COUNTER
+grid: {start: 112, end: 112, step: 1}
+window: 108
+lookback: 108
+samples:
+  - [10, 1000]
+  - [10, 700]   # duplicate timestamp, lesser value: loses the totalOrder tie-break
+  - [70, 4000]
+expected:
+  [50]
+wrong:
+  duplicate-not-deduped: 37.5
+provenance:
+  source: hand-derived
+  derived_by: chronoduck-issue-33
+  derived_at: 2026-09-05

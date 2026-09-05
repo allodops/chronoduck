@@ -1,0 +1,38 @@
+# start-ts family (docs/testing/fixtures.md's start-ts row): "start
+# timestamp moved with no value drop" — the `st_reset` half of the reset
+# predicate (`src/kernel/counter_fold.hpp:st_reset:` `ST >= T`), a fixture
+# family that cannot be written in a plain `(t, v)` grammar.
+#
+# Samples t = 10 (v = 10), 20 (v = 15, st = 25), 30 (v = 20): the value never
+# drops (10, 15, 20 monotone), but sample 2's st = 25 is >= its own
+# t = 20 (st_reset's second case), so `value_or_st_reset` still calls it a
+# reset even though `curr.v < prev.v` is false.
+#
+# delta: 10->15 reset (st_reset), delta += prev.v(10) = 10; 15->20 no reset;
+# delta += last - first = 20 - 10 = 10. Total delta = 20. n = 3, S = 20,
+# avg_interval = 10, threshold = 11. Window (5, 35] gives
+# duration_to_start = 10 - 5 = 5 and duration_to_end = 35 - 30 = 5, both
+# under threshold: factor = (20 + 5 + 5) / 20 = 1.5, value = 20 * 1.5 = 30,
+# rate = 30 / window(30) = 1.0.
+fixture: rate/start-ts-reset-no-value-drop
+function: rate
+edge_mode: EXTRAPOLATE
+domain: COUNTER
+grid: {start: 35, end: 35, step: 1}
+window: 30
+lookback: 30
+samples:
+  - [10, 10]
+  - [20, 15, 25]   # st >= t: a reset with no value drop
+  - [30, 20]
+expected:
+  [1.0]
+wrong:
+  # Ignoring `st` entirely (plain value-drop-only reset detection) sees no
+  # reset at all: delta = last - first = 10, same factor 1.5,
+  # rate = 10 * 1.5 / 30 = 0.5.
+  st-ignored: 0.5
+provenance:
+  source: hand-derived
+  derived_by: chronoduck-issue-33
+  derived_at: 2026-09-05

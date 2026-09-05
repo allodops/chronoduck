@@ -1,0 +1,36 @@
+# clamp family (docs/testing/fixtures.md's clamp row): a counter whose
+# extrapolated line would cross zero on the left edge, engaging the
+# `durationToZero` clamp.
+#
+# Samples t = 100 (v = 1), 110 (v = 50), 120 (v = 101): delta = 100 (no
+# reset), n = 3, S = 20, avg_interval = 10, threshold = 11. Window (0, 125]
+# gives a huge left gap, duration_to_start = 100 - 0 = 100, far over
+# threshold, so the fallback would be avg_interval / 2 = 5 — except the zero
+# clamp computes duration_to_zero = S * (first / delta) = 20 * (1/100) = 0.2,
+# smaller than the fallback, so it wins: duration_to_start = 0.2.
+# duration_to_end = 125 - 120 = 5, under threshold, extrapolates fully.
+# factor = (20 + 0.2 + 5) / 20 = 1.26, value = 100 * 1.26 = 126,
+# rate = 126 / window(125) = 1.008.
+fixture: rate/clamp-zero-crossing
+function: rate
+edge_mode: EXTRAPOLATE
+domain: COUNTER
+grid: {start: 125, end: 125, step: 1}
+window: 125
+lookback: 125
+samples:
+  - [100, 1]
+  - [110, 50]
+  - [120, 101]
+expected:
+  [1.008]
+wrong:
+  # Skipping the clamp leaves duration_to_start at the plain over-threshold
+  # fallback (5) instead of the smaller duration_to_zero (0.2):
+  # factor = (20 + 5 + 5) / 20 = 1.5, value = 100 * 1.5 = 150,
+  # rate = 150 / 125 = 1.2.
+  clamp-skipped: 1.2
+provenance:
+  source: hand-derived
+  derived_by: chronoduck-issue-33
+  derived_at: 2026-09-05

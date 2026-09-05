@@ -1,0 +1,4 @@
+{
+  "test/fixtures/roster.json": "W10=",
+  "test/fixtures/rate/always-null.yaml": "Zml4dHVyZTogcmF0ZS9hbHdheXMtbnVsbApmdW5jdGlvbjogcmF0ZQplZGdlX21vZGU6IEVYVFJBUE9MQVRFCmRvbWFpbjogQ09VTlRFUgpncmlkOiB7c3RhcnQ6IDEwMCwgZW5kOiAxMDAsIHN0ZXA6IDF9CndpbmRvdzogMTAwCmxvb2tiYWNrOiAxMDAKc2FtcGxlczoKICAtIFs1MCwgMTBdCmV4cGVjdGVkOgogIFtudWxsXQpwcm92ZW5hbmNlOgogIHNvdXJjZTogaGFuZC1kZXJpdmVkCg=="
+}

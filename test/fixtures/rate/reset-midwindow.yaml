@@ -1,0 +1,36 @@
+# reset family (docs/testing/fixtures.md's reset row): a counter with one
+# reset mid-window. Samples 10, 20, 5 (reset, 5 < 20), 15 at t = 5, 65, 125,
+# 185; window (0, 205] covers all four with a small gap on each side (5 and
+# 20 ticks), both under the 1.1x-average-interval threshold (avg_interval =
+# 180/3 = 60, threshold = 66), so both sides extrapolate fully and
+# rate = delta / (last_t - first_t) exactly (factor == window / span for any
+# split of the extrapolated slack between the two edges).
+#
+# delta: 10->20 no reset; 20->5 reset (5 < 20), delta += 20 (the pre-reset
+# value); 5->15 no reset; delta += last - first = 15 - 10 = 5. Total
+# delta = 20 + 5 = 25. rate = 25 / (185 - 5) = 25 / 180 = 0.1388888888888889.
+fixture: rate/reset-midwindow
+function: rate
+edge_mode: EXTRAPOLATE
+domain: COUNTER
+grid: {start: 205, end: 205, step: 1}
+window: 205
+lookback: 205
+samples:
+  - [5, 10]
+  - [65, 20]
+  - [125, 5]    # reset
+  - [185, 15]
+expected:
+  [0.1388888888888889]
+wrong:
+  # A naive implementation that treats a reset as a plain (negative)
+  # decrement instead of adding the pre-reset value back never adds the 20
+  # term: naive_delta = last - first = 15 - 10 = 5, still divided by the same
+  # span (the naive bug touches delta, not the extrapolation factor):
+  # 5 / 180 = 0.027777777777777776.
+  reset-treated-as-decrement: 0.027777777777777776
+provenance:
+  source: hand-derived
+  derived_by: chronoduck-issue-33
+  derived_at: 2026-09-05

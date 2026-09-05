@@ -1,0 +1,11 @@
+[
+  "rate/reset-midwindow",
+  "rate/dup-duplicate-timestamp",
+  "rate/edge-boundary",
+  "rate/threshold-single-sample-without-st",
+  "rate/threshold-single-sample-with-st",
+  "rate/clamp-zero-crossing",
+  "rate/start-ts-reset-no-value-drop",
+  "rate/cadence-window-smaller-than-scrape",
+  "rate/sweep-eval-instant-offsets"
+]
