@@ -80,6 +80,14 @@ forbid-test-tolerance: ## No tolerance under test/ other than the comparator (Ar
 kernel-primitive-tests: ## Compile and run every test/kernel/*_test.cpp, each primitive's L1a direct test
 	bun scripts/hygiene/kernel-primitive-tests.mjs
 
+.PHONY: oracle-fence
+oracle-fence: ## Walk every #include reachable from test/oracle/ and fail if any edge reaches src/ (Article V.2, T5)
+	bun scripts/hygiene/oracle-fence.mjs
+
+.PHONY: shape-roster
+shape-roster: ## L3's ShapeID property roster, identity-ratcheted against test/oracle/shape-roster.json (Article V.4, T7)
+	bun scripts/hygiene/shape-roster.mjs
+
 .PHONY: forbid-deferral
 forbid-deferral: ## PR-diff deferral-language scan: make forbid-deferral PR=<n>
 	$(if $(PR),,$(error usage: make forbid-deferral PR=<n>))

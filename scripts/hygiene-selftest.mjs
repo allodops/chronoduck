@@ -173,6 +173,65 @@ await expectRed("kernel-primitive-tests", [
   materialize("comparator-test-broken"),
 ]);
 
+// 4e-2: oracle-fence (#42, T5) — a test/oracle/*.hpp reaching src/ directly
+// is red, whether or not the target actually exists on disk (the scan's own
+// path-based check needs no real src/ file to fire); a same-directory
+// include plus a system header is green, proving the legitimate shape
+// doesn't false-positive.
+await expectRed("oracle-fence (test/oracle/*.hpp includes src/ directly)", [
+  "bun",
+  join(HERE, "hygiene", "oracle-fence.mjs"),
+  "--root",
+  materialize("oracle-fence"),
+]);
+await expectGreen("oracle-fence (same-directory + system includes only)", [
+  "bun",
+  join(HERE, "hygiene", "oracle-fence.mjs"),
+  "--root",
+  materialize("oracle-fence-green"),
+]);
+
+// 4e-3: shape-roster (#42, T7) — the ShapeID property roster's own four
+// fatal ratchet verdicts, each isolated to its own fixture the same way
+// kernel-fixture-loader's are, plus the UNKNOWN-SHAPE citation check and the
+// matching, all-agreeing green case.
+await expectRed("shape-roster (VANISHED: roster'd shape no longer in registry.def)", [
+  "bun",
+  join(HERE, "hygiene", "shape-roster.mjs"),
+  "--root",
+  materialize("shape-roster-vanished"),
+]);
+await expectRed("shape-roster (REGRESSED: roster'd shape lost its worked-example citation)", [
+  "bun",
+  join(HERE, "hygiene", "shape-roster.mjs"),
+  "--root",
+  materialize("shape-roster-regressed"),
+]);
+await expectRed("shape-roster (ARRIVED-FAILING: new registry shape, no worked example)", [
+  "bun",
+  join(HERE, "hygiene", "shape-roster.mjs"),
+  "--root",
+  materialize("shape-roster-arrived-failing"),
+]);
+await expectRed("shape-roster (UNRECORDED: worked example exists, roster.json not updated)", [
+  "bun",
+  join(HERE, "hygiene", "shape-roster.mjs"),
+  "--root",
+  materialize("shape-roster-unrecorded"),
+]);
+await expectRed("shape-roster (UNKNOWN-SHAPE: citation names a shape registry.def doesn't declare)", [
+  "bun",
+  join(HERE, "hygiene", "shape-roster.mjs"),
+  "--root",
+  materialize("shape-roster-unknown-shape"),
+]);
+await expectGreen("shape-roster (registry, citation and roster all agree)", [
+  "bun",
+  join(HERE, "hygiene", "shape-roster.mjs"),
+  "--root",
+  materialize("shape-roster-green"),
+]);
+
 // 4f: the comparator headroom pin's static_assert mechanism
 // (ReorderFactorHeadroom, src/kernel/comparator.hpp) — mirrors the
 // registry-static-assert block below: a reorder factor eroded to either
