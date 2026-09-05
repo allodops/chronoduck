@@ -103,6 +103,19 @@ def py(*rel_parts):
 # 1-4: the filesystem-rooted tree scans, materialized from JSON manifests.
 expect_red("forbid-ledger", ["python3", py("hygiene", "forbid-ledger.py"), "--root", materialize("forbid-ledger")])
 expect_red("forbid-consumer", ["python3", py("hygiene", "forbid-consumer.py"), "--root", materialize("forbid-consumer")])
+
+# forbid-identity-literals: #265 — a reintroduced forbidden identity literal
+# (scripts/hygiene/identity-literal-tokens.json) under a scanned root is red;
+# a clean tree, including one where a token only appears inside an exempted
+# historical ADR, is green.
+expect_red(
+    "forbid-identity-literals (reintroduced forbidden identity literal)",
+    ["python3", py("hygiene", "forbid-identity-literals.py"), "--root", materialize("forbid-identity-literals-red")],
+)
+expect_green(
+    "forbid-identity-literals (clean tree; token inside an exempted historical ADR doesn't trip it)",
+    ["python3", py("hygiene", "forbid-identity-literals.py"), "--root", materialize("forbid-identity-literals-green")],
+)
 expect_red("verify-citations", ["python3", py("hygiene", "verify-citations.py"), "--root", materialize("verify-citations")])
 
 # verify-citations: #47 — a citation into build/partners/ (a build artifact

@@ -13,6 +13,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 TREE_SCANS = [
     ("python3", "hygiene/forbid-ledger.py"),
     ("python3", "hygiene/forbid-consumer.py"),
+    ("python3", "hygiene/forbid-identity-literals.py"),
     ("python3", "hygiene/verify-citations.py"),
     ("python3", "hygiene/workflow-shape.py"),
     ("python3", "hygiene/constitution-check.py"),
