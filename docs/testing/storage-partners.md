@@ -56,7 +56,7 @@ layout, driven by exactly the constructs this layer's integration surface names:
   metrics-specific column list hardcoded anywhere in the transform; the layout is exactly whatever
   structure a given OTLP metrics export's `metrics[]` entries happen to have after normalization.
   This is recorded here because it was read from the source, not assumed: see
-  `docs/decisions/0018-rawduck-first-storage-partner.md` for why that distinction matters to this
+  `docs/decisions/0019-rawduck-first-storage-partner.md` for why that distinction matters to this
   ADR.
 
 None of this is chronoduck's concern at query time. What chronoduck's own harness (below) checks is
