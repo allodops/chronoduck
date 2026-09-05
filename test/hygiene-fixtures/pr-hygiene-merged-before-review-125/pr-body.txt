@@ -12,7 +12,7 @@ None.
 Low — additive only, never removes a label a human added by hand.
 
 ## Evidence
-- Ran `bun scripts/pr-hygiene.mjs 125` locally against the live PR: PASS.
+- Ran `python3 scripts/pr-hygiene.py 125` locally against the live PR: PASS.
 - Verified the Epic exemption against the live API.
 
 ## Discovered

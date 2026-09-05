@@ -13,7 +13,7 @@ Low — mechanical rename, verified with a fresh clone build.
 
 ## Evidence
 - `make` / `make help` list all targets without submodules checked out.
-- `bun scripts/hygiene-selftest.mjs` passes end to end.
+- `python3 scripts/hygiene-selftest.py` passes end to end.
 - `grep -rn setup-just .github/workflows/` returns nothing.
 
 ## Discovered
