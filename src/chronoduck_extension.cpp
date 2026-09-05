@@ -7,6 +7,7 @@
 #include "kernel/grid_stream.hpp"
 #include "kernel/registry_types.hpp"
 #include "kernel/sample_buffer.hpp"
+#include "kernel/scan_bounds.hpp"
 #include "kernel/window_walk.hpp"
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
@@ -23,11 +24,19 @@
 #include "duckdb/function/function_set.hpp"
 #include "duckdb/function/scalar_function.hpp"
 #include "duckdb/function/table_function.hpp"
+#include "duckdb/common/optional_ptr.hpp"
+#include "duckdb/main/config.hpp"
+#include "duckdb/optimizer/optimizer_extension.hpp"
 #include "duckdb/planner/bound_result_modifier.hpp"
+#include "duckdb/planner/expression/bound_aggregate_expression.hpp"
+#include "duckdb/planner/expression/bound_columnref_expression.hpp"
 #include "duckdb/planner/expression/bound_operator_expression.hpp"
 #include "duckdb/planner/expression/bound_reference_expression.hpp"
+#include "duckdb/planner/filter/constant_filter.hpp"
+#include "duckdb/planner/operator/logical_aggregate.hpp"
 #include "duckdb/planner/operator/logical_extension_operator.hpp"
 #include "duckdb/planner/operator/logical_get.hpp"
+#include "duckdb/planner/operator/logical_projection.hpp"
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
 #include <limits>
 #include <map>
@@ -1101,6 +1110,278 @@ TableFunction MakeTsRateOperatorTableFunction() {
 	return fn;
 }
 
+//===--------------------------------------------------------------------===//
+// Scan-bound pushdown (T2.3) — an `OptimizerExtension` that pushes
+// `scan_bounds`'s own `[start - window, end]` (`src/kernel/scan_bounds.hpp`'s
+// own header comment: `ts_rate` claims only `EXTRAPOLATE`
+// (`src/kernel/registry.def`'s own `ts_rate` row), which carries none of
+// `scan_bounds`'s LOOKBACK/ANCHOR/SMOOTH extra terms, so `lookback` is always
+// `0` here) as an ordinary `TableFilter` onto the `LogicalGet` beneath either
+// plan shape `docs/design/architecture.md`'s own line names:
+// `{Aggregate | ExtensionOperator} -> [Filter] -> Get`.
+// (`docs/design/architecture.md:where-it-plugs-in:` `{Aggregate |
+// ExtensionOperator} → [Filter] → Get`).
+//
+// Registered with `optimize_function`, not `pre_optimize_function` — the
+// vendored `duckdb` submodule's own `optimizer_extension.hpp` documents
+// `optimize_function` as running "after the DuckDB optimizers have run" (not
+// cited in `file:construct:` form: the `hygiene` CI job never checks out
+// that submodule, so a citation into it would fail there even though it's
+// true). DuckDB's own filter-pushdown pass has therefore already collapsed a
+// fully pushed-down `Filter -> Get` into a bare `Get` by the time this runs,
+// which is exactly the `[Filter]` bracket's own optionality.
+//===--------------------------------------------------------------------===//
+
+// The extension setting the pushdown rule's own sentinel test flips off
+// (`docs/testing/primitives.md:bind-scan_bounds-rows-scanned-row:` `a
+// sentinel asserts that removing the bound multiplies rows scanned by ≥
+// 10×`) — the only way to observe the rule's absence without a second build.
+// Defaults on: production queries always get the pushdown.
+const char *const kScanBoundPushdownSetting = "chronoduck_scan_bound_pushdown";
+
+// The synthetic passthrough `LogicalGet`'s own table function name
+// (`GridStreamBindOperator` above: `TableFunction passthrough_fn
+// ("__ts_rate_operator_input", col_types, nullptr);`) — not a real scan, so
+// both traversals below see through it rather than mistaking it for the
+// pattern's own terminal `Get`.
+const char *const kOperatorPassthroughFunctionName = "__ts_rate_operator_input";
+
+// The only scan function this rule ever pushes a filter onto: DuckDB's own
+// native table scan. `docs/design/architecture.md`'s own line also names
+// Parquet scans in scope (`docs/design/architecture.md:where-it-plugs-in:`
+// `on native and Parquet scans`), but this build has no Parquet extension
+// available to test that leg against (`extension_config.cmake` loads only
+// `chronoduck`), so it stays out of this rule's allow-list until #272 adds
+// it with a real fixture — Article II.1's own "never claiming
+// untested capability" posture, applied to an allow-list entry the same way
+// it already applies to a registry.def row's edge modes. Every other table
+// function — including a storage partner's own scan (e.g. RawDuck,
+// `docs/testing/storage-partners.md`) — is declined for the same reason
+// architecture.md's own Goal states: this project has no way to know from
+// here whether an arbitrary table function's own filter pushdown actually
+// *enforces* every filter it accepts rather than silently dropping it
+// (RawDuck's own partial pushdown does exactly that for filters it doesn't
+// understand), so pushing there could silently corrupt results — widening
+// the scan (the safe failure this rule already risks everywhere else) is
+// not the failure mode; dropping rows a residual filter was supposed to
+// catch is.
+bool IsPushableScanFunction(const string &name) {
+	return name == "seq_scan";
+}
+
+// Resolves `binding` down through the linear chain rooted at `node` (i.e.
+// `node`'s own single-child descendants) to the real scan `LogicalGet` that
+// ultimately produces it — the pattern's own "[Filter] -> Get" half,
+// generalized two ways real plans need: DuckDB's binder plans even a bare
+// `ts_rate(ts, v, ...) FROM t` as `Aggregate -> Projection -> Get` (the
+// projection evaluates every argument, constants included, before the
+// aggregate runs), so a binding into an aggregate's own argument is only
+// ever the *projection's* exposed column, never the Get's directly, and
+// must be unwrapped one level through `expressions[binding.column_index]`
+// (a plain column reference always names its expression's own child
+// operator, never re-scoped to the projection itself — confirmed live
+// against the built extension: an early version of this rule skipped this
+// unwrap and never found a `Get` to push onto at all, see the PR's own
+// Deviations section); and the operator form's synthetic passthrough Get
+// (`LogicalGridStream`'s own header comment: "gives this node a
+// one-column-passthrough LogicalGet child of its own ... rather than being
+// that leaf itself") is a second, positional-identity level of the same
+// kind of indirection. `LOGICAL_FILTER` carries no `table_index` of its own
+// and is skipped without touching `binding` at all. Returns nullptr the
+// moment `binding` names anything this pattern doesn't recognize — a join,
+// an aggregate, a computed non-passthrough expression, or a chain that
+// branches — decline is always the safe fallback, never a guess at an
+// unfamiliar shape.
+optional_ptr<LogicalGet> ResolveBindingToGet(LogicalOperator &node, ColumnBinding &binding) {
+	if (node.children.size() != 1) {
+		return nullptr;
+	}
+	auto &child = *node.children[0];
+	if (child.type == LogicalOperatorType::LOGICAL_FILTER) {
+		return ResolveBindingToGet(child, binding);
+	}
+	if (child.type == LogicalOperatorType::LOGICAL_PROJECTION) {
+		auto &projection = child.Cast<LogicalProjection>();
+		if (projection.table_index != binding.table_index || binding.column_index >= projection.expressions.size()) {
+			return nullptr;
+		}
+		auto &expr = *projection.expressions[binding.column_index];
+		if (expr.GetExpressionClass() != ExpressionClass::BOUND_COLUMN_REF) {
+			return nullptr;
+		}
+		binding = expr.Cast<BoundColumnRefExpression>().binding;
+		return ResolveBindingToGet(child, binding);
+	}
+	if (child.type == LogicalOperatorType::LOGICAL_GET) {
+		auto &get = child.Cast<LogicalGet>();
+		if (get.table_index != binding.table_index) {
+			return nullptr;
+		}
+		if (get.children.empty()) {
+			return &get;
+		}
+		if (get.children.size() != 1 || get.function.name != kOperatorPassthroughFunctionName) {
+			return nullptr;
+		}
+		auto child_bindings = get.children[0]->GetColumnBindings();
+		if (binding.column_index >= child_bindings.size()) {
+			return nullptr;
+		}
+		binding = child_bindings[binding.column_index];
+		return ResolveBindingToGet(get, binding);
+	}
+	return nullptr;
+}
+
+// The one push site both plan shapes below share: resolves `ts_binding` down
+// to the pattern's terminal `Get` (`ResolveBindingToGet`, which already
+// guarantees the returned `Get`'s own `table_index` matches the final,
+// rewritten `ts_binding`), checks it's a pushable function
+// (`IsPushableScanFunction`) with no `projection_ids` remap in play, and — if
+// every check holds — pushes `scan_bounds`'s two-sided bound as an ordinary
+// `ConstantFilter` pair, exactly the shape DuckDB's own `FilterCombiner`
+// would have pushed for a literal `ts BETWEEN ... AND ...` predicate (the
+// vendored `duckdb` submodule's `src/optimizer/filter_combiner.cpp`,
+// confirmed against that source rather than assumed).
+void PushScanBound(LogicalOperator &top, ColumnBinding ts_binding, const Grid &grid, int64_t window) {
+	auto get = ResolveBindingToGet(top, ts_binding);
+	if (!get || !IsPushableScanFunction(get->function.name)) {
+		return;
+	}
+	// `ts_binding.column_index` is a position among whatever `get` actually
+	// exposes above itself — not cited in `file:construct:` form (the
+	// `hygiene` CI job never checks out the vendored `duckdb` submodule): the
+	// vendored submodule's own `LogicalGet::GetColumnBindings` builds that
+	// exposed list by iterating `projection_ids` (when non-empty) rather than
+	// `column_ids` directly, so `ts_binding.column_index` is a position into
+	// `projection_ids`, not directly into `column_ids` — the two coincide
+	// only when `projection_ids` is empty (nothing pushed down further).
+	// Indexing `column_ids` by `ts_binding.column_index` directly here is
+	// exactly the bug an early version of this rule had (confirmed live
+	// against the built extension: it declined to push a bound at all,
+	// because a plain `SELECT ts_rate(...) FROM t` already narrows the Get's
+	// own exposed columns to just `ts`/`v`, so `projection_ids` is
+	// essentially always non-empty in practice — see the PR's own Deviations
+	// section).
+	auto &column_ids = get->GetColumnIds();
+	idx_t storage_pos = ts_binding.column_index;
+	if (!get->projection_ids.empty()) {
+		if (ts_binding.column_index >= get->projection_ids.size()) {
+			return;
+		}
+		storage_pos = get->projection_ids[ts_binding.column_index];
+	}
+	if (storage_pos >= column_ids.size()) {
+		return;
+	}
+	const ColumnIndex &storage_col = column_ids[storage_pos];
+
+	auto bounds = chronoduck::scan_bounds(grid, window, /*lookback=*/0, chronoduck::EXTRAPOLATE);
+	get->table_filters.PushFilter(storage_col, make_uniq<ConstantFilter>(ExpressionType::COMPARE_GREATERTHANOREQUALTO,
+	                                                                     Value::TIMESTAMP(timestamp_t(bounds.lower))));
+	get->table_filters.PushFilter(storage_col, make_uniq<ConstantFilter>(ExpressionType::COMPARE_LESSTHANOREQUALTO,
+	                                                                     Value::TIMESTAMP(timestamp_t(bounds.upper))));
+}
+
+// The Aggregate leg: pushes `agg`'s own single `ts_rate` call's bind-time
+// grid/window, but ONLY when `agg` computes nothing else at all
+// (`agg.expressions.size() == 1`). A `Get`'s `table_filters` apply to every
+// row it emits regardless of which downstream expression reads it, so a
+// sibling aggregate sharing this same `Get` (`SELECT ts_rate(narrow window),
+// COUNT(*) FROM t`) or a second, differently-windowed `ts_rate` call
+// (`SELECT ts_rate(w1), ts_rate(w2) FROM t`) would have its own input
+// silently narrowed by a bound computed for the other call — confirmed live
+// by the fresh-session review (round 2): the first repro's `COUNT(*)` came
+// back wrong, and the second repro's second `ts_rate` call came back NULL,
+// both traced directly to this rule's pushed filter (the PR's own Deviations
+// section has the transcript). Requiring exactly one expression under `agg`
+// is both necessary and sufficient to rule this out: DuckDB's plan here is a
+// tree, not a DAG (`children` is a vector of `unique_ptr`s, so a `LogicalGet`
+// object can have exactly one parent chain — the one construct that could
+// make two parents share one `Get` instance, CTE materialization, produces
+// `LogicalMaterializedCTE`/`LogicalCTERef` nodes this rule's own traversal
+// already fails to recognize and therefore already declines), so the only
+// other way a `Get` beneath this `agg` could have a second consumer is a
+// sibling entry in `agg.expressions` itself. If its lone argument isn't a
+// plain column reference (DuckDB already inserts an implicit cast around
+// anything not already TIMESTAMP, which fails this check and correctly
+// declines), this also declines.
+void TryPushAggregateBound(LogicalAggregate &agg) {
+	if (agg.expressions.size() != 1) {
+		return;
+	}
+	auto &expr = agg.expressions[0];
+	if (expr->GetExpressionClass() != ExpressionClass::BOUND_AGGREGATE) {
+		return;
+	}
+	auto &agg_expr = expr->Cast<BoundAggregateExpression>();
+	if (agg_expr.function.name != "ts_rate" || !agg_expr.bind_info || agg_expr.children.empty()) {
+		return;
+	}
+	auto &ts_expr = *agg_expr.children[0];
+	if (ts_expr.GetExpressionClass() != ExpressionClass::BOUND_COLUMN_REF) {
+		return;
+	}
+	auto &bind_data = agg_expr.bind_info->Cast<RateBindData>();
+	PushScanBound(agg, ts_expr.Cast<BoundColumnRefExpression>().binding, bind_data.grid, bind_data.window);
+}
+
+// The ExtensionOperator leg: `stream_bind_data.ts_idx` names a position in
+// the synthetic passthrough Get's own schema (`GridStreamBindOperator`'s own
+// `bind_data.ts_idx = ts_idx;`, an index into `input.input_table_names`,
+// exactly what that Get's own `col_types`/`names` are built from) — its own
+// `GetColumnBindings()[ts_idx]` is the starting binding `ResolveBindingToGet`
+// then unwraps down to the real Get's own storage column.
+void TryPushOperatorBound(LogicalGridStream &grid_stream) {
+	if (grid_stream.children.size() != 1) {
+		return;
+	}
+	auto passthrough_bindings = grid_stream.children[0]->GetColumnBindings();
+	if (grid_stream.stream_bind_data.ts_idx >= passthrough_bindings.size()) {
+		return;
+	}
+	PushScanBound(grid_stream, passthrough_bindings[grid_stream.stream_bind_data.ts_idx],
+	              grid_stream.stream_bind_data.grid, grid_stream.stream_bind_data.window);
+}
+
+// Walks the whole plan (not just its root) so a `ts_rate` call inside a
+// subquery, CTE or one leg of a `UNION` is still found.
+void ScanBoundPushdownVisit(LogicalOperator &op) {
+	if (op.type == LogicalOperatorType::LOGICAL_AGGREGATE_AND_GROUP_BY) {
+		TryPushAggregateBound(op.Cast<LogicalAggregate>());
+	} else if (op.type == LogicalOperatorType::LOGICAL_EXTENSION_OPERATOR && op.GetName() == "GRID_STREAM") {
+		// `GetName()` is the only public, stable label a
+		// `LogicalExtensionOperator` exposes to tell subclasses apart without
+		// an unchecked `Cast` — safe here because "GRID_STREAM" is unique to
+		// `LogicalGridStream` in this codebase (see its own `GetName()`).
+		TryPushOperatorBound(op.Cast<LogicalGridStream>());
+	}
+	for (auto &child : op.children) {
+		ScanBoundPushdownVisit(*child);
+	}
+}
+
+void ScanBoundPushdownOptimize(OptimizerExtensionInput &input, unique_ptr<LogicalOperator> &plan) {
+	Value setting_value;
+	if (input.context.TryGetCurrentSetting(kScanBoundPushdownSetting, setting_value) &&
+	    !setting_value.GetValue<bool>()) {
+		return;
+	}
+	ScanBoundPushdownVisit(*plan);
+}
+
+void RegisterScanBoundPushdown(ExtensionLoader &loader) {
+	auto &config = DBConfig::GetConfig(loader.GetDatabaseInstance());
+	config.AddExtensionOption(kScanBoundPushdownSetting,
+	                          "Push ts_rate's scan bound onto the underlying scan as an ordinary table "
+	                          "filter (T2.3); disabling it is only for the pushdown rule's own sentinel "
+	                          "test, which asserts rows scanned grows by at least 10x without it",
+	                          LogicalType::BOOLEAN, Value::BOOLEAN(true));
+	OptimizerExtension ext;
+	ext.optimize_function = ScanBoundPushdownOptimize;
+	OptimizerExtension::Register(config, ext);
+}
+
 // Registration functions, one per registry.def row, named Register_<name> so
 // LoadInternal's registry.def-driven dispatch below can call each by
 // token-pasting its row name onto "Register_" — no per-row special-casing.
@@ -1149,6 +1430,10 @@ void Register_ts_rate(ExtensionLoader &loader) {
 static void LoadInternal(ExtensionLoader &loader) {
 #define TS_FN(name, family, state, det, edge, domain, scale) Register_##name(loader);
 #include "kernel/registry.def"
+	// Not a registry.def row: an optimizer rule, not a SQL-visible function
+	// (T2.3's own scope note — Article V.1 fences functions, and this adds
+	// none).
+	RegisterScanBoundPushdown(loader);
 }
 
 void ChronoduckExtension::Load(ExtensionLoader &loader) {
