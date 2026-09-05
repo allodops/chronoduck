@@ -2,7 +2,7 @@
 // primitives into exactly the arithmetic `docs/design/primitives.md` says
 // `rate` is: "rate, increase, resets, hist_rate and hist_increase are all
 // `counter_fold` + `extrapolate` with different plugs"
-// (`docs/design/primitives.md:tier4-row-header:` `all `counter_fold` + `extrapolate` with different plugs`).
+// (`docs/design/primitives.md:tier4-row-header:` `with different plugs`).
 // `rate` itself is not registered yet (#34, Tier 6 host glue, owns wiring it
 // into `src/kernel/registry.def` and DuckDB) — this file is this issue's
 // (#33, L2) own composition of the primitives that already exist, used only

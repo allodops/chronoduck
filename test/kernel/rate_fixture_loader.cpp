@@ -1,8 +1,9 @@
 // rate_fixture_loader.cpp — the L2 fixture-replay CLI this issue's Goal
 // names: "Loader runs every fixture with the comparator"
-// (`docs/testing/registry-and-fixtures.md:fixture-format:` `the kernel's
-// harness reads function, edge_mode, domain, grid, window, lookback,
-// samples, expected and wrong`). One invocation evaluates one fixture:
+// (`docs/testing/registry-and-fixtures.md:fixture-format:` `The kernel's
+// harness reads`) `function`, `edge_mode`, `domain`, `grid`, `window`,
+// `lookback`, `samples`, `expected` and `wrong`. One invocation evaluates
+// one fixture:
 // `scripts/kernel-fixture-loader.mjs` parses the fixture's YAML (the
 // language-neutral format already has a YAML parser on the Bun side,
 // `fixtures-validate.mjs`'s own `yaml` import — reusing it here rather than
