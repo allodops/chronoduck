@@ -170,3 +170,53 @@ SELECT NOT contains(content, '"Filters"')
 FROM read_text('__TEST_DIR__/scan_bound_pushdown_declined.json');
 ----
 true
+
+# --- Regression (fresh-session review round 2): a Get's own table_filters apply to every row
+# it emits regardless of which downstream expression reads it, so this rule must never push a
+# bound onto a Get that a `ts_rate` call shares with anything else -- confirmed live in that
+# review: an earlier version of this rule pushed the first `ts_rate` call's own bound
+# unconditionally, corrupting a sibling COUNT(*) (came back 3 instead of 20 on a 20-row table)
+# and a second, differently-windowed `ts_rate` call sharing the same Get (came back NULL).
+# `v` jumps by 100 at i=10 so a wrongly-narrowed scan changes the computed rate, not just the
+# row count -- a linear `v` would happen to give the same slope from any 2+ visible rows and
+# silently pass even under the bug this regression exists to catch.
+
+statement ok
+CREATE TABLE shared_get (ts TIMESTAMP, v DOUBLE);
+
+statement ok
+INSERT INTO shared_get
+    SELECT TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (i) MICROSECOND,
+           CASE WHEN i < 10 THEN i::DOUBLE ELSE (i + 100)::DOUBLE END
+    FROM range(0, 20) AS t(i);
+
+# A sibling COUNT(*) sharing the same Get as a narrow-windowed ts_rate call: COUNT(*) must see
+# every row, not just the ones inside ts_rate's own bound.
+query II
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00.000019',
+              TIMESTAMP '2024-01-01 00:00:00.000019', 1, 2)[1],
+       COUNT(*)
+FROM shared_get;
+----
+1.0	20
+
+# Two differently-windowed ts_rate calls sharing one Get: each must compute over its own full,
+# correct input -- neither's bound may leak onto the other's. Values match what each call
+# computes standalone over the unshared table (test/sql/ts_rate.test's own oracle posture).
+query II
+SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00.000019',
+              TIMESTAMP '2024-01-01 00:00:00.000019', 1, 2)[1],
+       ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00.000019',
+              TIMESTAMP '2024-01-01 00:00:00.000019', 1, 19)[1]
+FROM shared_get;
+----
+1.0	6.2631578947368425
+
+# Neither query above may push any filter onto the shared Get at all (agg.expressions.size() != 1
+# for both) -- the same "declines rather than guesses" posture the table-function leg above uses.
+query II
+EXPLAIN SELECT ts_rate(ts, v, TIMESTAMP '2024-01-01 00:00:00.000019',
+                       TIMESTAMP '2024-01-01 00:00:00.000019', 1, 2), COUNT(*)
+FROM shared_get;
+----
+physical_plan	<!REGEX>:.*Filters:.*

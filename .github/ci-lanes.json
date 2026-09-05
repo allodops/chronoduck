@@ -83,7 +83,8 @@
       "workflow": "release.yml",
       "posture": "release",
       "layers": ["L15"],
-      "owner": "tsouza"
+      "owner": "tsouza",
+      "pinned_json_keys": ["Filters"]
     },
     {
       "context": "partner-rawduck-head",

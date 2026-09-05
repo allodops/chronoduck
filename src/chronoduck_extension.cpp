@@ -1283,31 +1283,47 @@ void PushScanBound(LogicalOperator &top, ColumnBinding ts_binding, const Grid &g
 	                                                                     Value::TIMESTAMP(timestamp_t(bounds.upper))));
 }
 
-// The Aggregate leg: finds the `ts_rate` call among `agg`'s own expressions
-// (there may be others under the same `GROUP BY` — the first `ts_rate` call
-// found is the only one this issue's scope handles; two different `ts_rate`
-// calls needing two different pushed bounds on the same scan is future
-// scope) and, if its first argument is a plain column reference (never a
-// computed expression — DuckDB already inserts an implicit cast around
+// The Aggregate leg: pushes `agg`'s own single `ts_rate` call's bind-time
+// grid/window, but ONLY when `agg` computes nothing else at all
+// (`agg.expressions.size() == 1`). A `Get`'s `table_filters` apply to every
+// row it emits regardless of which downstream expression reads it, so a
+// sibling aggregate sharing this same `Get` (`SELECT ts_rate(narrow window),
+// COUNT(*) FROM t`) or a second, differently-windowed `ts_rate` call
+// (`SELECT ts_rate(w1), ts_rate(w2) FROM t`) would have its own input
+// silently narrowed by a bound computed for the other call — confirmed live
+// by the fresh-session review (round 2): the first repro's `COUNT(*)` came
+// back wrong, and the second repro's second `ts_rate` call came back NULL,
+// both traced directly to this rule's pushed filter (the PR's own Deviations
+// section has the transcript). Requiring exactly one expression under `agg`
+// is both necessary and sufficient to rule this out: DuckDB's plan here is a
+// tree, not a DAG (`children` is a vector of `unique_ptr`s, so a `LogicalGet`
+// object can have exactly one parent chain — the one construct that could
+// make two parents share one `Get` instance, CTE materialization, produces
+// `LogicalMaterializedCTE`/`LogicalCTERef` nodes this rule's own traversal
+// already fails to recognize and therefore already declines), so the only
+// other way a `Get` beneath this `agg` could have a second consumer is a
+// sibling entry in `agg.expressions` itself. If its lone argument isn't a
+// plain column reference (DuckDB already inserts an implicit cast around
 // anything not already TIMESTAMP, which fails this check and correctly
-// declines), pushes its bind-time grid/window.
+// declines), this also declines.
 void TryPushAggregateBound(LogicalAggregate &agg) {
-	for (auto &expr : agg.expressions) {
-		if (expr->GetExpressionClass() != ExpressionClass::BOUND_AGGREGATE) {
-			continue;
-		}
-		auto &agg_expr = expr->Cast<BoundAggregateExpression>();
-		if (agg_expr.function.name != "ts_rate" || !agg_expr.bind_info || agg_expr.children.empty()) {
-			continue;
-		}
-		auto &ts_expr = *agg_expr.children[0];
-		if (ts_expr.GetExpressionClass() != ExpressionClass::BOUND_COLUMN_REF) {
-			continue;
-		}
-		auto &bind_data = agg_expr.bind_info->Cast<RateBindData>();
-		PushScanBound(agg, ts_expr.Cast<BoundColumnRefExpression>().binding, bind_data.grid, bind_data.window);
+	if (agg.expressions.size() != 1) {
 		return;
 	}
+	auto &expr = agg.expressions[0];
+	if (expr->GetExpressionClass() != ExpressionClass::BOUND_AGGREGATE) {
+		return;
+	}
+	auto &agg_expr = expr->Cast<BoundAggregateExpression>();
+	if (agg_expr.function.name != "ts_rate" || !agg_expr.bind_info || agg_expr.children.empty()) {
+		return;
+	}
+	auto &ts_expr = *agg_expr.children[0];
+	if (ts_expr.GetExpressionClass() != ExpressionClass::BOUND_COLUMN_REF) {
+		return;
+	}
+	auto &bind_data = agg_expr.bind_info->Cast<RateBindData>();
+	PushScanBound(agg, ts_expr.Cast<BoundColumnRefExpression>().binding, bind_data.grid, bind_data.window);
 }
 
 // The ExtensionOperator leg: `stream_bind_data.ts_idx` names a position in
