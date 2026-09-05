@@ -9,19 +9,17 @@ deciders: tsouza
 ## Context
 
 `scripts/` needs one scripting language, chosen against the real tooling convention of the
-ecosystem chronoduck ships into rather than against a convention we no longer chose. Reading the
-actual file trees rather than assuming their shape:
+ecosystem chronoduck ships into. Reading the actual file trees rather than assuming their shape:
 
-- DuckDB core's own vendored `duckdb/scripts/` carries 79 `.py` files and 16 `.sh` files, and no
-  JavaScript file, at any depth.
+- DuckDB core's own vendored `duckdb/scripts/` carries, at any depth, 79 `.py` files and 16 `.sh`
+  files and nothing else scripting anything.
 - `extension-ci-tools/scripts/` — the reusable CI machinery chronoduck's own workflows `include`
   (Article IV.1) — carries 3 `.py` files (`append_extension_metadata.py`,
   `modify_distribution_matrix.py`, `configure_helper.py`) and nothing else.
 - Every actively maintained third-party DuckDB extension checked from Query-farm — `crypto`,
-  `lindel`, `tsid`, `fuzzycomplete` — follows the same shape: `extension-upload.sh` in all four,
-  `scripts/bootstrap-template.py` in three of the four (`crypto`, `lindel`, `fuzzycomplete`; `tsid`
-  covers the same job with `setup-custom-toolchain.sh` instead), and no JavaScript or Node tooling
-  in any of the four.
+  `lindel`, `tsid`, `fuzzycomplete` — follows the same shape and nothing wider: `extension-upload.sh`
+  in all four, `scripts/bootstrap-template.py` in three of the four (`crypto`, `lindel`,
+  `fuzzycomplete`; `tsid` covers the same job with `setup-custom-toolchain.sh` instead).
 
 Independently of the DuckDB-specific evidence, DuckDB core's own `clang-tidy-diff.py` and
 `run-clang-tidy.py` import `yaml` directly for their configuration files — the same shape a
@@ -51,9 +49,8 @@ is written in) and, downstream of it, the invocation chain Article IV.3 names
   command-invocation case Article IV.2 now names, not a fallback for anything more.
 - PyYAML is chronoduck's YAML library everywhere a script needs to read or write YAML (CI lane
   registries, partner pins, description manifests).
-- No script in `scripts/` is JavaScript, TypeScript, or any language other than Python or POSIX
-  shell under the narrow exception above; the hygiene scan enforcing this reads `scripts/` the same
-  way regardless of which language it is currently written to expect, and is itself a `scripts/`
-  file subject to this same rule.
+- No script in `scripts/` is written in any language other than Python, or POSIX shell under the
+  narrow exception above; the hygiene scan enforcing this is itself a `scripts/` file subject to the
+  same rule it enforces.
 - This ADR settles the language `scripts/` is written in; it says nothing about the timing or
   scope of any individual file's language, which is left to the issues that own that work.
