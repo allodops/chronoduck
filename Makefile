@@ -25,6 +25,20 @@ export CMAKE_BUILD_PARALLEL_LEVEL ?= $(shell nproc)
 # shallowness aside; overridable, like CMAKE_BUILD_PARALLEL_LEVEL above.
 export OVERRIDE_GIT_DESCRIBE ?= $(shell python3 scripts/print-duckdb-pin.py)
 
+# A dozen-plus scripts/*.py tools (forbid-consumer, workflow-shape,
+# fixtures-validate, check-pins, ...) `import yaml`, and several are invoked
+# as subprocesses by scripts/hygiene.py itself rather than as their own `make
+# <target>` — so a per-target prerequisite can't guarantee PyYAML is present
+# before they run; this unconditional, parse-time bootstrap can. Needed
+# because `actions/setup-python` (replacing `oven-sh/setup-bun`, issue #245)
+# puts its own bare interpreter — pip/setuptools/wheel only, no third-party
+# packages — ahead of the system python3 on PATH, so the PyYAML the CI
+# runner image's system python3 has via cloud-init is no longer what `python3`
+# resolves to. The `import yaml` probe makes this a no-op (no network) on any
+# python3 that already has it, system or otherwise. A `requirements.txt` is
+# issue #246's job, once the rest of the Bun toolchain also goes away.
+_ := $(shell python3 -c "import yaml" 2>/dev/null || python3 -m pip install --quiet --disable-pip-version-check pyyaml)
+
 # Include the Makefile from extension-ci-tools — optionally: our own
 # project targets (hygiene, lint scans, ...) never touch C++/CMake and don't
 # need the submodule checked out; a build/test target does, and fails with
