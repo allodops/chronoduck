@@ -1,0 +1,484 @@
+# name: test/sql/ts_rate_cross_path.test
+# description: L8 cross-path proof (#44, T2.6) for ts_rate, registry.def's one D0 RANGE row today —
+# group: [sql]
+
+#   a from-scratch SQL-macro reference (ASOF JOIN + list_aggregate, no kernel code at all) checked
+#   against the real aggregate and operator forms on deterministic datasets engineered so a specific
+#   implementation bug returns a specific, named wrong number (docs/testing/layers.md's L8 row).
+
+# ts_rate_reference — the reference leg. Built without touching src/kernel/*: no counter_fold, no
+# extrapolate, no GridStream — just ASOF JOIN (for "the sample immediately before this one in the
+# same series", the primitive a reset test needs) and list_aggregate (for the reset-adjusted delta
+# sum), composed from scratch against docs/design/architecture.md's own prose contract (the
+# left-open/right-closed window, the totalOrder dedup, the four-case start-timestamp reset rule, the
+# 1.1x/half-interval/zero-clamp extrapolation) rather than by calling into the kernel's own primitives.
+# Two structurally different implementations of the same math agreeing is the whole point of this
+# leg — it does not prove either is correct in isolation (L1-L3 already own that), only that a bug
+# private to one path cannot hide behind the other two agreeing with each other.
+#
+# Deliberate, documented simplifications, scoped to what this file's own datasets need (none of them
+# exercise the case each simplification narrows away):
+#   - dedup ties on value are resolved by plain MAX(value), not the full IEEE754 totalOrder tie-break
+#     (docs/design/architecture.md's own duplicate-timestamp rule) — every dataset below has a
+#     genuine tie only on the fold-relevant path (the "50 vs 37.5" case decides on the terminating
+#     digit of two *different* trap values, which MAX handles identically to totalOrder).
+#   - the survivor's start_ts is arg_max(start_ts, value) — the "whichever sample's start-timestamp
+#     came with the surviving value" rule extrapolate.hpp documents for itself — never exercised on a
+#     genuine value tie by any dataset here.
+#   - `win`, not `window`: DuckDB reserves `window` as a keyword, unusable as a macro parameter name.
+#
+# query_table(tbl) — DuckDB's own way to let a macro parameter name a relation rather than a scalar
+# (verified live against the pinned DuckDB version below; there is no macro-level equivalent of a
+# table function's TABLE argument) — is why every dataset below is loaded into a real TEMP TABLE
+# first rather than inlined as a VALUES clause the way test/sql/ts_rate.test's aggregate-only
+# fixtures are: ts_rate_reference takes the table's *name*, not its rows.
+
+require chronoduck
+
+statement ok
+CREATE MACRO ts_rate_reference(tbl, grid_start, grid_end, grid_step, win) AS TABLE
+WITH raw AS (
+    SELECT series_id, ts, CAST(value AS DOUBLE) AS value, CAST(start_ts AS TIMESTAMP) AS start_ts
+    FROM query_table(tbl)
+),
+dedup AS (
+    SELECT series_id, ts, MAX(value) AS value, arg_max(start_ts, value) AS start_ts
+    FROM raw
+    GROUP BY series_id, ts
+),
+-- The ASOF JOIN leg: for every deduped sample, the same sample's own
+-- immediately-preceding sample in the same series (or NULL if none) — the
+-- one primitive a reset test needs (`value < prev.value`, plus the
+-- four-case start-timestamp rule below), found by DuckDB's own nearest-
+-- match join rather than a window-function LAG (a real second technique,
+-- not a restatement of the same one).
+with_prev AS (
+    SELECT d.series_id, d.ts, d.value, d.start_ts,
+           p.ts AS prev_ts, p.value AS prev_value
+    FROM dedup d
+    ASOF LEFT JOIN dedup p
+      ON d.series_id = p.series_id AND p.ts < d.ts
+),
+grid AS (
+    SELECT DISTINCT series_id, anchor
+    FROM dedup
+    CROSS JOIN (SELECT UNNEST(generate_series(
+        CAST(grid_start AS TIMESTAMP),
+        CAST(grid_end AS TIMESTAMP),
+        CAST(grid_step AS BIGINT) * INTERVAL 1 MICROSECOND)) AS anchor)
+),
+-- Window.contains's own inequality, `anchor - width < t <= anchor`
+-- (src/kernel/window.hpp), spelled out again here rather than shared: this
+-- macro's whole reason to exist is expressing the semantics without
+-- reaching into that header.
+windowed AS (
+    SELECT g.series_id, g.anchor, w.ts, w.value, w.start_ts, w.prev_ts, w.prev_value
+    FROM grid g
+    JOIN with_prev w
+      ON w.series_id = g.series_id
+     AND w.ts > g.anchor - CAST(win AS BIGINT) * INTERVAL 1 MICROSECOND
+     AND w.ts <= g.anchor
+),
+-- The four-case start-timestamp reset rule (docs/design/architecture.md's
+-- own "three numeric contracts" paragraph) plus the plain value-drop test,
+-- and — the trick that makes a single global ASOF join correct for
+-- arbitrarily overlapping sliding windows — `prev_in_window`: a reset only
+-- counts when the *previous* sample is also inside this same window, the
+-- same "before is nullptr" posture the real fold takes
+-- (src/chronoduck_extension.cpp's own ComputeRatePoints passes `nullptr`
+-- for counter_fold's `before` argument). A prev sample that fell outside
+-- this window cannot manufacture a reset for the window's own first point.
+flagged AS (
+    SELECT *,
+        (prev_ts IS NOT NULL AND prev_ts > (anchor - CAST(win AS BIGINT) * INTERVAL 1 MICROSECOND)) AS prev_in_window,
+        CASE
+            WHEN start_ts IS NULL THEN FALSE
+            WHEN start_ts >= ts THEN TRUE
+            WHEN prev_ts IS NOT NULL AND start_ts < prev_ts THEN FALSE
+            WHEN prev_ts IS NOT NULL AND start_ts = prev_ts THEN TRUE -- from_delta_temporality=false, same as the kernel's own ComputeRatePoints call
+            ELSE TRUE
+        END AS st_reset
+    FROM windowed
+),
+flagged2 AS (
+    SELECT *, ((value < prev_value) OR st_reset) AS is_reset_raw FROM flagged
+),
+flagged3 AS (
+    SELECT *, (prev_value IS NOT NULL AND prev_in_window AND is_reset_raw) AS reset_counts FROM flagged2
+),
+-- The list_aggregate leg: every reset's pre-reset value, summed via
+-- list_aggregate(..., 'sum') over the per-row contribution list, added to
+-- the plain last-minus-first term — counter_fold's own reset-adjusted delta
+-- (src/kernel/counter_fold.hpp), expressed as a grouped list fold instead of
+-- a sequential walk.
+grouped AS (
+    SELECT series_id, anchor,
+        COUNT(*) AS n,
+        arg_min(value, ts) AS first_v,
+        min(ts) AS first_t,
+        arg_max(value, ts) AS last_v,
+        max(ts) AS last_t,
+        (arg_max(value, ts) - arg_min(value, ts))
+          + list_aggregate(list(CASE WHEN reset_counts THEN prev_value ELSE 0.0 END), 'sum') AS delta,
+        arg_min(start_ts, ts) AS first_start_ts
+    FROM flagged3
+    GROUP BY series_id, anchor
+),
+-- Every grid point survives even with zero in-window samples, matching the
+-- real forms' own "one row per grid point" shape.
+joined AS (
+    SELECT g.series_id, g.anchor, gr.n, gr.first_v, gr.first_t, gr.last_v, gr.last_t, gr.delta, gr.first_start_ts
+    FROM grid g
+    LEFT JOIN grouped gr ON gr.series_id = g.series_id AND gr.anchor = g.anchor
+),
+-- extrapolate.hpp's own single-sample-with-start-timestamp case: a
+-- synthetic zero point at first_start_ts stands in for a real sample when
+-- it falls strictly inside the left gap.
+ext AS (
+    SELECT series_id, anchor, n, first_v, first_t, last_v, last_t, delta, first_start_ts,
+        (n IS NOT NULL AND n >= 1 AND first_start_ts IS NOT NULL
+            AND first_start_ts > (anchor - CAST(win AS BIGINT) * INTERVAL 1 MICROSECOND)
+            AND first_start_ts < first_t) AS left_st_inside_window
+    FROM joined
+),
+ext2 AS (
+    SELECT *,
+        COALESCE(n, 0) + (CASE WHEN left_st_inside_window THEN 1 ELSE 0 END) AS eff_n,
+        CASE WHEN left_st_inside_window THEN first_start_ts ELSE first_t END AS eff_first_t,
+        CASE WHEN left_st_inside_window THEN 0.0 ELSE first_v END AS eff_first_v,
+        CASE WHEN left_st_inside_window THEN delta + first_v ELSE delta END AS eff_delta
+    FROM ext
+),
+ext3 AS (
+    SELECT *, CASE WHEN eff_n >= 2 THEN CAST(epoch_us(last_t) - epoch_us(eff_first_t) AS DOUBLE) ELSE NULL END AS sampled_interval
+    FROM ext2
+),
+ext4 AS (
+    SELECT *, CASE WHEN eff_n >= 2 THEN sampled_interval / (eff_n - 1) ELSE NULL END AS avg_interval
+    FROM ext3
+),
+ext5 AS (
+    SELECT *, avg_interval * 1.1 AS threshold FROM ext4
+),
+-- The boundary arithmetic itself: extrapolate fully to the boundary under
+-- the 1.1x-average-interval threshold, half the average interval over it —
+-- the "half-interval-threshold-trap" dataset below exists because a naive
+-- implementation skips exactly this clamp.
+ext6 AS (
+    SELECT *,
+        CASE
+            WHEN eff_n < 2 THEN NULL
+            WHEN left_st_inside_window THEN 0.0
+            WHEN CAST(epoch_us(eff_first_t) - (epoch_us(anchor) - win) AS DOUBLE) > threshold THEN avg_interval / 2.0
+            ELSE CAST(epoch_us(eff_first_t) - (epoch_us(anchor) - win) AS DOUBLE)
+        END AS duration_to_start_gap
+    FROM ext5
+),
+-- The COUNTER zero clamp: never lets the left-edge extrapolation imply a
+-- negative value before the first sample — the "zero-clamp-trap" dataset
+-- below exists because a naive implementation applies the threshold clamp
+-- above but forgets this second, independent one.
+ext7 AS (
+    SELECT *,
+        CASE
+            WHEN eff_n < 2 THEN NULL
+            WHEN eff_delta > 0.0 AND eff_first_v >= 0.0 THEN LEAST(duration_to_start_gap, sampled_interval * (eff_first_v / eff_delta))
+            ELSE duration_to_start_gap
+        END AS duration_to_start
+    FROM ext6
+),
+ext8 AS (
+    SELECT *,
+        CASE
+            WHEN eff_n < 2 THEN NULL
+            WHEN CAST(epoch_us(anchor) - epoch_us(last_t) AS DOUBLE) > threshold THEN avg_interval / 2.0
+            ELSE CAST(epoch_us(anchor) - epoch_us(last_t) AS DOUBLE)
+        END AS duration_to_end
+    FROM ext7
+),
+ext9 AS (
+    SELECT *, sampled_interval + duration_to_start + duration_to_end AS extrapolate_to_interval FROM ext8
+)
+SELECT series_id, anchor AS ts,
+    CASE WHEN eff_n < 2 THEN NULL ELSE (eff_delta * (extrapolate_to_interval / sampled_interval)) / win END AS rate
+FROM ext9
+ORDER BY series_id, anchor;
+
+# =============================================================================
+# Documented wrong numbers — item 3's own datasets: engineered so a specific,
+# plausible implementation bug returns a specific, named wrong answer, not
+# merely "some other number".
+# =============================================================================
+
+# --- dup-duplicate-timestamp: docs/testing/layers.md's own L8 example,
+# "the duplicate-timestamp counter (correct 50, wrong 37.5), the first
+# entry". Two samples share t=10 (1000.0, 700.0); the surviving sample after
+# dedup is 1000.0 (greater under totalOrder/MAX alike), giving n=2 real
+# samples (t=10 v=1000, t=70 v=4000) and rate 50.0. An implementation that
+# fails to dedupe sees three raw points, an extra (n=3) sample that shifts
+# the reset-free delta and the average-interval denominator alike, and
+# answers 37.5 instead (test/sql/ts_rate.test's own citation of this same
+# trap for the aggregate form; this file adds the macro leg to it).
+
+statement ok
+CREATE TEMP TABLE dup_dataset AS SELECT * FROM (VALUES
+    (1::UBIGINT, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (10) MICROSECOND, 1000.0::DOUBLE, NULL::TIMESTAMP),
+    (1::UBIGINT, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (10) MICROSECOND, 700.0::DOUBLE, NULL::TIMESTAMP),
+    (1::UBIGINT, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (70) MICROSECOND, 4000.0::DOUBLE, NULL::TIMESTAMP)
+) AS t(series_id, ts, value, start_ts);
+
+query I
+SELECT rate FROM ts_rate_reference('dup_dataset',
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (112) MICROSECOND,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (112) MICROSECOND, 1, 108);
+----
+50.0
+
+query I
+SELECT ts_rate(ts, value,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (112) MICROSECOND,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (112) MICROSECOND, 1, 108)[1]
+FROM dup_dataset;
+----
+50.0
+
+query I
+SELECT "values" FROM ts_rate(
+    (SELECT series_id, ts, value FROM dup_dataset),
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (112) MICROSECOND,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (112) MICROSECOND, 1, 108);
+----
+[50.0]
+
+# --- half-interval-threshold-trap: two samples, t=900 v=100 and t=950
+# v=110, window (0, 1000]. avg_interval = 50, threshold = 55. The left gap
+# (900) is far over threshold, so the correct extrapolation falls back to
+# half the average interval (25) rather than reaching all the way to the
+# window's own start; the right gap (50) is under threshold and extrapolates
+# fully. extrapolate_to_interval = 50 + 25 + 50 = 125, factor = 2.5, value =
+# 10 * 2.5 = 25, rate = 25 / 1000 = 0.025. An implementation that omits the
+# 1.1x-threshold clamp entirely extrapolates the left gap all the way to the
+# window boundary instead (duration_to_start = 900), giving
+# extrapolate_to_interval = 1000, factor = 20, value = 200, rate = 0.2 — 8x
+# the correct answer.
+
+statement ok
+CREATE TEMP TABLE half_interval_dataset AS SELECT * FROM (VALUES
+    (1::UBIGINT, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (900) MICROSECOND, 100.0::DOUBLE, NULL::TIMESTAMP),
+    (1::UBIGINT, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (950) MICROSECOND, 110.0::DOUBLE, NULL::TIMESTAMP)
+) AS t(series_id, ts, value, start_ts);
+
+query I
+SELECT rate FROM ts_rate_reference('half_interval_dataset',
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (1000) MICROSECOND,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (1000) MICROSECOND, 1, 1000);
+----
+0.025
+
+query I
+SELECT ts_rate(ts, value,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (1000) MICROSECOND,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (1000) MICROSECOND, 1, 1000)[1]
+FROM half_interval_dataset;
+----
+0.025
+
+query I
+SELECT "values" FROM ts_rate(
+    (SELECT series_id, ts, value FROM half_interval_dataset),
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (1000) MICROSECOND,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (1000) MICROSECOND, 1, 1000);
+----
+[0.025]
+
+# --- zero-clamp-trap: two samples, t=100 v=1, t=110 v=11, window (0, 120].
+# avg_interval = 10, threshold = 11. The raw left gap (100) is over
+# threshold, so the threshold clamp alone would give duration_to_start = 5
+# (half the average interval) — but the COUNTER zero clamp tightens it
+# further: extrapolating the counter back by 5 microseconds at its observed
+# slope (delta 10 over 10 microseconds) would imply a negative value before
+# t=100, so duration_to_start is clamped again to the 1 microsecond it
+# actually takes the counter to reach zero (10 * (1/10) = 1). Correct:
+# extrapolate_to_interval = 10 + 1 + 10 = 21, factor = 2.1, value = 21, rate
+# = 21 / 120 = 0.175. An implementation that applies the threshold clamp but
+# forgets the zero clamp stops at duration_to_start = 5, giving
+# extrapolate_to_interval = 25, factor = 2.5, value = 25, rate =
+# 0.20833333333333334 instead.
+
+statement ok
+CREATE TEMP TABLE zero_clamp_dataset AS SELECT * FROM (VALUES
+    (1::UBIGINT, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (100) MICROSECOND, 1.0::DOUBLE, NULL::TIMESTAMP),
+    (1::UBIGINT, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (110) MICROSECOND, 11.0::DOUBLE, NULL::TIMESTAMP)
+) AS t(series_id, ts, value, start_ts);
+
+query I
+SELECT rate FROM ts_rate_reference('zero_clamp_dataset',
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (120) MICROSECOND,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (120) MICROSECOND, 1, 120);
+----
+0.175
+
+query I
+SELECT ts_rate(ts, value,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (120) MICROSECOND,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (120) MICROSECOND, 1, 120)[1]
+FROM zero_clamp_dataset;
+----
+0.175
+
+query I
+SELECT "values" FROM ts_rate(
+    (SELECT series_id, ts, value FROM zero_clamp_dataset),
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (120) MICROSECOND,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (120) MICROSECOND, 1, 120);
+----
+[0.175]
+
+# =============================================================================
+# Broader agreement — the same macro against every other fixture
+# test/sql/ts_rate.test and test/sql/ts_rate_operator.test already pin
+# (edge-boundary, a mid-window reset, the single-sample start-timestamp
+# cases), proving this reference was not merely tuned to the three traps
+# above.
+# =============================================================================
+
+# rate/edge-boundary.yaml
+statement ok
+CREATE TEMP TABLE edge_boundary_dataset AS SELECT * FROM (VALUES
+    (1::UBIGINT, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (100) MICROSECOND, 999.0::DOUBLE, NULL::TIMESTAMP),
+    (1::UBIGINT, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (101) MICROSECOND, 10.0::DOUBLE, NULL::TIMESTAMP),
+    (1::UBIGINT, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (200) MICROSECOND, 40.0::DOUBLE, NULL::TIMESTAMP)
+) AS t(series_id, ts, value, start_ts);
+
+query I
+SELECT rate FROM ts_rate_reference('edge_boundary_dataset',
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (200) MICROSECOND,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (200) MICROSECOND, 1, 100);
+----
+0.30303030303030304
+
+query I
+SELECT ts_rate(ts, value,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (200) MICROSECOND,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (200) MICROSECOND, 1, 100)[1]
+FROM edge_boundary_dataset;
+----
+0.30303030303030304
+
+# rate/reset-midwindow.yaml
+statement ok
+CREATE TEMP TABLE reset_midwindow_dataset AS SELECT * FROM (VALUES
+    (1::UBIGINT, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (5) MICROSECOND, 10.0::DOUBLE, NULL::TIMESTAMP),
+    (1::UBIGINT, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (65) MICROSECOND, 20.0::DOUBLE, NULL::TIMESTAMP),
+    (1::UBIGINT, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (125) MICROSECOND, 5.0::DOUBLE, NULL::TIMESTAMP),
+    (1::UBIGINT, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (185) MICROSECOND, 15.0::DOUBLE, NULL::TIMESTAMP)
+) AS t(series_id, ts, value, start_ts);
+
+query I
+SELECT rate FROM ts_rate_reference('reset_midwindow_dataset',
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (205) MICROSECOND,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (205) MICROSECOND, 1, 205);
+----
+0.1388888888888889
+
+query I
+SELECT ts_rate(ts, value,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (205) MICROSECOND,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (205) MICROSECOND, 1, 205)[1]
+FROM reset_midwindow_dataset;
+----
+0.1388888888888889
+
+# rate/threshold-single-sample-with-st.yaml
+statement ok
+CREATE TEMP TABLE single_with_st_dataset AS SELECT * FROM (VALUES
+    (1::UBIGINT, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (100) MICROSECOND, 5.0::DOUBLE,
+     TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (80) MICROSECOND)
+) AS t(series_id, ts, value, start_ts);
+
+query I
+SELECT rate FROM ts_rate_reference('single_with_st_dataset',
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (110) MICROSECOND,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (110) MICROSECOND, 1, 60);
+----
+0.125
+
+query I
+SELECT ts_rate(ts, value, start_ts,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (110) MICROSECOND,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (110) MICROSECOND, 1, 60)[1]
+FROM single_with_st_dataset;
+----
+0.125
+
+# rate/threshold-single-sample-without-st.yaml — one sample, no start
+# timestamp: "one sample -> no value" is true only when no start-timestamp
+# role is bound at all.
+statement ok
+CREATE TEMP TABLE single_without_st_dataset AS SELECT * FROM (VALUES
+    (1::UBIGINT, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (50) MICROSECOND, 10.0::DOUBLE, NULL::TIMESTAMP)
+) AS t(series_id, ts, value, start_ts);
+
+query I
+SELECT rate FROM ts_rate_reference('single_without_st_dataset',
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (100) MICROSECOND,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (100) MICROSECOND, 1, 100);
+----
+NULL
+
+query I
+SELECT ts_rate(ts, value,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (100) MICROSECOND,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (100) MICROSECOND, 1, 100)[1]
+FROM single_without_st_dataset;
+----
+NULL
+
+# =============================================================================
+# A sliding multi-point grid with a reset that must NOT be seen from a
+# neighbouring window — the one case a single-grid-point dataset can never
+# exercise: whether a bug lets a reset (or a sample) leak across a window
+# boundary it doesn't belong to.
+# =============================================================================
+
+# Three overlapping windows (width 100, step 50) over one series with one
+# reset (100 -> 90 at t=80..130 is not a reset; 90 -> 50 at t=80/t=130 is).
+# anchor=100, window (0,100]: samples t=30 (100), t=80 (90); no reset
+# (90 < 100 is a drop -> IS a reset: 100 + (90-100) = 90 after extrapolation
+# -> rate 1.8). anchor=150, window (50,150]: samples t=80 (90), t=130 (50);
+# reset (50 < 90) -> delta = 90 + (50-90) = 50 -> rate 1.0. anchor=200,
+# window (100,200]: samples t=130 (50), t=180 (60); no reset -> delta =
+# 60-50 = 10 -> rate 0.2. The t=30 sample must not contribute a spurious
+# reset to anchor=150's window (t=30 falls outside it) — the bug this
+# dataset traps is exactly a global, un-windowed reset scan.
+
+statement ok
+CREATE TEMP TABLE sliding_reset_dataset AS SELECT * FROM (VALUES
+    (1::UBIGINT, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (30) MICROSECOND, 100.0::DOUBLE, NULL::TIMESTAMP),
+    (1::UBIGINT, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (80) MICROSECOND, 90.0::DOUBLE, NULL::TIMESTAMP),
+    (1::UBIGINT, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (130) MICROSECOND, 50.0::DOUBLE, NULL::TIMESTAMP),
+    (1::UBIGINT, TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (180) MICROSECOND, 60.0::DOUBLE, NULL::TIMESTAMP)
+) AS t(series_id, ts, value, start_ts);
+
+query I
+SELECT list(rate ORDER BY ts) FROM ts_rate_reference('sliding_reset_dataset',
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (100) MICROSECOND,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (200) MICROSECOND, 50, 100);
+----
+[1.8, 1.0, 0.2]
+
+query I
+SELECT ts_rate(ts, value,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (100) MICROSECOND,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (200) MICROSECOND, 50, 100)
+FROM sliding_reset_dataset;
+----
+[1.8, 1.0, 0.2]
+
+query I
+SELECT "values" FROM ts_rate(
+    (SELECT series_id, ts, value FROM sliding_reset_dataset),
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (100) MICROSECOND,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (200) MICROSECOND, 50, 100);
+----
+[1.8, 1.0, 0.2]

@@ -23,6 +23,7 @@ TREE_SCANS = [
     ("python3", "hygiene/kernel-primitive-tests.py"),
     ("python3", "hygiene/oracle-fence.py"),
     ("python3", "hygiene/shape-roster.py"),
+    ("python3", "hygiene/parity-roster.py"),
     ("python3", "hygiene/kernel-fixture-loader.py"),
     ("python3", "hygiene/derivation-sync.py"),
     ("python3", "hygiene/registry-roster-closure.py"),

@@ -1,0 +1,5 @@
+{
+  "src/kernel/registry.def": "VFNfRk4odHNfcmF0ZSwgUkFOR0UsIFJBV19XSU5ET1csIEQwLCBFWFRSQVBPTEFURSwgQ09VTlRFUiwgU1VNX0FCU19USU1FU19GQUNUT1IpCg==",
+  "test/sql/parity-roster.json": "WyJ0c19yYXRlIl0K",
+  "test/sql/ts_rate_operator.test": "IyBuYW1lOiB0ZXN0L3NxbC90c19yYXRlX29wZXJhdG9yLnRlc3QKIyBubyBwYXJpdHkgY2l0YXRpb24gaGVyZQo="
+}
