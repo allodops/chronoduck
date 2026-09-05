@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://chronoduck/test/fixtures/schema.json",
   "title": "ChronoDuck language-neutral fixture",
-  "description": "docs/testing/registry-and-fixtures.md's fixture format — enforced in practice by scripts/fixtures-validate.mjs, which implements these rules directly (dependency-light Bun script per Article IV.2) rather than a generic schema interpreter. This file is the canonical field reference.",
+  "description": "docs/testing/registry-and-fixtures.md's fixture format — enforced in practice by scripts/fixtures-validate.py, which implements these rules directly (dependency-light Python script per Article IV.2) rather than a generic schema interpreter. This file is the canonical field reference.",
   "type": "object",
   "required": ["fixture", "function", "edge_mode", "domain", "grid", "window", "lookback", "samples", "provenance"],
   "properties": {

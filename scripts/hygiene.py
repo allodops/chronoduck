@@ -6,15 +6,10 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 # Paths are relative to this file's own directory (scripts/), not implicitly
 # rooted under scripts/hygiene/ — most scans live there, but fixtures-validate
-# (#194) lives at scripts/fixtures-validate.mjs, schema.json's sibling per
+# (#194) lives at scripts/fixtures-validate.py, schema.json's sibling per
 # #146, so it's named without the "hygiene/" prefix like every other entry.
 #
-# Each entry is (interpreter, relative path). Every scan below is a Python
-# port; fixtures-validate.py lives outside scripts/hygiene/ (per issue #241's
-# own text, it was out of that port's scope) but was itself ported to Python
-# by a later issue in this milestone (#242) -- run under python3 like every
-# other entry now that the Makefile/CI cutover (#245) means nothing in this
-# list can fall back on a Bun toolchain being present.
+# Each entry is (interpreter, relative path); every scan runs under python3.
 TREE_SCANS = [
     ("python3", "hygiene/forbid-ledger.py"),
     ("python3", "hygiene/forbid-consumer.py"),

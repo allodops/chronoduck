@@ -30,14 +30,18 @@ export OVERRIDE_GIT_DESCRIBE ?= $(shell python3 scripts/print-duckdb-pin.py)
 # as subprocesses by scripts/hygiene.py itself rather than as their own `make
 # <target>` — so a per-target prerequisite can't guarantee PyYAML is present
 # before they run; this unconditional, parse-time bootstrap can. Needed
-# because `actions/setup-python` (replacing `oven-sh/setup-bun`, issue #245)
-# puts its own bare interpreter — pip/setuptools/wheel only, no third-party
-# packages — ahead of the system python3 on PATH, so the PyYAML the CI
-# runner image's system python3 has via cloud-init is no longer what `python3`
-# resolves to. The `import yaml` probe makes this a no-op (no network) on any
-# python3 that already has it, system or otherwise. A `requirements.txt` is
-# issue #246's job, once the rest of the Bun toolchain also goes away.
-_ := $(shell python3 -c "import yaml" 2>/dev/null || python3 -m pip install --quiet --disable-pip-version-check pyyaml)
+# because CI's `actions/setup-python` step puts its own bare interpreter —
+# pip/setuptools/wheel only, no third-party packages — ahead of the system
+# python3 on PATH, so the
+# PyYAML the CI runner image's system python3 has via cloud-init is no longer
+# what `python3` resolves to. The `import yaml` probe makes this a no-op (no
+# network) on any python3 that already has it, system or otherwise. Installs
+# the pinned version from requirements.txt (issue #246) rather than an
+# unversioned `pip install pyyaml` so CI and local runs resolve the same
+# PyYAML release. `workflow-shape`/Article IV.3 forbid a non-`make` workflow
+# step, so this lives here rather than as its own `pip install` step in the
+# YAML.
+_ := $(shell python3 -c "import yaml" 2>/dev/null || python3 -m pip install --quiet --disable-pip-version-check -r requirements.txt)
 
 # Include the Makefile from extension-ci-tools — optionally: our own
 # project targets (hygiene, lint scans, ...) never touch C++/CMake and don't
@@ -147,7 +151,7 @@ chdb-differential: ## Run every rate fixture (test/fixtures/rate/*.yaml and test
 	python3 scripts/live-oracles/chdb-differential.py
 
 .PHONY: memory-check-grid-stream
-memory-check-grid-stream: ## Operator-level L11 self-check for issue #40 AC2: peak RSS stays flat across a 100x-1000x series-count spread on the 1s/5min-window shape (release build required; not a merge-gate lane, see #45); still bun -- #239-#244 never ported it, see #257
+memory-check-grid-stream: ## Operator-level L11 self-check for issue #40 AC2: peak RSS stays flat across a 100x-1000x series-count spread on the 1s/5min-window shape (release build required; not a merge-gate lane, see #45); requires Bun (Python port tracked by #257)
 	bun scripts/memory-check-grid-stream.mjs
 
 .PHONY: build-relevant-changed

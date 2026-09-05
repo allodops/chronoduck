@@ -4,9 +4,9 @@
 // harness reads`) `function`, `edge_mode`, `domain`, `grid`, `window`,
 // `lookback`, `samples`, `expected` and `wrong`. One invocation evaluates
 // one fixture:
-// `scripts/kernel-fixture-loader.mjs` parses the fixture's YAML (the
-// language-neutral format already has a YAML parser on the Bun side,
-// `fixtures-validate.mjs`'s own `yaml` import — reusing it here rather than
+// `scripts/kernel-fixture-loader.py` parses the fixture's YAML (the
+// language-neutral format already has a YAML parser on the Python side,
+// `fixtures-validate.py`'s own `yaml` import — reusing it here rather than
 // writing a second one in C++ keeps YAML parsing in exactly one place) and
 // feeds this program a flat, line-oriented wire format over stdin; every
 // number this program then touches — the fold, the extrapolation, the

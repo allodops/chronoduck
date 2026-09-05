@@ -29,7 +29,7 @@ An M0 issue only touches the files its own scope implies (Article III.4); do not
 - `src/`, `src/include/` — the C++ kernel and DuckDB glue; `src/kernel/registry.def` is the single source of truth for registered functions (from T1.2 on).
 - `test/sql/` — sqllogictest files; `test/fixtures/` — the language-neutral fixture corpus; `test/oracle/` — the from-scratch oracle (must never include `src/`).
 - `docs/design/` — what the system is; `docs/testing/` — the testing discipline, binding per Article V.2; `docs/decisions/` — ADRs, the only place a "why" lives.
-- `scripts/` — every script, as Bun shell modules (`.mjs`, `import { $ } from "bun"`); nothing else scripts anything.
+- `scripts/` — every script, as Python (`.py`), except a script whose entire job is a short sequence of external-command invocations, which is POSIX shell (`.sh`) instead (Article IV.2); nothing else scripts anything. `scripts/memory-check-grid-stream.mjs` is the sole exception, pending its Python port (#257).
 - `.github/workflows/` — every step is `make <target>` after checkout/setup, or a pinned reusable `uses:` (Article IV.3).
 - `.claude/rules/review.md` — the fresh-session PR review checklist (Article VIII.2).
 

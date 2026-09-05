@@ -1,0 +1,7 @@
+# Pins the one third-party dependency scripts/*.py needs: PyYAML, imported
+# by adr-lint.py, check-pins.py, description-validate.py, fixtures-validate.py,
+# lanes-check.py, hygiene/{derivation-sync,forbid-consumer,kernel-fixture-loader,
+# registry-roster-closure,workflow-shape}.py and live-oracles/chdb-differential.py.
+# Version pinned to the latest stable release as of issue #246; bump deliberately,
+# not implicitly, if a future script needs a newer PyYAML feature.
+PyYAML==6.0.3
