@@ -1,0 +1,275 @@
+# name: test/sql/ts_rate_operator.test
+# description: ts_rate(...) operator form (T2.2), the partition-sort sink-and-source physical operator
+# group: [sql]
+
+# docs/decisions/0003, docs/decisions/0018 — reached as a second table-function overload of the same
+# SQL name, not a new registry.def row (see the block comment above `RangeStreamBindData` in
+# src/chronoduck_extension.cpp for why).
+
+require chronoduck
+
+# --- same three fixtures test/sql/ts_rate.test already pins for the
+# aggregate form, run through the operator instead: bit-exact agreement is
+# the point, not re-deriving the numbers. Column aliasing on the FROM-clause
+# table function (`AS r(...)`) is not applied for a `bind_operator`-based
+# function (a DuckDB binder limitation confirmed live against the built
+# extension), so this file selects the operator's own output names —
+# `series_id`, `values` — directly instead. ----------------------------------
+
+# rate/edge-boundary.yaml, through the operator.
+query I
+SELECT "values" FROM ts_rate(
+    (SELECT 1::UBIGINT AS series_id, ts, v::DOUBLE AS value FROM (VALUES
+        (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (100) MICROSECOND, 999.0),
+        (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (101) MICROSECOND, 10.0),
+        (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (200) MICROSECOND, 40.0)
+    ) AS t(ts, v)),
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (200) MICROSECOND,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (200) MICROSECOND, 1, 100
+);
+----
+[0.30303030303030304]
+
+# rate/dup-duplicate-timestamp.yaml, through the operator: the 50-vs-37.5
+# duplicate-timestamp bug, deduplicated by `grid_stream` itself this time,
+# not `SampleBuffer::sort_dedup`.
+query I
+SELECT "values" FROM ts_rate(
+    (SELECT 1::UBIGINT AS series_id, ts, v::DOUBLE AS value FROM (VALUES
+        (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (10) MICROSECOND, 1000.0),
+        (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (10) MICROSECOND, 700.0),
+        (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (70) MICROSECOND, 4000.0)
+    ) AS t(ts, v)),
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (112) MICROSECOND,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (112) MICROSECOND, 1, 108
+);
+----
+[50.0]
+
+# rate/threshold-single-sample-with-st.yaml, through the operator: the
+# `start_ts` column is detected by name, not by argument count.
+query I
+SELECT "values" FROM ts_rate(
+    (SELECT 1::UBIGINT AS series_id, ts, v::DOUBLE AS value, st AS start_ts FROM (VALUES
+        (TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (100) MICROSECOND, 5.0,
+         TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (80) MICROSECOND)
+    ) AS t(ts, v, st)),
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (110) MICROSECOND,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (110) MICROSECOND, 1, 60
+);
+----
+[0.125]
+
+# --- bind-time error catalogue -----------------------------------------------
+
+statement error
+SELECT * FROM ts_rate(
+    (SELECT 1::UBIGINT AS series_id, ts, v FROM (VALUES (TIMESTAMP '2024-01-01', 1.0)) AS t(ts, v)),
+    TIMESTAMP '2024-01-01', TIMESTAMP '2024-01-01', 1, 100
+);
+----
+must project columns named
+
+statement error
+SELECT * FROM ts_rate(
+    (SELECT 1::UBIGINT AS series_id, ts::VARCHAR AS ts, v::DOUBLE AS value FROM (VALUES (TIMESTAMP '2024-01-01', 1.0)) AS t(ts, v)),
+    TIMESTAMP '2024-01-01', TIMESTAMP '2024-01-01', 1, 100
+);
+----
+'ts' column must be TIMESTAMP
+
+statement error
+SELECT * FROM ts_rate(
+    (SELECT 1::UBIGINT AS series_id, ts, v::VARCHAR AS value FROM (VALUES (TIMESTAMP '2024-01-01', 1.0)) AS t(ts, v)),
+    TIMESTAMP '2024-01-01', TIMESTAMP '2024-01-01', 1, 100
+);
+----
+'value' column must be DOUBLE
+
+statement error
+SELECT * FROM ts_rate(
+    (SELECT 1::UBIGINT AS series_id, ts, v::DOUBLE AS value FROM (VALUES (TIMESTAMP '2024-01-01', 1.0)) AS t(ts, v)),
+    TIMESTAMP '2024-01-01', TIMESTAMP '2024-01-01', 0, 100
+);
+----
+step must be positive
+
+statement error
+SELECT * FROM ts_rate(
+    (SELECT 1::UBIGINT AS series_id, ts, v::DOUBLE AS value FROM (VALUES (TIMESTAMP '2024-01-01', 1.0)) AS t(ts, v)),
+    TIMESTAMP '2024-01-01', TIMESTAMP '2024-01-01', 1, 0
+);
+----
+window must be positive
+
+# --- fixture-equal to the aggregate form: acceptance criterion 1 ------------
+#
+# 40 series x 3001 samples each (120,040 rows): every series' own range
+# spans far more than one STANDARD_VECTOR_SIZE morsel (3001 > 2048), so this
+# one dataset also exercises "a series split across two morsels" from the
+# operator's own L8 roster (docs/testing/layers.md). Values are an arbitrary
+# deterministic formula — this leg proves the two paths agree with each
+# other, not that either is correct against a reference (L1-L3 already own
+# that).
+
+statement ok
+CREATE TEMP TABLE grid_stream_samples AS
+SELECT
+    (i % 40)::UBIGINT AS series_id,
+    TIMESTAMP '2024-01-01 00:00:00' + INTERVAL ((i // 40) * 15) SECOND AS ts,
+    (((i // 40) % 97) + (i % 40) * 3)::DOUBLE AS value
+FROM generate_series(0, 120039) AS t(i);
+
+statement ok
+CREATE TEMP VIEW grid_stream_shuffled AS
+    SELECT * FROM grid_stream_samples
+    ORDER BY (series_id * 104729 + epoch(ts)::BIGINT * 97) % 999983
+    LIMIT 120040;
+
+statement ok
+CREATE TEMP VIEW grid_stream_reversed AS
+    SELECT * FROM grid_stream_samples ORDER BY series_id DESC, ts DESC LIMIT 120040;
+
+# One comparison view per row order — a view re-runs its query fresh on
+# every SELECT, so `threads`/`preserve_insertion_order` below apply to it
+# each time even though it is only ever defined once. EXCEPT both ways
+# catches a cardinality mismatch as well as a value one; EXCEPT/UNION ALL
+# compare by position, not name, so the operator's own `series_id`/`values`
+# names never need to match the aggregate side's aliases.
+statement ok
+CREATE TEMP VIEW grid_stream_diff_natural AS
+    (SELECT series_id, "values" FROM ts_rate(
+        (SELECT series_id, ts, value FROM grid_stream_samples),
+        TIMESTAMP '2024-01-01 00:00:00',
+        TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (3000 * 15) SECOND,
+        300000000, 300000000
+    )
+    EXCEPT
+    SELECT series_id, ts_rate(ts, value,
+        TIMESTAMP '2024-01-01 00:00:00',
+        TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (3000 * 15) SECOND,
+        300000000, 300000000)
+    FROM grid_stream_samples GROUP BY series_id)
+    UNION ALL
+    (SELECT series_id, ts_rate(ts, value,
+        TIMESTAMP '2024-01-01 00:00:00',
+        TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (3000 * 15) SECOND,
+        300000000, 300000000)
+    FROM grid_stream_samples GROUP BY series_id
+    EXCEPT
+    SELECT series_id, "values" FROM ts_rate(
+        (SELECT series_id, ts, value FROM grid_stream_samples),
+        TIMESTAMP '2024-01-01 00:00:00',
+        TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (3000 * 15) SECOND,
+        300000000, 300000000
+    ));
+
+statement ok
+CREATE TEMP VIEW grid_stream_diff_shuffled AS
+    (SELECT series_id, "values" FROM ts_rate(
+        (SELECT series_id, ts, value FROM grid_stream_shuffled),
+        TIMESTAMP '2024-01-01 00:00:00',
+        TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (3000 * 15) SECOND,
+        300000000, 300000000
+    )
+    EXCEPT
+    SELECT series_id, ts_rate(ts, value,
+        TIMESTAMP '2024-01-01 00:00:00',
+        TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (3000 * 15) SECOND,
+        300000000, 300000000)
+    FROM grid_stream_shuffled GROUP BY series_id)
+    UNION ALL
+    (SELECT series_id, ts_rate(ts, value,
+        TIMESTAMP '2024-01-01 00:00:00',
+        TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (3000 * 15) SECOND,
+        300000000, 300000000)
+    FROM grid_stream_shuffled GROUP BY series_id
+    EXCEPT
+    SELECT series_id, "values" FROM ts_rate(
+        (SELECT series_id, ts, value FROM grid_stream_shuffled),
+        TIMESTAMP '2024-01-01 00:00:00',
+        TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (3000 * 15) SECOND,
+        300000000, 300000000
+    ));
+
+statement ok
+CREATE TEMP VIEW grid_stream_diff_reversed AS
+    (SELECT series_id, "values" FROM ts_rate(
+        (SELECT series_id, ts, value FROM grid_stream_reversed),
+        TIMESTAMP '2024-01-01 00:00:00',
+        TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (3000 * 15) SECOND,
+        300000000, 300000000
+    )
+    EXCEPT
+    SELECT series_id, ts_rate(ts, value,
+        TIMESTAMP '2024-01-01 00:00:00',
+        TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (3000 * 15) SECOND,
+        300000000, 300000000)
+    FROM grid_stream_reversed GROUP BY series_id)
+    UNION ALL
+    (SELECT series_id, ts_rate(ts, value,
+        TIMESTAMP '2024-01-01 00:00:00',
+        TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (3000 * 15) SECOND,
+        300000000, 300000000)
+    FROM grid_stream_reversed GROUP BY series_id
+    EXCEPT
+    SELECT series_id, "values" FROM ts_rate(
+        (SELECT series_id, ts, value FROM grid_stream_reversed),
+        TIMESTAMP '2024-01-01 00:00:00',
+        TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (3000 * 15) SECOND,
+        300000000, 300000000
+    ));
+
+# threads x preserve_insertion_order x row-order roster
+# (docs/testing/layers.md's L8: "threads {1,2,4,8}, preserve_insertion_order
+# on and off, ... shuffled and reverse-sorted input"). One `foreach` level —
+# `test/sql/ts_rate_partition_determinism.test`'s own established pattern —
+# with `preserve_insertion_order` unrolled by hand inside it.
+foreach threadcount 1 2 4 8
+
+statement ok
+SET threads=${threadcount}
+
+statement ok
+SET preserve_insertion_order=true
+
+query I
+SELECT count(*) FROM grid_stream_diff_natural;
+----
+0
+
+query I
+SELECT count(*) FROM grid_stream_diff_shuffled;
+----
+0
+
+query I
+SELECT count(*) FROM grid_stream_diff_reversed;
+----
+0
+
+statement ok
+SET preserve_insertion_order=false
+
+query I
+SELECT count(*) FROM grid_stream_diff_natural;
+----
+0
+
+query I
+SELECT count(*) FROM grid_stream_diff_shuffled;
+----
+0
+
+query I
+SELECT count(*) FROM grid_stream_diff_reversed;
+----
+0
+
+endloop
+
+statement ok
+SET preserve_insertion_order=true
+
+statement ok
+SET threads=4
